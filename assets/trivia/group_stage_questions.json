@@ -1,0 +1,97 @@
+{
+  "matchDay": "default",
+  "stage": "group",
+  "teamsPlaying": [],
+  "questions": [
+    {
+      "id": "g001",
+      "category": "general_football",
+      "difficulty": "easy",
+      "q": "How many teams compete in the 2026 World Cup?",
+      "options": ["32", "40", "48", "64"],
+      "correct": 2,
+      "explanation": "2026 is the first World Cup with 48 teams."
+    },
+    {
+      "id": "g002",
+      "category": "general_football",
+      "difficulty": "easy",
+      "q": "How many World Cups has Brazil won?",
+      "options": ["3", "4", "5", "6"],
+      "correct": 2,
+      "explanation": "Brazil has won 5 World Cups (1958, 1962, 1970, 1994, 2002)."
+    },
+    {
+      "id": "g003",
+      "category": "stage_history",
+      "difficulty": "medium",
+      "q": "Which team was famously eliminated in the group stage of both 2010 and 2014?",
+      "options": ["France", "Spain", "Italy", "Germany"],
+      "correct": 2,
+      "explanation": "Italy were eliminated in the group stage in both 2010 and 2014."
+    },
+    {
+      "id": "g004",
+      "category": "general_football",
+      "difficulty": "medium",
+      "q": "Who won the Golden Ball at the 2022 World Cup?",
+      "options": ["Kylian Mbappé", "Lionel Messi", "Luka Modrić", "Neymar"],
+      "correct": 1,
+      "explanation": "Messi won the Golden Ball as best player of the tournament."
+    },
+    {
+      "id": "g005",
+      "category": "general_football",
+      "difficulty": "hard",
+      "q": "Who is the all-time top scorer in World Cup history?",
+      "options": ["Ronaldo (Brazil)", "Miroslav Klose", "Gerd Müller", "Pelé"],
+      "correct": 1,
+      "explanation": "Miroslav Klose holds the record with 16 World Cup goals."
+    },
+    {
+      "id": "g006",
+      "category": "general_football",
+      "difficulty": "medium",
+      "q": "Which country hosts the most matches in 2026?",
+      "options": ["Mexico", "Canada", "United States", "All equal"],
+      "correct": 2,
+      "explanation": "The USA hosts 78 of the 104 matches in 2026."
+    },
+    {
+      "id": "g007",
+      "category": "general_football",
+      "difficulty": "easy",
+      "q": "Which African country reached the World Cup semi-final in 2022?",
+      "options": ["Senegal", "Morocco", "Cameroon", "Ghana"],
+      "correct": 1,
+      "explanation": "Morocco became the first African team in a World Cup semi-final."
+    },
+    {
+      "id": "g008",
+      "category": "general_football",
+      "difficulty": "medium",
+      "q": "Which player has scored in 4 different World Cups?",
+      "options": ["Pelé", "Cristiano Ronaldo", "Both Pelé and Ronaldo", "Lionel Messi"],
+      "correct": 2,
+      "explanation": "Both Pelé and Cristiano Ronaldo have scored in 4 different World Cups."
+    },
+    {
+      "id": "g009",
+      "category": "general_football",
+      "difficulty": "hard",
+      "q": "Which country won the first ever World Cup in 1930?",
+      "options": ["Brazil", "Argentina", "Italy", "Uruguay"],
+      "correct": 3,
+      "explanation": "Uruguay hosted and won the inaugural 1930 World Cup."
+    },
+    {
+      "id": "g010",
+      "category": "general_football",
+      "difficulty": "easy",
+      "q": "How many goals did Diego Maradona score in the 1986 World Cup?",
+      "options": ["3", "5", "6", "8"],
+      "correct": 1,
+      "explanation": "Maradona scored 5 goals in 1986, including the 'Hand of God' and 'Goal of the Century'."
+    }
+  ]
+}

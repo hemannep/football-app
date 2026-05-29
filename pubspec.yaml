@@ -1,0 +1,67 @@
+name: football_fan_hub_2026
+description: Football Fan Hub 2026 - Your free WC companion app
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.4.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:        # Required for AppL10n / intl support
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+
+  # ── State management ───────────────────────────────────────────────────────
+  flutter_riverpod: ^3.0.3      # Latest stable; Riverpod 3.x requires Dart >=3.4
+
+  # ── Firebase (all on Spark free plan) ────────────────────────────────────
+  firebase_core: ^4.3.0
+  firebase_auth: ^6.1.3
+  cloud_firestore: ^6.1.1
+  firebase_messaging: ^16.0.0
+  firebase_analytics: ^12.0.0
+  firebase_remote_config: ^6.0.0
+  firebase_crashlytics: ^5.0.6
+
+  # ── Network + offline cache ───────────────────────────────────────────────
+  http: ^1.2.2
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+
+  # ── Ads + IAP ────────────────────────────────────────────────────────────
+  google_mobile_ads: ^6.0.0    # v6 = GMA SDK 23+, required for UMP consent
+  in_app_purchase: ^3.2.3
+
+  # ── UI & media ───────────────────────────────────────────────────────────
+  cached_network_image: ^3.4.1
+  flutter_svg: ^2.0.17
+  shimmer: ^3.0.0
+
+  # ── Share / screenshot ───────────────────────────────────────────────────
+  screenshot: ^2.3.0
+  share_plus: ^10.0.3           # v10 fixes AndroidX issues on API 34+
+
+  # ── Localisation & date/time ─────────────────────────────────────────────
+  intl: ^0.20.2                 # Must match flutter_localizations' intl version
+  timezone: ^0.10.1
+  flutter_local_notifications: ^19.4.1
+
+  # ── Utilities ────────────────────────────────────────────────────────────
+  url_launcher: ^6.3.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+  generate: true                # Enables AppLocalizations auto-generation
+
+  assets:
+    - assets/trivia/
+    - assets/trivia/match_day_questions/
+    - assets/data/
+    - assets/images/

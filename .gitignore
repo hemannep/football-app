@@ -1,0 +1,26 @@
+# Flutter
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+.idea/
+.vscode/
+
+# Android
+android/.gradle/
+android/local.properties
+android/key.properties
+android/app/release/
+*.jks
+*.keystore
+
+# Secrets — DO NOT COMMIT
+android/app/google-services.json
+lib/core/constants/admob_ids.dart
+lib/core/constants/api_constants.dart
+
+# OS
+.DS_Store

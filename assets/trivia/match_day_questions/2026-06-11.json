@@ -1,0 +1,97 @@
+{
+  "matchDay": "2026-06-11",
+  "stage": "group",
+  "teamsPlaying": ["Mexico", "Canada", "United States"],
+  "questions": [
+    {
+      "id": "d001",
+      "category": "team_today",
+      "difficulty": "easy",
+      "q": "Which of the three 2026 host nations has won a World Cup match the most times?",
+      "options": ["Canada", "Mexico", "United States", "They are tied"],
+      "correct": 1,
+      "explanation": "Mexico has the most World Cup match wins among the three hosts."
+    },
+    {
+      "id": "d002",
+      "category": "team_today",
+      "difficulty": "medium",
+      "q": "How many times has Mexico hosted the World Cup before 2026?",
+      "options": ["Once", "Twice", "Three times", "Never"],
+      "correct": 1,
+      "explanation": "Mexico hosted in 1970 and 1986."
+    },
+    {
+      "id": "d003",
+      "category": "team_today",
+      "difficulty": "medium",
+      "q": "What was Canada's best World Cup finish before 2026?",
+      "options": ["Group stage exit", "Round of 16", "Quarter-finals", "They had never qualified"],
+      "correct": 0,
+      "explanation": "Canada had only previously appeared in 1986 and 2022, both group-stage exits."
+    },
+    {
+      "id": "d004",
+      "category": "stage_history",
+      "difficulty": "medium",
+      "q": "What is the maximum number of points a team can earn in the group stage of a World Cup?",
+      "options": ["6", "9", "12", "15"],
+      "correct": 1,
+      "explanation": "9 points from 3 wins in 3 group games."
+    },
+    {
+      "id": "d005",
+      "category": "stage_history",
+      "difficulty": "medium",
+      "q": "Which team is the only one to win all their group-stage matches and go on to win the World Cup since 2000?",
+      "options": ["Spain 2010", "Germany 2014", "France 2018", "Brazil 2002"],
+      "correct": 3,
+      "explanation": "Brazil 2002 won every game on their way to the trophy."
+    },
+    {
+      "id": "d006",
+      "category": "general_football",
+      "difficulty": "easy",
+      "q": "What is the maximum squad size allowed at the 2026 World Cup?",
+      "options": ["23", "26", "28", "30"],
+      "correct": 1,
+      "explanation": "FIFA expanded squads to 26 players from the 2022 tournament onwards."
+    },
+    {
+      "id": "d007",
+      "category": "general_football",
+      "difficulty": "easy",
+      "q": "How many minutes are played in a standard knockout match before extra time?",
+      "options": ["80", "90", "100", "120"],
+      "correct": 1,
+      "explanation": "90 minutes of regular time."
+    },
+    {
+      "id": "d008",
+      "category": "general_football",
+      "difficulty": "medium",
+      "q": "Which country has appeared in the most World Cup tournaments?",
+      "options": ["Germany", "Argentina", "Brazil", "Italy"],
+      "correct": 2,
+      "explanation": "Brazil is the only country to appear in every World Cup."
+    },
+    {
+      "id": "d009",
+      "category": "general_football",
+      "difficulty": "hard",
+      "q": "Who scored the fastest goal in World Cup history?",
+      "options": ["Hakan Şükür", "Clint Dempsey", "Robin van Persie", "Bryan Robson"],
+      "correct": 0,
+      "explanation": "Turkey's Hakan Şükür scored after 11 seconds vs South Korea in 2002."
+    },
+    {
+      "id": "d010",
+      "category": "general_football",
+      "difficulty": "medium",
+      "q": "Which player has won the most Ballon d'Or awards?",
+      "options": ["Cristiano Ronaldo", "Lionel Messi", "Michel Platini", "Johan Cruyff"],
+      "correct": 1,
+      "explanation": "Messi has won the most Ballon d'Or trophies."
+    }
+  ]
+}

@@ -1,0 +1,95 @@
+{
+  "matchDay": "default",
+  "stage": "quarterfinal",
+  "teamsPlaying": [],
+  "questions": [
+    {
+      "id": "qf001",
+      "category": "stage_history",
+      "difficulty": "easy",
+      "q": "How many teams reach the quarter-finals of a World Cup?",
+      "options": ["4", "6", "8", "16"],
+      "correct": 2
+    },
+    {
+      "id": "qf002",
+      "category": "stage_history",
+      "difficulty": "medium",
+      "q": "Who scored Argentina's first goal in the famous 1986 QF vs England?",
+      "options": ["Jorge Valdano", "Diego Maradona", "Jorge Burruchaga", "Oscar Ruggeri"],
+      "correct": 1,
+      "explanation": "Maradona scored both — the 'Hand of God' and the 'Goal of the Century'."
+    },
+    {
+      "id": "qf003",
+      "category": "stage_history",
+      "difficulty": "medium",
+      "q": "Which African team first reached a World Cup quarter-final?",
+      "options": ["Senegal (2002)", "Ghana (2010)", "Cameroon (1990)", "Morocco (1986)"],
+      "correct": 2,
+      "explanation": "Cameroon's run in Italia 90 broke new ground for African football."
+    },
+    {
+      "id": "qf004",
+      "category": "stage_history",
+      "difficulty": "hard",
+      "q": "Which country has lost the most World Cup quarter-finals?",
+      "options": ["England", "Brazil", "Netherlands", "Mexico"],
+      "correct": 3,
+      "explanation": "Mexico has been eliminated at the round of 16 / QF stage many times — often referred to as the 'fifth game curse'."
+    },
+    {
+      "id": "qf005",
+      "category": "general_football",
+      "difficulty": "easy",
+      "q": "Who won the Golden Boot at the 2022 World Cup?",
+      "options": ["Lionel Messi", "Olivier Giroud", "Kylian Mbappé", "Julián Álvarez"],
+      "correct": 2,
+      "explanation": "Mbappé scored 8 goals in 2022."
+    },
+    {
+      "id": "qf006",
+      "category": "general_football",
+      "difficulty": "medium",
+      "q": "Which World Cup final had the highest combined score?",
+      "options": ["1958 (Sweden v Brazil)", "1970 (Italy v Brazil)", "1986 (Germany v Argentina)", "2022 (Argentina v France)"],
+      "correct": 3,
+      "explanation": "Argentina 3-3 France in 2022 was the highest-scoring final in regulation+ET."
+    },
+    {
+      "id": "qf007",
+      "category": "general_football",
+      "difficulty": "hard",
+      "q": "Which player holds the record for most assists in a single World Cup?",
+      "options": ["Pelé", "Diego Maradona", "Mario Kempes", "Lionel Messi"],
+      "correct": 0,
+      "explanation": "Pelé recorded the most assists in a single World Cup (1970)."
+    },
+    {
+      "id": "qf008",
+      "category": "general_football",
+      "difficulty": "medium",
+      "q": "Which trophy is presented to the World Cup winners since 1974?",
+      "options": ["Jules Rimet", "FIFA World Cup Trophy", "Coupe du Monde", "Henri Delaunay"],
+      "correct": 1
+    },
+    {
+      "id": "qf009",
+      "category": "general_football",
+      "difficulty": "easy",
+      "q": "How many subs are allowed in a World Cup match (regulation)?",
+      "options": ["3", "4", "5", "6"],
+      "correct": 2,
+      "explanation": "Five substitutions per team since the 2022 cycle."
+    },
+    {
+      "id": "qf010",
+      "category": "general_football",
+      "difficulty": "medium",
+      "q": "Which manager has won the most World Cups as a coach?",
+      "options": ["Carlos Bilardo", "Vittorio Pozzo", "Mario Zagallo", "Aimé Jacquet"],
+      "correct": 1,
+      "explanation": "Pozzo won the World Cup twice with Italy (1934, 1938)."
+    }
+  ]
+}

@@ -1,0 +1,155 @@
+import 'dart:async';
+import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:firebase_remote_config/firebase_remote_config.dart';
+import 'package:flutter/foundation.dart';
+
+import 'user_profile_service.dart';
+
+/// Top-level handler required by FCM for background messages
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  debugPrint('FCM background: ${message.notification?.title}');
+}
+
+class FirebaseService {
+  FirebaseService._();
+  static final FirebaseService instance = FirebaseService._();
+
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseAnalytics _analytics = FirebaseAnalytics.instance;
+  final FirebaseMessaging _fcm = FirebaseMessaging.instance;
+  final FirebaseRemoteConfig _remoteConfig = FirebaseRemoteConfig.instance;
+
+  String? get userId => _auth.currentUser?.uid;
+  bool get isSignedIn => _auth.currentUser != null;
+
+  // ─── Init (called from main.dart) ────────────────────────────────────────
+
+  static Future<void> initialize() async {
+    // 1. Crashlytics — catch Flutter framework errors
+    FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
+    PlatformDispatcher.instance.onError = (error, stack) {
+      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+      return true;
+    };
+
+    // 2. Sync user profile (restores display name after reinstall)
+    await UserProfileService.instance.syncFromFirestore();
+
+    // ... rest of your initialize() method
+    // 2. Anonymous auth — gives every device a stable UID
+    await instance._signInAnonymously();
+
+    // 3. FCM
+    await instance._initFCM();
+
+    // 4. Remote Config — defaults so app works offline
+    await instance._initRemoteConfig();
+
+    // 5. Analytics — set user ID so events are tied to the device
+    if (instance.userId != null) {
+      await instance._analytics.setUserId(id: instance.userId);
+    }
+  }
+
+  // ─── Anonymous Auth ───────────────────────────────────────────────────────
+
+  Future<void> _signInAnonymously() async {
+    if (_auth.currentUser != null) return; // already signed in
+    try {
+      await _auth.signInAnonymously();
+      debugPrint('FirebaseService: signed in as ${_auth.currentUser?.uid}');
+    } on FirebaseAuthException catch (e) {
+      debugPrint('FirebaseService: auth failed — ${e.code}');
+    }
+  }
+
+  // ─── FCM ──────────────────────────────────────────────────────────────────
+
+  Future<void> _initFCM() async {
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+    final settings = await _fcm.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+    debugPrint('FCM permission: ${settings.authorizationStatus}');
+
+    // Subscribe to topic so you can blast all users from Firebase console
+    await _fcm.subscribeToTopic('wc26_all');
+
+    // Foreground message handler
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      debugPrint('FCM foreground: ${message.notification?.title}');
+      // TODO: show in-app snackbar/banner via your notification provider
+    });
+
+    final token = await _fcm.getToken();
+    debugPrint('FCM token: $token');
+    // Optionally store token in Firestore for per-user targeting
+  }
+
+  Future<void> subscribeToMatchAlerts(String matchId) =>
+      _fcm.subscribeToTopic('match_$matchId');
+
+  Future<void> unsubscribeFromMatchAlerts(String matchId) =>
+      _fcm.unsubscribeFromTopic('match_$matchId');
+
+  // ─── Remote Config ────────────────────────────────────────────────────────
+
+  Future<void> _initRemoteConfig() async {
+    await _remoteConfig.setConfigSettings(RemoteConfigSettings(
+      fetchTimeout: const Duration(seconds: 10),
+      minimumFetchInterval: const Duration(hours: 1),
+    ));
+    await _remoteConfig.setDefaults({
+      'ads_enabled': true,
+      'predictor_enabled': true,
+      'trivia_enabled': true,
+      'api_base_url': 'https://api.football-data.org/v4',
+      'interstitial_frequency': 3, // show every N predictions
+    });
+    try {
+      await _remoteConfig.fetchAndActivate();
+    } catch (e) {
+      debugPrint('RemoteConfig fetch failed, using defaults: $e');
+    }
+  }
+
+  bool get adsEnabled => _remoteConfig.getBool('ads_enabled');
+  bool get predictorEnabled => _remoteConfig.getBool('predictor_enabled');
+  bool get triviaEnabled => _remoteConfig.getBool('trivia_enabled');
+  int get interstitialFrequency =>
+      _remoteConfig.getInt('interstitial_frequency');
+
+  // ─── Analytics helpers ────────────────────────────────────────────────────
+
+  Future<void> logScreenView(String screenName) =>
+      _analytics.logScreenView(screenName: screenName);
+
+  Future<void> logPredictionSubmitted(String matchId) =>
+      _analytics.logEvent(name: 'prediction_submitted', parameters: {
+        'match_id': matchId,
+        'uid': userId ?? 'anon',
+      });
+
+  Future<void> logTriviaCompleted({
+    required String matchDay,
+    required int score,
+    required int streak,
+  }) =>
+      _analytics.logEvent(name: 'trivia_completed', parameters: {
+        'match_day': matchDay,
+        'score': score,
+        'streak': streak,
+      });
+
+  Future<void> logAdRemoved() => _analytics.logEvent(name: 'iap_remove_ads');
+
+  Future<void> logBracketSimulated() =>
+      _analytics.logEvent(name: 'bracket_simulated');
+}

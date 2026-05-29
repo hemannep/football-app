@@ -1,0 +1,33 @@
+name: News Worker
+
+# Pulls football headlines from BBC + Guardian RSS hourly. Independent of the
+# live relay so a slow/down feed never affects live scores.
+on:
+  schedule:
+    - cron: '15 * * * *'  # every hour, 15 min past
+  workflow_dispatch: {}
+
+concurrency:
+  group: news
+  cancel-in-progress: false
+
+jobs:
+  news:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run news worker
+        run: node scripts/news_worker.js
+        env:
+          FIREBASE_SA: ${{ secrets.FIREBASE_SA }}

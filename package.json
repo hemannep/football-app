@@ -1,0 +1,16 @@
+{
+  "name": "football-fan-hub-relay",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Zero-cost data relay: football-data.org + API-Football -> Firestore for Football Fan Hub 2026.",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "relay": "node scripts/relay.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.7.0"
+  }
+}

@@ -1,0 +1,94 @@
+{
+  "matchDay": "default",
+  "stage": "semifinal",
+  "teamsPlaying": [],
+  "questions": [
+    {
+      "id": "sf001",
+      "category": "stage_history",
+      "difficulty": "medium",
+      "q": "What was the score of the 2014 World Cup semi-final between Brazil and Germany?",
+      "options": ["3-1", "5-2", "7-1", "4-0"],
+      "correct": 2,
+      "explanation": "Germany shocked Brazil 7-1 in Belo Horizonte."
+    },
+    {
+      "id": "sf002",
+      "category": "stage_history",
+      "difficulty": "easy",
+      "q": "Which African team first reached a World Cup semi-final?",
+      "options": ["Senegal", "Ghana", "Cameroon", "Morocco"],
+      "correct": 3,
+      "explanation": "Morocco reached the SF in 2022."
+    },
+    {
+      "id": "sf003",
+      "category": "stage_history",
+      "difficulty": "medium",
+      "q": "Which country has lost the most World Cup semi-finals?",
+      "options": ["Netherlands", "Sweden", "Uruguay", "England"],
+      "correct": 0,
+      "explanation": "The Netherlands have lost the most World Cup semi-finals."
+    },
+    {
+      "id": "sf004",
+      "category": "general_football",
+      "difficulty": "easy",
+      "q": "Who scored the only goal of the 2010 final?",
+      "options": ["Xavi", "Andrés Iniesta", "David Villa", "Fernando Torres"],
+      "correct": 1,
+      "explanation": "Iniesta scored in extra time vs Netherlands."
+    },
+    {
+      "id": "sf005",
+      "category": "general_football",
+      "difficulty": "medium",
+      "q": "Which country has the most World Cup runner-up finishes?",
+      "options": ["Argentina", "Germany", "Netherlands", "Hungary"],
+      "correct": 1,
+      "explanation": "Germany has the most runner-up finishes."
+    },
+    {
+      "id": "sf006",
+      "category": "general_football",
+      "difficulty": "hard",
+      "q": "Who scored Italy's winning penalty in the 2006 World Cup final shootout?",
+      "options": ["Andrea Pirlo", "Fabio Grosso", "Alessandro Del Piero", "Marco Materazzi"],
+      "correct": 1
+    },
+    {
+      "id": "sf007",
+      "category": "general_football",
+      "difficulty": "medium",
+      "q": "Who scored the famous header that Italy's Buffon saved in the 2006 final?",
+      "options": ["Patrick Vieira", "Zinedine Zidane", "Thierry Henry", "Franck Ribéry"],
+      "correct": 1
+    },
+    {
+      "id": "sf008",
+      "category": "general_football",
+      "difficulty": "easy",
+      "q": "How many minutes are added if a knockout match is level after 90 minutes?",
+      "options": ["15", "20", "30", "45"],
+      "correct": 2,
+      "explanation": "Two 15-minute halves of extra time."
+    },
+    {
+      "id": "sf009",
+      "category": "general_football",
+      "difficulty": "medium",
+      "q": "Which player has played the most World Cup matches?",
+      "options": ["Cristiano Ronaldo", "Lionel Messi", "Lothar Matthäus", "Paolo Maldini"],
+      "correct": 1,
+      "explanation": "Messi overtook Matthäus during the 2022 tournament."
+    },
+    {
+      "id": "sf010",
+      "category": "general_football",
+      "difficulty": "hard",
+      "q": "Which country was the host of the 1958 World Cup that Brazil first won?",
+      "options": ["Switzerland", "Sweden", "Chile", "England"],
+      "correct": 1
+    }
+  ]
+}

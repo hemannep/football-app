@@ -1,0 +1,30 @@
+[
+  {
+    "name": "Curaçao",
+    "tla": "CUW",
+    "population": "~150,000",
+    "rank": "82",
+    "story": "Smallest nation by population ever to qualify for a major World Cup — a tiny Caribbean island making history."
+  },
+  {
+    "name": "Cabo Verde",
+    "tla": "CPV",
+    "population": "~590,000",
+    "rank": "70",
+    "story": "Island archipelago off West Africa qualifying for their first ever World Cup — a story of belief and resilience."
+  },
+  {
+    "name": "Jordan",
+    "tla": "JOR",
+    "population": "~11.3M",
+    "rank": "62",
+    "story": "Middle Eastern debutant after years of near-misses, finally on the world's biggest stage."
+  },
+  {
+    "name": "Uzbekistan",
+    "tla": "UZB",
+    "population": "~36M",
+    "rank": "57",
+    "story": "Central Asian football powerhouse-in-waiting finally making their World Cup bow."
+  }
+]
