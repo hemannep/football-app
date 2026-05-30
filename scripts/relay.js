@@ -276,13 +276,22 @@ async function detectNewlyFinished(matches) {
   const metaRef      = db.collection('meta').doc('relay');
   const prev         = (await metaRef.get()).data() ?? {};
   const prevStatuses = prev.statuses ?? {};
+  const now          = Date.now();
+
+  // Guard: only treat a match as "newly finished" if it kicked off in the past
+  // 4 hours. Without this, the first run (empty prevStatuses) would queue the
+  // entire season history — thousands of matches — for per-match detail fetches.
+  const RECENT_MS = 4 * 60 * 60 * 1000;
 
   const newlyFinished = [];
   const statuses      = {};
   for (const m of matches) {
     statuses[m.id] = m.status;
     if (m.status === 'FINISHED' && prevStatuses[String(m.id)] !== 'FINISHED') {
-      newlyFinished.push(m.id);
+      const ko = new Date(m.utcDate).getTime();
+      if (now - ko <= RECENT_MS) {
+        newlyFinished.push(m.id);
+      }
     }
   }
   return { newlyFinished, statuses };
