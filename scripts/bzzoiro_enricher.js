@@ -41,16 +41,26 @@ admin.initializeApp({
 const db = admin.firestore();
 const NOW = admin.firestore.FieldValue.serverTimestamp;
 
+const HTTP_TIMEOUT_MS = 30000;
+
 // ─── HTTP ─────────────────────────────────────────────────────────────────────
 async function bzzGet(path) {
-  const res = await fetchFn(`${BSD}${path}`, {
-    headers: { Authorization: `Token ${process.env.BZZOIRO_TOKEN}` },
-  });
-  if (!res.ok) {
-    console.warn(`Bzzoiro ${res.status} on ${path}`);
+  const ctrl  = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), HTTP_TIMEOUT_MS);
+  try {
+    const res = await fetchFn(`${BSD}${path}`, {
+      headers: { Authorization: `Token ${process.env.BZZOIRO_TOKEN}` },
+      signal: ctrl.signal,
+    });
+    clearTimeout(timer);
+    if (!res.ok) { console.warn(`Bzzoiro ${res.status} on ${path}`); return null; }
+    return res.json();
+  } catch (err) {
+    clearTimeout(timer);
+    console.warn(err.name === 'AbortError'
+      ? `Bzzoiro timeout on ${path}` : `Bzzoiro error on ${path}: ${err.message}`);
     return null;
   }
-  return res.json();
 }
 
 // ─── Name normalization for cross-source matching ────────────────────────────

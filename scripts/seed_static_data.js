@@ -52,7 +52,9 @@ async function fdGet(path) {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // ─── Chunked commit ───────────────────────────────────────────────────────────
-async function commitInChunks(ops) {
+// A short pause between chunks prevents Firestore RESOURCE_EXHAUSTED bursts
+// when writing thousands of player docs in quick succession.
+async function commitInChunks(ops, delayBetweenMs = 1500) {
   let count = 0;
   for (let i = 0; i < ops.length; i += BATCH_LIMIT) {
     const slice = ops.slice(i, i + BATCH_LIMIT);
@@ -60,6 +62,7 @@ async function commitInChunks(ops) {
     for (const op of slice) batch.set(op.ref, op.data, { merge: true });
     await batch.commit();
     count += slice.length;
+    if (i + BATCH_LIMIT < ops.length) await sleep(delayBetweenMs);
   }
   return count;
 }
