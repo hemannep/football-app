@@ -51,6 +51,62 @@ const Map<String, String> _tlaToIso2 = {
   'ZAM': 'zm', 'ZIM': 'zw', 'SEY': 'sc',
 };
 
+/// Maps a player's nationality string (as returned by APIs) to a WC TLA so
+/// [FlagWidget] can render the correct country flag.  Returns null for unknown
+/// or club-only nationality strings.
+String? nationalityToTla(String? nationality) {
+  if (nationality == null || nationality.isEmpty) return null;
+  return _nameToTla[nationality] ??
+      _nameToTla[nationality.toLowerCase()] ??
+      // Exact TLA passthrough (some APIs return "BRA" already)
+      (_tlaToIso2.containsKey(nationality.toUpperCase())
+          ? nationality.toUpperCase()
+          : null);
+}
+
+const Map<String, String> _nameToTla = {
+  'France': 'FRA', 'Brazil': 'BRA', 'Argentina': 'ARG',
+  'Germany': 'GER', 'England': 'ENG', 'Spain': 'ESP',
+  'Portugal': 'POR', 'Netherlands': 'NED', 'Belgium': 'BEL',
+  'Italy': 'ITA', 'Croatia': 'CRO', 'Uruguay': 'URU',
+  'Mexico': 'MEX', 'United States': 'USA', 'United States of America': 'USA',
+  'Canada': 'CAN', 'Japan': 'JPN', 'South Korea': 'KOR', 'Korea Republic': 'KOR',
+  'Australia': 'AUS', 'Senegal': 'SEN', 'Morocco': 'MAR',
+  'Ghana': 'GHA', 'Nigeria': 'NGA', 'Egypt': 'EGY', 'Tunisia': 'TUN',
+  'Cameroon': 'CMR', "Côte d'Ivoire": 'CIV', 'Ivory Coast': 'CIV',
+  'Switzerland': 'SUI', 'Denmark': 'DEN', 'Poland': 'POL',
+  'Serbia': 'SRB', 'Wales': 'WAL', 'Scotland': 'SCO',
+  'Republic of Ireland': 'IRL', 'Ireland': 'IRL',
+  'Ecuador': 'ECU', 'Colombia': 'COL', 'Peru': 'PER', 'Chile': 'CHI',
+  'Paraguay': 'PAR', 'Venezuela': 'VEN', 'Bolivia': 'BOL',
+  'Costa Rica': 'CRC', 'Panama': 'PAN', 'Jamaica': 'JAM', 'Honduras': 'HON',
+  'Iran': 'IRN', 'Saudi Arabia': 'KSA', 'Qatar': 'QAT',
+  'United Arab Emirates': 'UAE', 'Jordan': 'JOR', 'Uzbekistan': 'UZB',
+  'Cape Verde': 'CPV', 'New Zealand': 'NZL', 'Turkey': 'TUR',
+  'Austria': 'AUT', 'Czech Republic': 'CZE', 'Czechia': 'CZE',
+  'Hungary': 'HUN', 'Sweden': 'SWE', 'Norway': 'NOR', 'Finland': 'FIN',
+  'Greece': 'GRE', 'Russia': 'RUS', 'Ukraine': 'UKR',
+  'South Africa': 'RSA', 'Algeria': 'ALG', 'China': 'CHN', "China PR": 'CHN',
+  'Romania': 'ROU', 'Slovakia': 'SVK', 'Slovenia': 'SVN',
+  'Albania': 'ALB', 'Bosnia and Herzegovina': 'BIH', 'Bosnia': 'BIH',
+  'Montenegro': 'MNE', 'Kosovo': 'KOS', 'Luxembourg': 'LUX',
+  'Iceland': 'ISL', 'Israel': 'ISR', 'Cyprus': 'CYP',
+  'Estonia': 'EST', 'Latvia': 'LVA', 'Lithuania': 'LTU',
+  'Belarus': 'BLR', 'Moldova': 'MDA', 'Armenia': 'ARM',
+  'Azerbaijan': 'AZE', 'Georgia': 'GEO', 'Kazakhstan': 'KAZ',
+  'India': 'IND', 'Thailand': 'THA', 'Indonesia': 'IDN',
+  'Philippines': 'PHI', 'Vietnam': 'VIE', 'North Korea': 'PRK',
+  'Taiwan': 'TPE', 'Libya': 'LBY', 'Kenya': 'KEN', 'Tanzania': 'TAN',
+  'Zimbabwe': 'ZIM', 'Zambia': 'ZAM', 'Rwanda': 'RWA', 'Uganda': 'UGA',
+  'Angola': 'AGO', 'Burkina Faso': 'BFA', 'Guinea': 'GUI', 'Mali': 'MLI',
+  'Liberia': 'LBR', 'Ethiopia': 'ETH', 'Democratic Republic of the Congo': 'COD',
+  'Congo': 'COG', 'Gabon': 'GAB', 'Gambia': 'GAM', 'Togo': 'TOG',
+  'Benin': 'BEN', 'Namibia': 'NAM', 'Botswana': 'BOT', 'Lebanon': 'LBN',
+  'Syria': 'SYR', 'Iraq': 'IRQ', 'Kuwait': 'KUW', 'Bahrain': 'BHR',
+  'Oman': 'OMA', 'Pakistan': 'PAK', 'Singapore': 'SIN', 'Malaysia': 'MAS',
+  'North Macedonia': 'NMA', 'Macedonia': 'NMA',
+};
+
 class FlagWidget extends StatelessWidget {
   final String tla;
   final double size;

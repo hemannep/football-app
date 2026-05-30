@@ -8,6 +8,7 @@ part of 'match_details_screen.dart';
 
 // ─── H2H tab ──────────────────────────────────────────────────────────────────
 
+// ignore: unused_element
 class _H2HTab extends ConsumerWidget {
   final Match match;
   const _H2HTab({required this.match});

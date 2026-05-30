@@ -1,10 +1,9 @@
 // lib/features/standings/standings_screen.dart
 //
-// Updated:
-//   • Uses TeamCrestWidget instead of FlagWidget in every team row, so club
-//     teams in PL / La Liga / Bundesliga / Serie A / Ligue 1 show their
-//     proper crests (PNG or SVG via fd.org), while national teams still get
-//     country flags. Falls back to a styled initials badge when needed.
+// Shows live group tables while Firestore has data.
+// Pre-tournament fallback: when the standings collection is empty (all stats 0
+// before 11 Jun), derives group membership directly from the matches stream so
+// users still see the 12 groups A–L with their 4 teams.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,6 +11,7 @@ import '../../core/providers/selected_leagues_provider.dart';
 import '../../core/services/live_data_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/models/leagues.dart';
+import '../../shared/models/match.dart';
 import '../../shared/models/standing.dart';
 import '../../shared/widgets/team_crest_widget.dart';
 import '../league picker/league_picker.dart';
@@ -28,15 +28,21 @@ class _StandingsScreenState extends ConsumerState<StandingsScreen> {
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
     final league = ref.watch(selectedLeagueProvider);
-    final async = ref.watch(standingsStreamProvider);
+    final standingsAsync = ref.watch(standingsStreamProvider);
+    final matchesAsync = ref.watch(matchesStreamProvider);
+    final metaAsync = ref.watch(relayMetaProvider);
+
+    final freshnessLabel =
+        metaAsync.asData?.value.freshnessLabel ?? '';
 
     return Scaffold(
       body: SafeArea(
         bottom: false,
         child: Column(
           children: [
+            // ── Header ────────────────────────────────────────────────────
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 12, 8),
+              padding: const EdgeInsets.fromLTRB(16, 16, 12, 4),
               child: Row(
                 children: [
                   Expanded(
@@ -50,27 +56,93 @@ class _StandingsScreenState extends ConsumerState<StandingsScreen> {
                   const LeaguePickerChip(),
                   IconButton(
                     icon: const Icon(Icons.refresh_rounded),
-                    onPressed: () =>
-                        ref.invalidate(standingsStreamProvider),
+                    onPressed: () {
+                      ref.invalidate(standingsStreamProvider);
+                      ref.invalidate(matchesStreamProvider);
+                    },
                   ),
                 ],
               ),
             ),
+            if (freshnessLabel.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(freshnessLabel,
+                      style: TextStyle(fontSize: 11, color: p.textLow)),
+                ),
+              ),
+
+            // ── Content ───────────────────────────────────────────────────
             Expanded(
-              child: async.when(
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (e, _) => _err(p),
+              child: standingsAsync.when(
+                loading: () =>
+                    const Center(child: CircularProgressIndicator()),
+                error: (e, _) => _err(p, ref),
                 data: (groups) {
-                  if (groups.isEmpty) return _empty(p);
-                  return ListView(
-                    padding: const EdgeInsets.only(bottom: 24, top: 4),
-                    children: [
-                      if (league.code == Leagues.wc.code) ...[
-                        _ThirdPlaceCard(groups: groups),
+                  if (groups.isNotEmpty) {
+                    // ── Live standings ──────────────────────────────────
+                    return ListView(
+                      padding:
+                          const EdgeInsets.only(bottom: 24, top: 4),
+                      children: [
+                        if (league.code == Leagues.wc.code)
+                          _ThirdPlaceCard(groups: groups),
+                        ...groups.map(
+                            (g) => _GroupCard(group: g, league: league)),
                       ],
-                      ...groups
-                          .map((g) => _GroupCard(group: g, league: league)),
-                    ],
+                    );
+                  }
+
+                  // ── Pre-tournament fallback ─────────────────────────
+                  return matchesAsync.when(
+                    loading: () =>
+                        const Center(child: CircularProgressIndicator()),
+                    error: (_, __) => _empty(p),
+                    data: (matches) {
+                      final preview = _buildPreview(matches);
+                      if (preview.isEmpty) return _empty(p);
+                      return ListView(
+                        padding:
+                            const EdgeInsets.only(bottom: 24, top: 4),
+                        children: [
+                          // Caption banner
+                          Container(
+                            margin: const EdgeInsets.fromLTRB(
+                                12, 4, 12, 8),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: AppTheme.warn.withValues(alpha: 0.1),
+                              borderRadius:
+                                  BorderRadius.circular(AppTheme.r),
+                              border: Border.all(
+                                  color: AppTheme.warn
+                                      .withValues(alpha: 0.3)),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.schedule_rounded,
+                                    size: 16, color: AppTheme.warn),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Tables update once the tournament begins (June 11)',
+                                    style: TextStyle(
+                                        fontSize: 12,
+                                        color: p.textMid,
+                                        fontWeight: FontWeight.w600),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          ...preview.map((g) => _PreviewGroupCard(
+                              group: g, league: league)),
+                        ],
+                      );
+                    },
                   );
                 },
               ),
@@ -81,6 +153,49 @@ class _StandingsScreenState extends ConsumerState<StandingsScreen> {
     );
   }
 
+  // Build fake group tables from match fixture data (all stats = 0).
+  List<GroupTable> _buildPreview(List<Match> matches) {
+    final grouped = <String, Map<int, TeamRef>>{};
+    for (final m in matches) {
+      final g = m.group;
+      if (g == null || g.isEmpty) continue;
+      grouped.putIfAbsent(g, () => {});
+      if (m.homeTeam.id != null) {
+        grouped[g]![m.homeTeam.id!] = m.homeTeam;
+      }
+      if (m.awayTeam.id != null) {
+        grouped[g]![m.awayTeam.id!] = m.awayTeam;
+      }
+    }
+    if (grouped.isEmpty) return const [];
+
+    final keys = grouped.keys.toList()..sort();
+    return keys.map((groupKey) {
+      final teamRefs = grouped[groupKey]!.values.toList();
+      teamRefs.sort((a, b) => a.name.compareTo(b.name));
+      return GroupTable.fromJson({
+        'group': groupKey,
+        'table': teamRefs.asMap().entries.map((e) => {
+              'position': e.key + 1,
+              'team': {
+                'id': e.value.id,
+                'name': e.value.name,
+                'tla': e.value.tla,
+                'crest': e.value.crest,
+              },
+              'playedGames': 0,
+              'won': 0,
+              'draw': 0,
+              'lost': 0,
+              'points': 0,
+              'goalsFor': 0,
+              'goalsAgainst': 0,
+              'goalDifference': 0,
+            }).toList(),
+      });
+    }).toList();
+  }
+
   Widget _empty(Palette p) => Center(
         child: Padding(
           padding: const EdgeInsets.all(32),
@@ -89,13 +204,13 @@ class _StandingsScreenState extends ConsumerState<StandingsScreen> {
             children: [
               Icon(Icons.leaderboard_outlined, size: 56, color: p.textLow),
               const SizedBox(height: 14),
-              Text('Tables not available',
+              Text('Groups not yet available',
                   style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
                       color: p.textMid)),
               const SizedBox(height: 4),
-              Text('Try another competition or check back later.',
+              Text('Check back once fixtures are published.',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: p.textLow, fontSize: 12)),
             ],
@@ -103,7 +218,7 @@ class _StandingsScreenState extends ConsumerState<StandingsScreen> {
         ),
       );
 
-  Widget _err(Palette p) => Center(
+  Widget _err(Palette p, WidgetRef ref) => Center(
         child: Padding(
           padding: const EdgeInsets.all(32),
           child: Column(
@@ -113,12 +228,144 @@ class _StandingsScreenState extends ConsumerState<StandingsScreen> {
                   size: 48, color: AppTheme.warn),
               const SizedBox(height: 12),
               Text("Couldn't load standings",
-                  style:
-                      TextStyle(fontWeight: FontWeight.w700, color: p.textMid)),
+                  style: TextStyle(
+                      fontWeight: FontWeight.w700, color: p.textMid)),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: () =>
+                    ref.invalidate(standingsStreamProvider),
+                icon: const Icon(Icons.refresh_rounded, size: 16),
+                label: const Text('Retry'),
+              ),
             ],
           ),
         ),
       );
+}
+
+// ─── Pre-tournament preview card ────────────────────────────────────────────
+
+class _PreviewGroupCard extends StatelessWidget {
+  final GroupTable group;
+  final League league;
+  const _PreviewGroupCard({required this.group, required this.league});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    final prettyName = group.groupName.startsWith('GROUP_')
+        ? 'Group ${group.groupName.substring(6)} · Teams'
+        : '${group.groupName} · Teams';
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: p.surface,
+        borderRadius: BorderRadius.circular(AppTheme.r),
+        border: Border.all(color: p.stroke),
+      ),
+      child: Column(
+        children: [
+          // Header
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppTheme.brand.withValues(alpha: 0.1),
+              borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(AppTheme.r)),
+            ),
+            child: Row(
+              children: [
+                Text(prettyName,
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: p.textHi)),
+              ],
+            ),
+          ),
+          // Column labels
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            child: Row(
+              children: [
+                const SizedBox(width: 30),
+                Expanded(
+                  child: Text('Team',
+                      style: TextStyle(
+                          fontSize: 10,
+                          color: p.textLow,
+                          fontWeight: FontWeight.w700)),
+                ),
+                SizedBox(
+                    width: 26,
+                    child: Text('MP',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 10, color: p.textLow))),
+                SizedBox(
+                    width: 34,
+                    child: Text('Pts',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 10, color: p.textLow))),
+              ],
+            ),
+          ),
+          // Rows
+          ...group.teams.map((t) => InkWell(
+                onTap: t.teamId != null
+                    ? () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                              builder: (_) => TeamDetailScreen(
+                                  teamId: t.teamId!,
+                                  fallbackName: t.teamName,
+                                  fallbackTla: t.tla)),
+                        )
+                    : null,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
+                  child: Row(
+                    children: [
+                      TeamCrestWidget(
+                        crestUrl: t.crest,
+                        tla: t.tla,
+                        name: t.teamName,
+                        size: 22,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(t.teamName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: p.textHi)),
+                      ),
+                      SizedBox(
+                          width: 26,
+                          child: Text('0',
+                              textAlign: TextAlign.center,
+                              style:
+                                  TextStyle(fontSize: 12, color: p.textLow))),
+                      SizedBox(
+                        width: 34,
+                        child: Text('–',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w900,
+                                color: p.textLow)),
+                      ),
+                    ],
+                  ),
+                ),
+              )),
+          const SizedBox(height: 6),
+        ],
+      ),
+    );
+  }
 }
 
 // ─── 3rd-Place race card (WC only) ──────────────────────────────────────────
@@ -150,7 +397,8 @@ class _ThirdPlaceCard extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: p.heroGradient,
         borderRadius: BorderRadius.circular(AppTheme.r),
-        border: Border.all(color: AppTheme.brand.withValues(alpha: 0.3)),
+        border:
+            Border.all(color: AppTheme.brand.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -217,7 +465,7 @@ class _ThirdPlaceCard extends StatelessWidget {
   }
 }
 
-// ─── Group card with full table ─────────────────────────────────────────────
+// ─── Live group card ─────────────────────────────────────────────────────────
 
 class _GroupCard extends StatelessWidget {
   final GroupTable group;
@@ -227,6 +475,10 @@ class _GroupCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
+    final prettyName = group.groupName.startsWith('GROUP_')
+        ? 'Group ${group.groupName.substring(6)} · Standings'
+        : '${group.groupName} · Standings';
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
@@ -236,25 +488,24 @@ class _GroupCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          // Header
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
               color: AppTheme.brand.withValues(alpha: 0.1),
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(AppTheme.r)),
+              borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(AppTheme.r)),
             ),
             child: Row(
               children: [
-                Text(group.groupName,
+                Text(prettyName,
                     style: TextStyle(
-                        fontSize: 14,
+                        fontSize: 13,
                         fontWeight: FontWeight.w800,
                         color: p.textHi)),
               ],
             ),
           ),
-          // Column labels
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
             child: Row(
@@ -286,7 +537,6 @@ class _GroupCard extends StatelessWidget {
               ],
             ),
           ),
-          // Rows
           ...group.teams.asMap().entries.map((e) {
             final idx = e.key;
             final t = e.value;
@@ -314,7 +564,9 @@ class _GroupCard extends StatelessWidget {
                             ? AppTheme.good
                             : thirdPlace
                                 ? AppTheme.warn
-                                : (league.isKnockout ? AppTheme.bad : p.stroke),
+                                : (league.isKnockout
+                                    ? AppTheme.bad
+                                    : p.stroke),
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
@@ -348,7 +600,8 @@ class _GroupCard extends StatelessWidget {
                         width: 26,
                         child: Text('${t.playedGames}',
                             textAlign: TextAlign.center,
-                            style: TextStyle(fontSize: 12, color: p.textMid))),
+                            style:
+                                TextStyle(fontSize: 12, color: p.textMid))),
                     SizedBox(
                       width: 26,
                       child: Text(

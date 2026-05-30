@@ -166,38 +166,6 @@ List<MatchIncident> _incidentsFromRaw(Map<String, dynamic> raw) {
   return out;
 }
 
-MatchLineups? _lineupsFromRaw(Map<String, dynamic> raw) {
-  final bzzLineups = raw['bzzLineups'];
-  if (bzzLineups is! List || bzzLineups.isEmpty) return null;
-  final home = <LineupPlayer>[];
-  final away = <LineupPlayer>[];
-  for (final item in bzzLineups) {
-    if (item is! Map) continue;
-    final j = item.cast<String, dynamic>();
-    final nm = (j['player_name'] ?? '') as String;
-    if (nm.isEmpty) continue;
-    final pl = LineupPlayer(
-      name: nm,
-      position: _bzzPos(j['position'] as String?),
-      isStarting: true,
-      isCaptain: j['is_captain'] as bool? ?? false,
-    );
-    if (j['is_home'] == true) { home.add(pl); } else { away.add(pl); }
-  }
-  if (home.isEmpty && away.isEmpty) return null;
-  final pred = raw['bzzPredictedFormation'];
-  final homeFmt = pred is Map ? pred['home'] as String? : null;
-  final awayFmt = pred is Map ? pred['away'] as String? : null;
-  return MatchLineups(
-    home: home.isNotEmpty
-        ? TeamLineup(formation: homeFmt, starters: home, bench: const [])
-        : null,
-    away: away.isNotEmpty
-        ? TeamLineup(formation: awayFmt, starters: away, bench: const [])
-        : null,
-  );
-}
-
 List<MatchStat> _statsFromRaw(Map<String, dynamic> raw) {
   final ls = raw['liveStats'];
   if (ls is! Map) return const [];
@@ -225,21 +193,6 @@ List<MatchStat> _statsFromRaw(Map<String, dynamic> raw) {
   add('Passes', 'passes');
   add('Pass Accuracy', 'passAccuracy');
   return out;
-}
-
-/// Maps Bzzoiro position strings → G / D / M / F bucket used by the pitch view.
-String? _bzzPos(String? pos) {
-  if (pos == null) return null;
-  final s = pos.toLowerCase();
-  if (s.contains('goal') || s == 'gk') { return 'G'; }
-  if (s.contains('defend') || s == 'cb' || s == 'lb' || s == 'rb' ||
-      s == 'rwb' || s == 'lwb') { return 'D'; }
-  if (s.contains('midfiel') || s == 'cm' || s == 'dm' || s == 'am' ||
-      s == 'lm' || s == 'rm') { return 'M'; }
-  if (s.contains('forward') || s.contains('attack') ||
-      s.contains('striker') || s.contains('winger') ||
-      s == 'cf' || s == 'lw' || s == 'rw' || s == 'st') { return 'F'; }
-  return pos.isNotEmpty ? pos[0].toUpperCase() : null;
 }
 
 // ─── Public re-export so other files can use SectionLabel ────────────────────

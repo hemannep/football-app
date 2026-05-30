@@ -33,6 +33,7 @@ import '../../core/services/ad_service.dart';
 import '../../core/services/extras_service.dart';
 import '../../core/services/live_data_service.dart';
 import '../../core/services/match_details_resolver.dart';
+import '../../shared/widgets/pitch_painter.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/models/match.dart';
 import '../../shared/models/standing.dart';
@@ -41,7 +42,6 @@ import '../../shared/widgets/match_heat_meter.dart';
 import '../../shared/widgets/rivalry_card_widget.dart';
 import '../../shared/widgets/ai_insights_widget.dart';
 import '../../shared/widgets/fan_poll_widget.dart';
-import '../player screen/player_details_screen.dart';
 import '../team details/team_details_screen.dart';
 
 part 'match_details_shared.dart';
@@ -57,11 +57,6 @@ part 'standings_tab.dart';
 // lineups / incidents / stats from BSD (free, no rate limits) and falls back
 // to football-data.org goals when BSD has nothing. Providers are keyed on the
 // Match directly — no more event-id indirection.
-
-final _lineupsProvider =
-    FutureProvider.family.autoDispose<MatchLineups?, Match>((ref, m) async {
-  return MatchDetailsResolver.lineups(m);
-});
 
 final _incidentsProvider = FutureProvider.family
     .autoDispose<List<MatchIncident>, Match>((ref, m) async {
@@ -102,7 +97,7 @@ class _MatchDetailsScreenState extends ConsumerState<MatchDetailsScreen>
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 5, vsync: this);
+    _tab = TabController(length: 4, vsync: this);
 
     // Opening a match details counts as a meaningful action — feeds the
     // frequency cap so that *eventually* an interstitial will fire, but
@@ -206,10 +201,9 @@ class _MatchDetailsScreenState extends ConsumerState<MatchDetailsScreen>
                       letterSpacing: 0.2),
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                   tabs: const [
-                    Tab(text: 'Summary'),
-                    Tab(text: 'Lineups'),
+                    Tab(text: 'Detail'),
+                    Tab(text: 'Lineup'),
                     Tab(text: 'Stats'),
-                    Tab(text: 'H2H'),
                     Tab(text: 'Standings'),
                   ],
                 ),
@@ -223,7 +217,6 @@ class _MatchDetailsScreenState extends ConsumerState<MatchDetailsScreen>
             _SummaryTab(match: m),
             _LineupsTab(match: m),
             _StatsTab(match: m),
-            _H2HTab(match: m),
             _StandingsTab(match: m),
           ],
         ),
@@ -267,11 +260,49 @@ class _MatchHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scoreText = match.score.display;
-    // For finished matches show "Full Time", for live show "LIVE" badge (handled
-    // separately below), for upcoming show day/date + kickoff time.
-    final dateText = match.isFinished
-        ? 'Full Time  •  ${DateFormat('EEE d MMM').format(match.utcDate)}'
-        : DateFormat('EEE d MMM • HH:mm').format(match.utcDate);
+
+    // Status text + color shown below the score
+    final String statusText;
+    final Color statusColor;
+    if (match.status == 'PAUSED') {
+      statusText = 'Half-Time';
+      statusColor = AppTheme.warn;
+    } else if (match.isFinished) {
+      final dur = match.score.duration;
+      final label = dur == 'EXTRA_TIME'
+          ? 'After Extra Time'
+          : dur == 'PENALTY_SHOOTOUT'
+              ? 'After Penalties'
+              : 'Full Time';
+      statusText = '$label  ·  ${DateFormat('d MMM').format(match.utcDate)}';
+      statusColor = Colors.black54;
+    } else if (match.isScheduled) {
+      final diff = match.utcDate.difference(DateTime.now());
+      if (!diff.isNegative && diff.inMinutes > 0) {
+        final days = diff.inDays;
+        final hours = diff.inHours % 24;
+        final mins = diff.inMinutes % 60;
+        statusText = days > 0
+            ? 'Kicks off in ${days}d ${hours}h'
+            : hours > 0
+                ? 'Kicks off in ${hours}h ${mins}m'
+                : 'Kicks off in ${mins}m';
+      } else {
+        statusText = DateFormat('EEE d MMM · HH:mm').format(match.utcDate);
+      }
+      statusColor = Colors.black54;
+    } else {
+      statusText = DateFormat('EEE d MMM · HH:mm').format(match.utcDate);
+      statusColor = Colors.black54;
+    }
+
+    // Sub-row: stage · group
+    final stageLabel = match.stage
+        .split('_')
+        .map((w) => w.isEmpty ? w : '${w[0]}${w.substring(1).toLowerCase()}')
+        .join(' ');
+    final groupLabel = match.group?.replaceAll('GROUP_', 'Group ');
+    final subRow = [stageLabel, if (groupLabel != null) groupLabel].join(' · ');
 
     return Container(
       decoration: const BoxDecoration(gradient: AppTheme.brandGradient),
@@ -316,8 +347,13 @@ class _MatchHero extends StatelessWidget {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        if (match.isLive) ...[
-                          const _LiveChip(),
+                        if (match.status == 'IN_PLAY') ...[
+                          _LiveChip(
+                            minute: DateTime.now()
+                                .difference(match.utcDate)
+                                .inMinutes
+                                .clamp(1, 90),
+                          ),
                           const SizedBox(height: 6),
                         ],
                         Text(
@@ -331,11 +367,11 @@ class _MatchHero extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          dateText,
-                          style: const TextStyle(
-                              color: Colors.black54,
+                          statusText,
+                          style: TextStyle(
+                              color: statusColor,
                               fontSize: 10,
-                              fontWeight: FontWeight.w600),
+                              fontWeight: FontWeight.w700),
                         ),
                       ],
                     ),
@@ -350,6 +386,18 @@ class _MatchHero extends StatelessWidget {
                   ),
                 ],
               ),
+              // Sub-row: stage · group
+              if (subRow.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  subRow,
+                  style: const TextStyle(
+                      color: Colors.black45,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.5),
+                ),
+              ],
             ],
           ),
         ),
@@ -432,7 +480,8 @@ class _TeamBadge extends StatelessWidget {
 }
 
 class _LiveChip extends StatefulWidget {
-  const _LiveChip();
+  final int? minute;
+  const _LiveChip({this.minute});
 
   @override
   State<_LiveChip> createState() => _LiveChipState();
@@ -477,9 +526,9 @@ class _LiveChipState extends State<_LiveChip>
             ),
           ),
           const SizedBox(width: 5),
-          const Text(
-            'LIVE',
-            style: TextStyle(
+          Text(
+            widget.minute != null ? "LIVE · ${widget.minute}'" : 'LIVE',
+            style: const TextStyle(
                 color: Colors.white,
                 fontSize: 11,
                 fontWeight: FontWeight.w800,

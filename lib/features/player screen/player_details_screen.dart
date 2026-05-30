@@ -16,6 +16,7 @@ import '../../core/services/live_data_service.dart';
 import '../../core/services/sportsdb_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/ad_banner_widget.dart';
+import '../../shared/widgets/flag_widget.dart';
 
 final _playerProvider = FutureProvider.family
     .autoDispose<SportsDbPlayer?, String>((ref, key) async {
@@ -85,9 +86,6 @@ class PlayerDetailScreen extends ConsumerWidget {
       rows.add((Icons.sports_soccer_rounded, 'Position', resolvedPosition));
     }
     if (teamVal != null) rows.add((Icons.shield_rounded, 'Team', teamVal));
-    if (nationalityVal != null) {
-      rows.add((Icons.public_rounded, 'Nationality', nationalityVal));
-    }
     if (age != null) rows.add((Icons.cake_rounded, 'Age', '$age yrs'));
     if (heightVal != null && heightVal.isNotEmpty) {
       rows.add((Icons.height_rounded, 'Height', heightVal));
@@ -140,6 +138,11 @@ class PlayerDetailScreen extends ConsumerWidget {
                   SliverList(
                     delegate: SliverChildListDelegate([
                       _InfoSection(title: 'PROFILE', rows: rows),
+                      if (nationalityVal != null)
+                        _NationalityInfoRow(
+                          nationality: nationalityVal,
+                          tla: nationalityToTla(nationalityVal),
+                        ),
                       if (bio != null && bio.isNotEmpty) ...[
                         const _SectionLabel('BIOGRAPHY'),
                         Container(
@@ -366,6 +369,62 @@ class _InfoSection extends StatelessWidget {
               ),
             )),
       ],
+    );
+  }
+}
+
+class _NationalityInfoRow extends StatelessWidget {
+  final String nationality;
+  final String? tla;
+  const _NationalityInfoRow({required this.nationality, this.tla});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: p.surface,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: p.stroke),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: AppTheme.brand.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(Icons.public_rounded, size: 16, color: AppTheme.brand),
+          ),
+          const SizedBox(width: 10),
+          Text('Nationality',
+              style: TextStyle(
+                  fontSize: 12,
+                  color: p.textLow,
+                  fontWeight: FontWeight.w600)),
+          const Spacer(),
+          if (tla != null) ...[
+            FlagWidget(tla: tla!, size: 16),
+            const SizedBox(width: 8),
+          ],
+          Flexible(
+            child: Text(
+              nationality,
+              textAlign: TextAlign.right,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: p.textHi),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

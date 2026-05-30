@@ -537,7 +537,8 @@ class _IdentityCard extends StatelessWidget {
             child: Row(
               children: [
                 if (team.stadiumName != null) ...[
-                  const Icon(Icons.stadium_rounded, size: 16, color: AppTheme.brand),
+                  const Icon(Icons.stadium_rounded,
+                      size: 16, color: AppTheme.brand),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(team.stadiumName!,
@@ -658,8 +659,7 @@ class _SquadSection extends ConsumerWidget {
             position: raw['position'] as String?,
             nationality: raw['nationality'] as String?,
             shirtNumber: raw['shirtNumber'] as int?,
-            dateOfBirth:
-                dobRaw is String ? DateTime.tryParse(dobRaw) : null,
+            dateOfBirth: dobRaw is String ? DateTime.tryParse(dobRaw) : null,
             photoUrl: (raw['photoUrl'] ?? raw['imageUrl']) as String?,
             playerId: raw['id'] as int?,
           );

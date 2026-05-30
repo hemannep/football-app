@@ -184,20 +184,39 @@ async function fetchMatchDetail(matchId) {
 }
 
 // ─── Step 4: lineups via API-Football (once per match, newly finished) ──────────
-// Uses the football-data match ID's kickoff to find the API-Football fixture
-// would normally require an ID map; here we fetch by the fd id directly per the
-// doc's contract. If your API-Football ids differ, store a map in schedule.json.
+// NOTE: API-Football uses its own fixture ID system — different from football-
+// data.org. The `/fixtures?id=X` call here will only work if you've stored an
+// fd→apifootball ID mapping in schedule.json (not required for launch; Bzzoiro
+// covers lineups for the live enrichment window). Until that map exists this
+// step is a no-op but still safe to run.
 async function fetchAndStoreLineup(matchId) {
   const data = await apiFootballGet(`/fixtures?id=${matchId}`);
   const fixture = data?.response?.[0];
   if (!fixture) return;
 
+  // Write to the dedicated lineups/ collection.
   await db.collection('lineups').doc(String(matchId)).set({
     home: fixture.lineups?.[0] ?? null,
     away: fixture.lineups?.[1] ?? null,
     events: fixture.events ?? [],
     fetchedAt: NOW(),
   });
+
+  // Also merge into the matches/ doc under confirmedLineup so the Flutter app
+  // can read it via getMatchRaw() without a second collection fetch.
+  if (fixture.lineups?.length) {
+    await db.collection('matches').doc(String(matchId)).set(
+      {
+        confirmedLineup: {
+          home: fixture.lineups[0] ?? null,
+          away: fixture.lineups[1] ?? null,
+        },
+        confirmedLineupAt: NOW(),
+      },
+      { merge: true }
+    );
+  }
+
   console.log(`✓ Stored lineup for match ${matchId}.`);
 }
 

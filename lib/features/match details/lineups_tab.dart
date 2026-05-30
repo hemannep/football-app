@@ -1,506 +1,661 @@
 // tabs/lineups_tab.dart
 //
-// Lineups tab: pitch view, formation headers, two-column starter/bench lists.
+// Lineup tab — pitch view with player chips, ratings, formation headers,
+// plus Subs / Injuries / Suspensions sub-tabs.
 // Part of the match_details library — see match_details_screen.dart.
-// Do not add imports here; they live in the library root.
 
 part of 'match_details_screen.dart';
 
-// ─── Lineups tab ──────────────────────────────────────────────────────────────
+// ─── Lineup tab ───────────────────────────────────────────────────────────────
 
-class _LineupsTab extends ConsumerWidget {
+class _LineupsTab extends ConsumerStatefulWidget {
   final Match match;
   const _LineupsTab({required this.match});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_LineupsTab> createState() => _LineupsTabState();
+}
+
+class _LineupsTabState extends ConsumerState<_LineupsTab> {
+  int _subTab = 0; // 0=Lineup 1=Subs 2=Injuries 3=Suspensions
+
+  @override
+  Widget build(BuildContext context) {
     final p = AppTheme.of(context);
+    final rawAsync = ref.watch(_rawMatchProvider(widget.match.id));
 
-    // Prefer bzzLineups from the Firestore raw doc; fall back to BSD resolver.
-    final rawAsync = ref.watch(_rawMatchProvider(match.id));
-    final rawDoc = rawAsync.value;
-    final bzzLineups = rawDoc != null ? _lineupsFromRaw(rawDoc) : null;
-
-    if (bzzLineups != null) {
-      return _buildLineupsView(context, bzzLineups, p);
+    if (rawAsync.isLoading) {
+      return const Center(child: CircularProgressIndicator());
     }
 
-    final lineupsAsync = ref.watch(_lineupsProvider(match));
-    return lineupsAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (_, __) => const _Unavailable(
-          icon: Icons.groups_outlined,
-          message: 'Could not load lineups.',
-          hint: 'Detailed lineup data isn\'t available for every match.'),
-      data: (data) => _buildLineupsView(context, data, p),
+    final raw = rawAsync.value;
+
+    // ── Determine which lineup to use ───────────────────────────────────────
+    // Use `is List` so Dart infers bool (not dynamic) for isActual.
+    final bzzLineupsList = raw?['bzzLineups'];
+    final hasBzzLineups =
+        bzzLineupsList is List && bzzLineupsList.isNotEmpty;
+    final isActual = hasBzzLineups &&
+        (widget.match.isLive ||
+            widget.match.isFinished ||
+            widget.match.status == 'PAUSED');
+
+    // For live/finished matches use bzzLineups (actual).
+    // For upcoming matches also use bzzLineups when present — Bzzoiro enriches
+    // within 24h of kickoff and may provide a predicted XI there. Only fall
+    // back to the separate bzzPredictedLineup field if bzzLineups is absent.
+    final lineupList = hasBzzLineups
+        ? bzzLineupsList
+        : (raw?['bzzPredictedLineup'] is List
+            ? raw!['bzzPredictedLineup'] as List
+            : null);
+    final isPredicted = !isActual && lineupList != null;
+
+    final homeFormation =
+        (raw?['bzzPredictedFormation']?['home'] as String?) ?? '4-3-3';
+    final awayFormation =
+        (raw?['bzzPredictedFormation']?['away'] as String?) ?? '4-3-3';
+
+    final allPlayers = lineupList == null
+        ? <Map<String, dynamic>>[]
+        : lineupList
+            .whereType<Map>()
+            .map((m) => Map<String, dynamic>.from(m))
+            .toList();
+
+    final homePlayers =
+        allPlayers.where((pl) => pl['is_home'] == true).toList();
+    final awayPlayers =
+        allPlayers.where((pl) => pl['is_home'] != true).toList();
+
+    final homeStarters =
+        homePlayers.where((pl) => pl['is_starter'] != false).toList();
+    final awayStarters =
+        awayPlayers.where((pl) => pl['is_starter'] != false).toList();
+    final homeSubs =
+        homePlayers.where((pl) => pl['is_starter'] == false).toList();
+    final awaySubs =
+        awayPlayers.where((pl) => pl['is_starter'] == false).toList();
+
+    final unavail = raw?['unavailablePlayers'] as Map?;
+    final homeInjured = _unavailList(unavail?['home'], 'injured');
+    final awayInjured = _unavailList(unavail?['away'], 'injured');
+    final homeSuspended = _unavailList(unavail?['home'], 'suspended');
+    final awaySuspended = _unavailList(unavail?['away'], 'suspended');
+
+    Widget content;
+    if (_subTab == 1) {
+      content = _buildSubsList(p, homeSubs, awaySubs);
+    } else if (_subTab == 2) {
+      content = _buildUnavailList(p, homeInjured, awayInjured, 'Injuries',
+          Icons.medical_services_outlined);
+    } else if (_subTab == 3) {
+      content = _buildUnavailList(p, homeSuspended, awaySuspended,
+          'Suspensions', Icons.warning_amber_rounded);
+    } else {
+      content = _buildPitchView(
+        context,
+        homeStarters: homeStarters,
+        awayStarters: awayStarters,
+        homeFormation: homeFormation,
+        awayFormation: awayFormation,
+        isPredicted: isPredicted,
+        lineupList: lineupList,
+      );
+    }
+
+    return Column(
+      children: [
+        // ── Sub-tab selector ──────────────────────────────────────────
+        Container(
+          color: p.bg,
+          child: Row(
+            children: [
+              _SubTabBtn(label: 'Lineup', idx: 0, sel: _subTab,
+                  onTap: () => setState(() => _subTab = 0)),
+              _SubTabBtn(label: 'Subs', idx: 1, sel: _subTab,
+                  onTap: () => setState(() => _subTab = 1)),
+              _SubTabBtn(label: 'Injuries', idx: 2, sel: _subTab,
+                  onTap: () => setState(() => _subTab = 2)),
+              _SubTabBtn(label: 'Suspensions', idx: 3, sel: _subTab,
+                  onTap: () => setState(() => _subTab = 3)),
+            ],
+          ),
+        ),
+        Expanded(child: content),
+      ],
     );
   }
 
-  Widget _buildLineupsView(
-      BuildContext context, MatchLineups? data, Palette p) {
-    if (data == null || (data.home == null && data.away == null)) {
-      return _Unavailable(
-          icon: Icons.groups_outlined,
-          message: match.isFinished
-              ? 'Lineups not available for this match.'
-              : 'Lineups not published yet.',
-          hint: match.isFinished
-              ? 'Detailed lineup data isn\'t available for every competition.'
-              : 'Lineups usually appear ~1 hour before kick-off.');
-    }
-    final home = data.home;
-    final away = data.away;
-    final hasStarters = (home?.starters.isNotEmpty ?? false) ||
-        (away?.starters.isNotEmpty ?? false);
+  // ── Pitch view ─────────────────────────────────────────────────────────────
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(12, 14, 12, 30),
-      children: [
-        if (hasStarters) ...[
-          _FormationHeader(
-              team: match.homeTeam, formation: home?.formation, p: p),
-          _PitchView(
-              starters: home?.starters ?? const [],
-              color: AppTheme.brand,
-              topDown: true,
-              p: p),
-          const SizedBox(height: 2),
-          _PitchView(
-              starters: away?.starters ?? const [],
-              color: AppTheme.live,
-              topDown: false,
-              p: p),
-          _FormationHeader(
-              team: match.awayTeam,
-              formation: away?.formation,
-              p: p,
-              alignRight: true),
-          const SizedBox(height: 14),
+  Widget _buildPitchView(
+    BuildContext context, {
+    required List<Map<String, dynamic>> homeStarters,
+    required List<Map<String, dynamic>> awayStarters,
+    required String homeFormation,
+    required String awayFormation,
+    required bool isPredicted,
+    required List? lineupList,
+  }) {
+    if (lineupList == null) {
+      return _Unavailable(
+        icon: Icons.groups_outlined,
+        message: widget.match.isFinished || widget.match.isLive
+            ? 'Lineups not available for this match.'
+            : 'Lineups available ~1 hour before kick-off.',
+        hint: widget.match.isFinished
+            ? 'Detailed lineup data isn\'t available for every competition.'
+            : null,
+      );
+    }
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+      child: Column(
+        children: [
+          if (isPredicted)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Center(
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppTheme.warn.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                        color: AppTheme.warn.withValues(alpha: 0.4)),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.auto_awesome_rounded,
+                          size: 13, color: AppTheme.warn),
+                      SizedBox(width: 5),
+                      Text('Predicted XI',
+                          style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: AppTheme.warn)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+          // ── Pitch ────────────────────────────────────────────────────
+          ClipRRect(
+            borderRadius: BorderRadius.circular(AppTheme.r),
+            child: AspectRatio(
+              aspectRatio: 0.62,
+              child: LayoutBuilder(builder: (context, box) {
+                final pw = box.maxWidth;
+                final ph = box.maxHeight;
+
+                final homePos = formationPositions(
+                  formation: homeFormation,
+                  isHome: true,
+                  playerCount: homeStarters.length,
+                );
+                final awayPos = formationPositions(
+                  formation: awayFormation,
+                  isHome: false,
+                  playerCount: awayStarters.length,
+                );
+
+                return Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    const PitchBackground(),
+
+                    // Home team label (top)
+                    Positioned(
+                      top: 6,
+                      left: 10,
+                      right: 10,
+                      child: _TeamStrip(
+                          match: widget.match,
+                          isHome: true,
+                          formation: homeFormation,
+                          players: homeStarters),
+                    ),
+
+                    // Home players
+                    for (int i = 0;
+                        i < math.min(homePos.length, homeStarters.length);
+                        i++)
+                      Positioned(
+                        left: homePos[i].dx * pw - 22,
+                        top: homePos[i].dy * ph - 22,
+                        child: _PlayerChip(
+                          player: homeStarters[i],
+                          teamColor: AppTheme.brand,
+                        ),
+                      ),
+
+                    // Away players
+                    for (int i = 0;
+                        i < math.min(awayPos.length, awayStarters.length);
+                        i++)
+                      Positioned(
+                        left: awayPos[i].dx * pw - 22,
+                        top: awayPos[i].dy * ph - 22,
+                        child: _PlayerChip(
+                          player: awayStarters[i],
+                          teamColor: AppTheme.live,
+                        ),
+                      ),
+
+                    // Away team label (bottom)
+                    Positioned(
+                      bottom: 6,
+                      left: 10,
+                      right: 10,
+                      child: _TeamStrip(
+                          match: widget.match,
+                          isHome: false,
+                          formation: awayFormation,
+                          players: awayStarters,
+                          alignRight: true),
+                    ),
+                  ],
+                );
+              }),
+            ),
+          ),
         ],
-        _DetailCard(
-          padding: EdgeInsets.zero,
-          child: IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: _LineupColumn(
-                      team: match.homeTeam,
-                      lineup: home,
-                      isRight: false,
-                      p: p),
-                ),
-                VerticalDivider(width: 1, thickness: 1, color: p.stroke),
-                Expanded(
-                  child: _LineupColumn(
-                      team: match.awayTeam,
-                      lineup: away,
-                      isRight: true,
-                      p: p),
-                ),
-              ],
+      ),
+    );
+  }
+
+  // ── Subs list ───────────────────────────────────────────────────────────────
+
+  Widget _buildSubsList(Palette p,
+      List<Map<String, dynamic>> homeSubs,
+      List<Map<String, dynamic>> awaySubs) {
+    if (homeSubs.isEmpty && awaySubs.isEmpty) {
+      return const _Unavailable(
+          icon: Icons.swap_horiz_rounded,
+          message: 'Substitutes not available yet.');
+    }
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+      children: [
+        _SectionLabel('${widget.match.homeTeam.tla} — Substitutes'),
+        if (homeSubs.isEmpty)
+          _emptyRow(p, 'None listed')
+        else
+          ...homeSubs.map((pl) => _SubRow(player: pl, p: p)),
+        const SizedBox(height: 12),
+        _SectionLabel('${widget.match.awayTeam.tla} — Substitutes'),
+        if (awaySubs.isEmpty)
+          _emptyRow(p, 'None listed')
+        else
+          ...awaySubs.map((pl) => _SubRow(player: pl, p: p)),
+      ],
+    );
+  }
+
+  // ── Unavailable list ────────────────────────────────────────────────────────
+
+  List<Map<String, dynamic>> _unavailList(dynamic side, String key) {
+    if (side is! List) return const [];
+    return side
+        .whereType<Map>()
+        .map((m) => Map<String, dynamic>.from(m))
+        .where((m) => m[key] == true)
+        .toList();
+  }
+
+  Widget _buildUnavailList(
+      Palette p,
+      List<Map<String, dynamic>> home,
+      List<Map<String, dynamic>> away,
+      String title,
+      IconData icon) {
+    if (home.isEmpty && away.isEmpty) {
+      return _Unavailable(icon: icon, message: 'No $title reported.');
+    }
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+      children: [
+        _SectionLabel('${widget.match.homeTeam.tla} — $title'),
+        if (home.isEmpty)
+          _emptyRow(p, 'None reported')
+        else
+          ...home.map((pl) => _UnavailRow(player: pl, p: p)),
+        const SizedBox(height: 12),
+        _SectionLabel('${widget.match.awayTeam.tla} — $title'),
+        if (away.isEmpty)
+          _emptyRow(p, 'None reported')
+        else
+          ...away.map((pl) => _UnavailRow(player: pl, p: p)),
+      ],
+    );
+  }
+
+  Widget _emptyRow(Palette p, String msg) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+        child: Text(msg,
+            style: TextStyle(
+                fontSize: 13,
+                color: p.textLow,
+                fontStyle: FontStyle.italic)),
+      );
+}
+
+// ─── Sub-tab button ───────────────────────────────────────────────────────────
+
+class _SubTabBtn extends StatelessWidget {
+  final String label;
+  final int idx;
+  final int sel;
+  final VoidCallback onTap;
+  const _SubTabBtn(
+      {required this.label,
+      required this.idx,
+      required this.sel,
+      required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    final active = idx == sel;
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: active ? AppTheme.brand : Colors.transparent,
+                width: 2.5,
+              ),
+            ),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: active ? AppTheme.brand : p.textMid,
             ),
           ),
         ),
-      ],
+      ),
     );
   }
 }
 
-// Formation header strip: crest + team name + formation badge.
-class _FormationHeader extends StatelessWidget {
-  final TeamRef team;
-  final String? formation;
-  final Palette p;
+// ─── Team label strip shown at the top / bottom of the pitch half ─────────────
+
+class _TeamStrip extends StatelessWidget {
+  final Match match;
+  final bool isHome;
+  final String formation;
+  final List<Map<String, dynamic>> players;
   final bool alignRight;
-  const _FormationHeader({
-    required this.team,
+  const _TeamStrip({
+    required this.match,
+    required this.isHome,
     required this.formation,
-    required this.p,
+    required this.players,
     this.alignRight = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final children = <Widget>[
-      Text(team.tla,
-          style: TextStyle(
-              color: p.textHi, fontWeight: FontWeight.w800, fontSize: 13)),
-      const SizedBox(width: 8),
-      if (formation != null && formation!.isNotEmpty)
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          decoration: BoxDecoration(
-            color: p.surface,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: p.stroke),
-          ),
-          child: Text(formation!,
-              style: TextStyle(
-                  color: p.textMid,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 12,
-                  letterSpacing: 0.5)),
-        ),
-    ];
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-      child: Row(
-        mainAxisAlignment:
-            alignRight ? MainAxisAlignment.end : MainAxisAlignment.start,
-        children: alignRight ? children.reversed.toList() : children,
-      ),
-    );
-  }
-}
-
-// A half-pitch that arranges a starting XI into rows by position.
-// Players are grouped G / D / M / F and spread evenly across each row.
-class _PitchView extends StatelessWidget {
-  final List<LineupPlayer> starters;
-  final Color color;
-  final bool topDown; // true: GK at top (home), false: GK at bottom (away)
-  final Palette p;
-  const _PitchView({
-    required this.starters,
-    required this.color,
-    required this.topDown,
-    required this.p,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    if (starters.isEmpty) return const SizedBox.shrink();
-
-    // Group by position bucket.
-    final gk = starters.where((s) => s.position == 'G').toList();
-    final def = starters.where((s) => s.position == 'D').toList();
-    final mid = starters.where((s) => s.position == 'M').toList();
-    final fwd = starters.where((s) => s.position == 'F').toList();
-    final unknown = starters
-        .where((s) => s.position == null || !'GDMF'.contains(s.position!))
+    final team = isHome ? match.homeTeam : match.awayTeam;
+    final ratings = players
+        .map((pl) => (pl['rating'] as num?)?.toDouble())
+        .whereType<double>()
         .toList();
+    final avg = ratings.isEmpty
+        ? null
+        : ratings.reduce((a, b) => a + b) / ratings.length;
 
-    // If positions are missing entirely, fall back to a simple even spread.
-    final rows = <List<LineupPlayer>>[];
-    if (gk.isEmpty && def.isEmpty && mid.isEmpty && fwd.isEmpty) {
-      // chunk into rows of ~4
-      for (var i = 0; i < unknown.length; i += 4) {
-        rows.add(unknown.sublist(i, (i + 4).clamp(0, unknown.length)));
-      }
-    } else {
-      rows.addAll([gk, def, mid + unknown, fwd]);
-    }
-    if (!topDown) {
-      // Away team mirrors: forwards near the halfway line.
-      final r = rows.reversed.toList();
-      rows
-        ..clear()
-        ..addAll(r);
-    }
+    final pills = <Widget>[
+      _Pill(formation, Colors.black.withValues(alpha: 0.45)),
+      if (avg != null) ...[
+        const SizedBox(width: 5),
+        _Pill(avg.toStringAsFixed(1), _ratingColor(avg).withValues(alpha: 0.9)),
+      ],
+      const SizedBox(width: 5),
+      Text(team.tla,
+          style: const TextStyle(
+              color: Colors.white, fontSize: 12, fontWeight: FontWeight.w900,
+              shadows: [Shadow(color: Colors.black54, blurRadius: 4)])),
+    ];
 
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 2),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: topDown
-              ? [const Color(0xFF12351F), const Color(0xFF0C2417)]
-              : [const Color(0xFF0C2417), const Color(0xFF12351F)],
-        ),
-        borderRadius: BorderRadius.vertical(
-          top: topDown ? const Radius.circular(14) : Radius.zero,
-          bottom: topDown ? Radius.zero : const Radius.circular(14),
-        ),
-      ),
-      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 6),
-      child: Column(
-        children: [
-          for (final row in rows)
-            if (row.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 7),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: row
-                      .map((pl) => _PitchPlayer(player: pl, color: color))
-                      .toList(),
-                ),
-              ),
-        ],
-      ),
+    return Row(
+      mainAxisAlignment:
+          alignRight ? MainAxisAlignment.end : MainAxisAlignment.start,
+      children: alignRight ? pills.reversed.toList() : pills,
     );
   }
 }
 
-class _PitchPlayer extends StatelessWidget {
-  final LineupPlayer player;
+class _Pill extends StatelessWidget {
+  final String text;
   final Color color;
-  const _PitchPlayer({required this.player, required this.color});
+  const _Pill(this.text, this.color);
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+            color: color, borderRadius: BorderRadius.circular(4)),
+        child: Text(text,
+            style: const TextStyle(
+                color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800)),
+      );
+}
+
+// ─── Player chip (rendered on the pitch) ─────────────────────────────────────
+
+class _PlayerChip extends StatelessWidget {
+  final Map<String, dynamic> player;
+  final Color teamColor;
+  const _PlayerChip({required this.player, required this.teamColor});
 
   @override
   Widget build(BuildContext context) {
-    // Surname only, to keep tokens small on the pitch.
-    final parts = player.name.trim().split(' ');
-    final short = parts.isEmpty ? '' : parts.last;
-    return Flexible(
+    final name = (player['player_name'] ?? player['name'] ?? '') as String;
+    final jersey = player['jersey_number'];
+    final rating = (player['rating'] as num?)?.toDouble();
+    final photoUrl = player['photo_url'] as String?;
+    final lastName = name.trim().isEmpty ? '?' : name.trim().split(' ').last;
+    final rColor = _ratingColor(rating);
+
+    return SizedBox(
+      width: 44,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: 34,
-            height: 34,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.3),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2)),
-              ],
-            ),
-            child: Text(
-              player.shirtNumber?.toString() ?? '',
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 14),
-            ),
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              ClipOval(
+                child: Container(
+                  width: 36,
+                  height: 36,
+                  color: teamColor.withValues(alpha: 0.85),
+                  child: (photoUrl != null && photoUrl.isNotEmpty)
+                      ? Image.network(photoUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) =>
+                              _initialsWidget(name, jersey))
+                      : _initialsWidget(name, jersey),
+                ),
+              ),
+              if (rating != null)
+                Positioned(
+                  bottom: -2,
+                  left: -2,
+                  child: Container(
+                    width: 16,
+                    height: 16,
+                    decoration: BoxDecoration(
+                      color: rColor,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                          color: Colors.black.withValues(alpha: 0.4),
+                          width: 0.5),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      rating >= 10 ? '10' : rating.toStringAsFixed(1),
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 6,
+                          fontWeight: FontWeight.w900),
+                    ),
+                  ),
+                ),
+            ],
           ),
           const SizedBox(height: 3),
-          SizedBox(
-            width: 64,
-            child: Text(
-              short,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _LineupColumn extends StatelessWidget {
-  final TeamRef team;
-  final TeamLineup? lineup;
-  final bool isRight;
-  final Palette p;
-  const _LineupColumn(
-      {required this.team,
-      required this.lineup,
-      required this.isRight,
-      required this.p});
-
-  @override
-  Widget build(BuildContext context) {
-    if (lineup == null) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.all(14),
-      child: Column(
-        crossAxisAlignment:
-            isRight ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-        children: [
-          // Team header — tappable, opens TeamDetailScreen if id available
-          InkWell(
-            borderRadius: BorderRadius.circular(6),
-            onTap: team.id == null
-                ? null
-                : () => Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => TeamDetailScreen(
-                        teamId: team.id!,
-                        fallbackName: team.name,
-                        fallbackTla: team.tla,
-                      ),
-                    )),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 2),
-              child: Row(
-                mainAxisAlignment:
-                    isRight ? MainAxisAlignment.end : MainAxisAlignment.start,
-                children: [
-                  if (!isRight) ...[
-                    FlagWidget(tla: team.tla, size: 18),
-                    const SizedBox(width: 6),
-                  ],
-                  Flexible(
-                    child: Text(team.tla,
-                        style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w800,
-                            color: p.textHi)),
-                  ),
-                  if (team.id != null) ...[
-                    const SizedBox(width: 4),
-                    Icon(Icons.chevron_right_rounded,
-                        size: 14, color: p.textLow),
-                  ],
-                  if (isRight) ...[
-                    const SizedBox(width: 6),
-                    FlagWidget(tla: team.tla, size: 18),
-                  ],
-                ],
-              ),
-            ),
-          ),
-          if (lineup!.formation != null) ...[
-            const SizedBox(height: 5),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-              decoration: BoxDecoration(
-                color: AppTheme.brand.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(5),
-              ),
-              child: Text(lineup!.formation!,
-                  style: const TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      color: AppTheme.brand)),
-            ),
-          ],
-          const SizedBox(height: 12),
-          _lineupSection('Starting XI', lineup!.starters, p, team.name),
-          if (lineup!.bench.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            _lineupSection('Bench', lineup!.bench, p, team.name),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _lineupSection(
-      String title, List<LineupPlayer> players, Palette p, String teamHint) {
-    return Column(
-      crossAxisAlignment:
-          isRight ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-      children: [
-        Text(title.toUpperCase(),
-            style: TextStyle(
+          Text(
+            jersey != null
+                ? '$jersey ${_short(lastName)}'
+                : _short(lastName),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+                color: Colors.white,
                 fontSize: 9,
-                letterSpacing: 1.2,
-                fontWeight: FontWeight.w800,
-                color: p.textLow)),
-        const SizedBox(height: 6),
-        ...players.map((pl) => _PlayerRow(
-              player: pl,
-              p: p,
-              isRight: isRight,
-              teamHint: teamHint,
-            )),
-      ],
-    );
-  }
-}
-
-class _PlayerRow extends StatelessWidget {
-  final LineupPlayer player;
-  final Palette p;
-  final bool isRight;
-  final String teamHint;
-  const _PlayerRow({
-    required this.player,
-    required this.p,
-    required this.isRight,
-    required this.teamHint,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(6),
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => PlayerDetailScreen(
-            name: player.name,
-            teamHint: teamHint,
-            shirtNumber: player.shirtNumber,
-            position: player.position,
+                fontWeight: FontWeight.w700,
+                shadows: [Shadow(color: Colors.black54, blurRadius: 3)]),
           ),
-        ),
+        ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 2),
-        child: Row(
-          children: [
-            if (!isRight) ...[
-              _ShirtChip(number: player.shirtNumber, p: p),
-              const SizedBox(width: 6),
-            ],
-            Expanded(
-              child: Column(
-                crossAxisAlignment:
-                    isRight ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-                children: [
-                  Text(player.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: p.textHi)),
-                  if (player.position != null)
-                    Text(player.position!,
-                        style: TextStyle(
-                            fontSize: 9,
-                            color: p.textLow,
-                            fontWeight: FontWeight.w600)),
-                ],
-              ),
+    );
+  }
+
+  Widget _initialsWidget(String name, dynamic jersey) {
+    final text = jersey?.toString() ??
+        (name.trim().isEmpty
+            ? '?'
+            : name
+                .trim()
+                .split(' ')
+                .map((w) => w.isEmpty ? '' : w[0])
+                .join()
+                .substring(0, math.min(2,
+                    name.trim().split(' ').map((w) => w.isEmpty ? '' : w[0]).join().length)));
+    return Center(
+      child: Text(text,
+          style: const TextStyle(
+              color: Colors.white,
+              fontSize: 13,
+              fontWeight: FontWeight.w900)),
+    );
+  }
+
+  String _short(String s) => s.length > 8 ? '${s.substring(0, 7)}.' : s;
+}
+
+// ─── Substitutes row ──────────────────────────────────────────────────────────
+
+class _SubRow extends StatelessWidget {
+  final Map<String, dynamic> player;
+  final Palette p;
+  const _SubRow({required this.player, required this.p});
+
+  @override
+  Widget build(BuildContext context) {
+    final name = (player['player_name'] ?? player['name'] ?? '') as String;
+    final jersey = player['jersey_number'];
+    final pos = player['position'] as String?;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: p.surfaceHi,
+              borderRadius: BorderRadius.circular(8),
             ),
-            if (isRight) ...[
-              const SizedBox(width: 6),
-              _ShirtChip(number: player.shirtNumber, p: p),
-            ],
-            if (player.isCaptain)
-              Container(
-                margin: const EdgeInsets.only(left: 4),
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                decoration: BoxDecoration(
-                    color: AppTheme.brand.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(4)),
-                child: const Text('C',
-                    style: TextStyle(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w900,
-                        color: AppTheme.brand)),
-              ),
-          ],
-        ),
+            alignment: Alignment.center,
+            child: Text('${jersey ?? '—'}',
+                style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: p.textMid)),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(name,
+                style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: p.textHi)),
+          ),
+          if (pos != null)
+            Text(pos, style: TextStyle(fontSize: 11, color: p.textLow)),
+        ],
       ),
     );
   }
 }
 
-class _ShirtChip extends StatelessWidget {
-  final int? number;
+// ─── Unavailable player row ───────────────────────────────────────────────────
+
+class _UnavailRow extends StatelessWidget {
+  final Map<String, dynamic> player;
   final Palette p;
-  const _ShirtChip({required this.number, required this.p});
+  const _UnavailRow({required this.player, required this.p});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 24,
-      height: 24,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: p.surfaceHi,
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(
-        number?.toString() ?? '—',
-        style: TextStyle(
-            fontSize: 9, fontWeight: FontWeight.w800, color: p.textMid),
+    final name = (player['name'] ?? player['player_name'] ?? '') as String;
+    final reason = player['reason'] as String?;
+    final ret = player['expectedReturn'] as String?;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          const Icon(Icons.person_off_outlined, size: 18, color: AppTheme.bad),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name,
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: p.textHi)),
+                if (reason != null)
+                  Text(reason,
+                      style: TextStyle(fontSize: 11, color: p.textLow)),
+              ],
+            ),
+          ),
+          if (ret != null)
+            Text(ret,
+                style: TextStyle(
+                    fontSize: 11,
+                    color: p.textLow,
+                    fontStyle: FontStyle.italic)),
+        ],
       ),
     );
   }
+}
+
+// ─── Rating color helper ──────────────────────────────────────────────────────
+
+Color _ratingColor(double? rating) {
+  if (rating == null) return Colors.grey.shade600;
+  if (rating < 6.0) return Colors.red.shade400;
+  if (rating < 7.0) return Colors.orange.shade400;
+  if (rating < 8.0) return Colors.amber.shade400;
+  return Colors.green.shade400;
 }

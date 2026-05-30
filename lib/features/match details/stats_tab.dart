@@ -1,12 +1,10 @@
 // tabs/stats_tab.dart
 //
-// Stats tab: momentum graph + dual-bar statistics.
+// Stats tab: possession bar + per-stat dual-value rows with proportional bar.
+// Prefers liveStats from the Firestore raw doc; falls back to BSD resolver.
 // Part of the match_details library — see match_details_screen.dart.
-// Do not add imports here; they live in the library root.
 
 part of 'match_details_screen.dart';
-
-// ─── Stats tab ────────────────────────────────────────────────────────────────
 
 class _StatsTab extends ConsumerWidget {
   final Match match;
@@ -15,143 +13,413 @@ class _StatsTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final p = AppTheme.of(context);
-
-    // Prefer liveStats from the Firestore raw doc; fall back to BSD resolver.
     final rawAsync = ref.watch(_rawMatchProvider(match.id));
     final rawDoc = rawAsync.value;
-    final fsStats = rawDoc != null ? _statsFromRaw(rawDoc) : null;
 
-    final statsAsync = fsStats != null
-        ? AsyncValue.data(fsStats)
-        : ref.watch(_statsProvider(match));
+    // ── Build stats from Firestore liveStats ────────────────────────────────
+    final liveStats = rawDoc?['liveStats'];
+    final fsStats = liveStats is Map ? _statsFromRaw(rawDoc!) : null;
+
+    // ── xG ─────────────────────────────────────────────────────────────────
+    final xgDoc = rawDoc?['xg'] as Map?;
+    final xgHome = (xgDoc?['homeLive'] as num?)?.toDouble();
+    final xgAway = (xgDoc?['awayLive'] as num?)?.toDouble();
+    final showXg = xgHome != null && xgAway != null;
+
+    // ── Possession from raw or from BSD stats ───────────────────────────────
+    final rawHomeMap = liveStats is Map ? liveStats['home'] as Map? : null;
+    final rawAwayMap = liveStats is Map ? liveStats['away'] as Map? : null;
+    final possHome =
+        (rawHomeMap?['possession'] as num?)?.toDouble();
+    final possAway =
+        (rawAwayMap?['possession'] as num?)?.toDouble();
+
+    if (fsStats != null && fsStats.isNotEmpty) {
+      return _buildBody(p, ref, fsStats, possHome, possAway, xgHome, xgAway,
+          showXg, fromFirestore: true);
+    }
+
+    // Fall back to BSD resolver
+    final statsAsync = ref.watch(_statsProvider(match));
     final incsAsync = ref.watch(_incidentsProvider(match));
+
+    return statsAsync.when(
+      loading: () =>
+          const Center(child: CircularProgressIndicator()),
+      error: (_, __) => const _Unavailable(
+          icon: Icons.bar_chart_rounded, message: 'Stats unavailable.'),
+      data: (bsdStats) {
+        final allStats = bsdStats;
+        // Try extracting possession from BSD stats list
+        double? bsdPossHome, bsdPossAway;
+        for (final s in bsdStats) {
+          if (s.name.toLowerCase().contains('possession')) {
+            bsdPossHome = double.tryParse(
+                s.homeValue.replaceAll('%', '').trim());
+            bsdPossAway = double.tryParse(
+                s.awayValue.replaceAll('%', '').trim());
+            break;
+          }
+        }
+        // Momentum from incidents
+        return incsAsync.when(
+          loading: () => _buildBody(p, ref, allStats,
+              bsdPossHome, bsdPossAway, xgHome, xgAway, showXg),
+          error: (_, __) => _buildBody(p, ref, allStats,
+              bsdPossHome, bsdPossAway, xgHome, xgAway, showXg),
+          data: (incs) {
+            final pts = Momentum.fromIncidents(incs);
+            return _buildBody(p, ref, allStats,
+                bsdPossHome, bsdPossAway, xgHome, xgAway, showXg,
+                momentumPoints: pts);
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildBody(
+    Palette p,
+    WidgetRef ref,
+    List<MatchStat> stats,
+    double? possHome,
+    double? possAway,
+    double? xgHome,
+    double? xgAway,
+    bool showXg, {
+    List<MomentumPoint>? momentumPoints,
+    bool fromFirestore = false,
+  }) {
+    final allEmpty = stats.isEmpty && !showXg && possHome == null;
+
+    if (allEmpty) {
+      return _Unavailable(
+          icon: Icons.bar_chart_rounded,
+          message: match.isFinished
+              ? 'Detailed stats not available for this match.'
+              : match.isLive
+                  ? 'Stats are warming up — check back shortly.'
+                  : 'Statistics appear once the match starts.');
+    }
+
+    // Remove possession from the stat list if we're rendering it separately
+    final filteredStats = stats
+        .where((s) => !s.name.toLowerCase().contains('possession'))
+        .toList();
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(12, 14, 12, 30),
       children: [
-        // Momentum graph
-        incsAsync.when(
-          loading: () => const SizedBox.shrink(),
-          error: (_, __) => const SizedBox.shrink(),
-          data: (incs) {
-            final pts = Momentum.fromIncidents(incs);
-            if (pts.length < 2) return const SizedBox.shrink();
-            return _DetailCard(
-              margin: const EdgeInsets.only(bottom: 10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(children: [
-                    Text('MOMENTUM',
+        // ── Possession bar ────────────────────────────────────────────
+        if (possHome != null && possAway != null)
+          _PossessionCard(
+              homeTeam: match.homeTeam.tla,
+              awayTeam: match.awayTeam.tla,
+              homePct: possHome,
+              awayPct: possAway,
+              p: p),
+
+        // ── xG card ───────────────────────────────────────────────────
+        if (showXg)
+          _XgCard(
+              homeTeam: match.homeTeam.tla,
+              awayTeam: match.awayTeam.tla,
+              homeXg: xgHome!,
+              awayXg: xgAway!,
+              p: p),
+
+        // ── Momentum graph ────────────────────────────────────────────
+        if (momentumPoints != null && momentumPoints.length >= 2)
+          _DetailCard(
+            margin: const EdgeInsets.only(bottom: 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  Text('MOMENTUM',
+                      style: TextStyle(
+                          fontSize: 10,
+                          letterSpacing: 1.3,
+                          fontWeight: FontWeight.w800,
+                          color: p.textLow)),
+                  const Spacer(),
+                  Text('estimated',
+                      style: TextStyle(
+                          fontSize: 10,
+                          fontStyle: FontStyle.italic,
+                          color: p.textLow)),
+                ]),
+                const SizedBox(height: 12),
+                SizedBox(
+                    height: 80,
+                    child: CustomPaint(
+                        painter: _MomentumPainter(momentumPoints, p),
+                        size: Size.infinite)),
+                const SizedBox(height: 10),
+                Row(children: [
+                  const _LegendDot(color: AppTheme.brand),
+                  const SizedBox(width: 5),
+                  Text(match.homeTeam.tla,
+                      style: TextStyle(
+                          fontSize: 11,
+                          color: p.textMid,
+                          fontWeight: FontWeight.w700)),
+                  const SizedBox(width: 14),
+                  const _LegendDot(color: AppTheme.live),
+                  const SizedBox(width: 5),
+                  Text(match.awayTeam.tla,
+                      style: TextStyle(
+                          fontSize: 11,
+                          color: p.textMid,
+                          fontWeight: FontWeight.w700)),
+                ]),
+              ],
+            ),
+          ),
+
+        // ── Stat rows ─────────────────────────────────────────────────
+        if (filteredStats.isNotEmpty)
+          _DetailCard(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Row(children: [
+                    Text('STATISTICS',
                         style: TextStyle(
                             fontSize: 10,
                             letterSpacing: 1.3,
                             fontWeight: FontWeight.w800,
                             color: p.textLow)),
-                    const Spacer(),
-                    Text('estimated',
-                        style: TextStyle(
-                            fontSize: 10,
-                            fontStyle: FontStyle.italic,
-                            color: p.textLow)),
+                    if (fromFirestore) ...[
+                      const Spacer(),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppTheme.good.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text('Live',
+                            style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w800,
+                                color: AppTheme.good)),
+                      ),
+                    ],
                   ]),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                      height: 80,
-                      child: CustomPaint(
-                          painter: _MomentumPainter(pts, p),
-                          size: Size.infinite)),
-                  const SizedBox(height: 10),
-                  Row(children: [
-                    const _LegendDot(color: AppTheme.brand),
-                    const SizedBox(width: 5),
-                    Text(match.homeTeam.tla,
-                        style: TextStyle(
-                            fontSize: 11,
-                            color: p.textMid,
-                            fontWeight: FontWeight.w700)),
-                    const SizedBox(width: 14),
-                    const _LegendDot(color: AppTheme.live),
-                    const SizedBox(width: 5),
-                    Text(match.awayTeam.tla,
-                        style: TextStyle(
-                            fontSize: 11,
-                            color: p.textMid,
-                            fontWeight: FontWeight.w700)),
-                  ]),
-                ],
-              ),
-            );
-          },
-        ),
-
-        // Stats bars
-        statsAsync.when(
-          loading: () => const Padding(
-              padding: EdgeInsets.all(24),
-              child: Center(child: CircularProgressIndicator())),
-          error: (_, __) => const _Unavailable(
-              icon: Icons.bar_chart_rounded, message: 'Stats unavailable.'),
-          data: (stats) {
-            if (stats.isEmpty) {
-              return _Unavailable(
-                  icon: Icons.bar_chart_rounded,
-                  message: match.isFinished
-                      ? 'Detailed stats not available for this match.'
-                      : match.isLive
-                          ? 'Stats are warming up — check back in a few minutes.'
-                          : 'Statistics appear once the match starts.',
-                  hint: match.isFinished
-                      ? 'Some competitions don\'t expose full match statistics.'
-                      : null);
-            }
-            return _DetailCard(
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-              child: Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: Row(children: [
-                      Text('STATISTICS',
-                          style: TextStyle(
-                              fontSize: 10,
-                              letterSpacing: 1.3,
-                              fontWeight: FontWeight.w800,
-                              color: AppTheme.of(context).textLow)),
-                    ]),
-                  ),
-                  ...stats.map((s) => _StatBar(stat: s)),
-                ],
-              ),
-            );
-          },
-        ),
+                ),
+                ...filteredStats.map((s) => _StatRow(stat: s, p: p)),
+              ],
+            ),
+          ),
       ],
     );
   }
 }
 
-class _LegendDot extends StatelessWidget {
-  final Color color;
-  const _LegendDot({required this.color});
+// ─── Possession card ──────────────────────────────────────────────────────────
+
+class _PossessionCard extends StatelessWidget {
+  final String homeTeam;
+  final String awayTeam;
+  final double homePct;
+  final double awayPct;
+  final Palette p;
+  const _PossessionCard({
+    required this.homeTeam,
+    required this.awayTeam,
+    required this.homePct,
+    required this.awayPct,
+    required this.p,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final total = homePct + awayPct;
+    final hRatio = total > 0 ? homePct / total : 0.5;
     return Container(
-      width: 10,
-      height: 10,
-      decoration:
-          BoxDecoration(color: color, borderRadius: BorderRadius.circular(3)),
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: p.surface,
+        borderRadius: BorderRadius.circular(AppTheme.r),
+        border: Border.all(color: p.stroke),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Text(homeTeam,
+                  style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: AppTheme.brand)),
+              const Spacer(),
+              Text('Possession',
+                  style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: p.textLow)),
+              const Spacer(),
+              Text(awayTeam,
+                  style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: AppTheme.live)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Text('${homePct.toStringAsFixed(0)}%',
+                  style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                      color: p.textHi)),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: SizedBox(
+                      height: 8,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            flex: (hRatio * 100).round().clamp(1, 99),
+                            child: const ColoredBox(color: AppTheme.brand),
+                          ),
+                          Expanded(
+                            flex: ((1 - hRatio) * 100).round().clamp(1, 99),
+                            child: const ColoredBox(color: AppTheme.live),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Text('${awayPct.toStringAsFixed(0)}%',
+                  style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                      color: p.textHi)),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
 
-class _StatBar extends StatelessWidget {
-  final MatchStat stat;
-  const _StatBar({required this.stat});
+// ─── xG card ─────────────────────────────────────────────────────────────────
+
+class _XgCard extends StatelessWidget {
+  final String homeTeam;
+  final String awayTeam;
+  final double homeXg;
+  final double awayXg;
+  final Palette p;
+  const _XgCard({
+    required this.homeTeam,
+    required this.awayTeam,
+    required this.homeXg,
+    required this.awayXg,
+    required this.p,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final p = AppTheme.of(context);
+    final total = homeXg + awayXg;
+    final hRatio = total > 0 ? homeXg / total : 0.5;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: p.surface,
+        borderRadius: BorderRadius.circular(AppTheme.r),
+        border: Border.all(color: p.stroke),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Text(homeTeam,
+                  style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: AppTheme.brand)),
+              const Spacer(),
+              Text('Expected Goals (xG)',
+                  style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: p.textLow)),
+              const Spacer(),
+              Text(awayTeam,
+                  style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: AppTheme.live)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Text(homeXg.toStringAsFixed(2),
+                  style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                      color: p.textHi)),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: SizedBox(
+                      height: 8,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            flex: (hRatio * 100).round().clamp(1, 99),
+                            child: ColoredBox(
+                                color: AppTheme.accent.withValues(alpha: 0.8)),
+                          ),
+                          Expanded(
+                            flex: ((1 - hRatio) * 100).round().clamp(1, 99),
+                            child: ColoredBox(
+                                color: AppTheme.accent.withValues(alpha: 0.4)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Text(awayXg.toStringAsFixed(2),
+                  style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                      color: p.textHi)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Single stat row ──────────────────────────────────────────────────────────
+
+class _StatRow extends StatelessWidget {
+  final MatchStat stat;
+  final Palette p;
+  const _StatRow({required this.stat, required this.p});
+
+  @override
+  Widget build(BuildContext context) {
     final h = double.tryParse(stat.homeValue.replaceAll('%', '')) ?? 0;
     final a = double.tryParse(stat.awayValue.replaceAll('%', '')) ?? 0;
     final total = (h + a) <= 0 ? 1.0 : (h + a);
@@ -161,37 +429,46 @@ class _StatBar extends StatelessWidget {
       child: Column(
         children: [
           Row(children: [
-            Text(stat.homeValue,
-                style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    color: p.textHi)),
-            const Spacer(),
-            Text(stat.name,
-                style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: p.textMid)),
-            const Spacer(),
-            Text(stat.awayValue,
-                style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    color: p.textHi)),
+            SizedBox(
+              width: 44,
+              child: Text(stat.homeValue,
+                  textAlign: TextAlign.left,
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: p.textHi)),
+            ),
+            Expanded(
+              child: Text(stat.name,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: p.textMid)),
+            ),
+            SizedBox(
+              width: 44,
+              child: Text(stat.awayValue,
+                  textAlign: TextAlign.right,
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: p.textHi)),
+            ),
           ]),
           const SizedBox(height: 5),
           ClipRRect(
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(3),
             child: SizedBox(
-              height: 5,
+              height: 4,
               child: Row(children: [
                 Expanded(
                   flex: (hRatio * 100).round().clamp(1, 99),
-                  child: Container(color: AppTheme.brand),
+                  child: const ColoredBox(color: AppTheme.brand),
                 ),
                 Expanded(
                   flex: ((1 - hRatio) * 100).round().clamp(1, 99),
-                  child: Container(color: AppTheme.live),
+                  child: const ColoredBox(color: AppTheme.live),
                 ),
               ]),
             ),
@@ -202,6 +479,19 @@ class _StatBar extends StatelessWidget {
   }
 }
 
+class _LegendDot extends StatelessWidget {
+  final Color color;
+  const _LegendDot({required this.color});
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: 10,
+        height: 10,
+        decoration:
+            BoxDecoration(color: color, borderRadius: BorderRadius.circular(3)),
+      );
+}
+
 class _MomentumPainter extends CustomPainter {
   final List<MomentumPoint> points;
   final Palette palette;
@@ -210,35 +500,32 @@ class _MomentumPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (points.length < 2) return;
-    final w = size.width, h = size.height;
-    final maxMin = points.map((p) => p.minute).reduce((a, b) => a > b ? a : b);
+    final w = size.width;
+    final h = size.height;
+    final maxMin =
+        points.map((p) => p.minute).reduce((a, b) => a > b ? a : b);
     final span = (math.max(maxMin, 90)).toDouble();
 
-    // Grid lines
     final gridPaint = Paint()
       ..color = palette.stroke
       ..strokeWidth = 0.5;
     for (var i = 1; i < 4; i++) {
-      final y = h * i / 4;
-      canvas.drawLine(Offset(0, y), Offset(w, y), gridPaint);
+      canvas.drawLine(
+          Offset(0, h * i / 4), Offset(w, h * i / 4), gridPaint);
     }
-    // Centre line
-    canvas.drawLine(
-      Offset(0, h / 2),
-      Offset(w, h / 2),
-      Paint()
-        ..color = palette.textLow.withValues(alpha: 0.35)
-        ..strokeWidth = 1,
-    );
+    canvas.drawLine(Offset(0, h / 2), Offset(w, h / 2),
+        Paint()
+          ..color = palette.textLow.withValues(alpha: 0.35)
+          ..strokeWidth = 1);
 
-    Offset toOffset(MomentumPoint pt, bool isHome) {
+    Offset toOff(MomentumPoint pt, bool isHome) {
       final x = (pt.minute / span) * w;
       final score = isHome ? pt.homeScore : pt.awayScore;
       final y = h - (score / 100) * h;
       return Offset(x, y);
     }
 
-    void drawSmoothedPath(List<Offset> pts, Color color) {
+    void drawPath(List<Offset> pts, Color color) {
       if (pts.length < 2) return;
       final path = Path();
       path.moveTo(pts[0].dx, pts[0].dy);
@@ -249,20 +536,16 @@ class _MomentumPainter extends CustomPainter {
         path.cubicTo(cpX, prev.dy, cpX, curr.dy, curr.dx, curr.dy);
       }
       canvas.drawPath(
-        path,
-        Paint()
-          ..color = color
-          ..strokeWidth = 2
-          ..style = PaintingStyle.stroke
-          ..strokeCap = StrokeCap.round
-          ..strokeJoin = StrokeJoin.round,
-      );
+          path,
+          Paint()
+            ..color = color
+            ..strokeWidth = 2
+            ..style = PaintingStyle.stroke
+            ..strokeCap = StrokeCap.round);
     }
 
-    final homeOffsets = points.map((pt) => toOffset(pt, true)).toList();
-    final awayOffsets = points.map((pt) => toOffset(pt, false)).toList();
-    drawSmoothedPath(homeOffsets, AppTheme.brand);
-    drawSmoothedPath(awayOffsets, AppTheme.live);
+    drawPath(points.map((pt) => toOff(pt, true)).toList(), AppTheme.brand);
+    drawPath(points.map((pt) => toOff(pt, false)).toList(), AppTheme.live);
   }
 
   @override

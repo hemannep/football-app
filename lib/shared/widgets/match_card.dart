@@ -64,6 +64,7 @@ class MatchCard extends StatelessWidget {
                           text: _prettyStage(match.stage),
                           color: AppTheme.accent),
                     const Spacer(),
+                    if (_hasRecentGoal(match)) const _GoalBadge(),
                     if (showDate)
                       Text(DateFormat('d MMM').format(match.utcDate),
                           style: TextStyle(
@@ -112,6 +113,14 @@ class MatchCard extends StatelessWidget {
   String _prettyGroup(String g) {
     if (g.startsWith('GROUP_')) return 'Group ${g.substring(6)}';
     return g;
+  }
+
+  // Returns true when a goal was scored within the last 5 estimated minutes.
+  bool _hasRecentGoal(Match m) {
+    if (!m.isLive || m.goals.isEmpty) return false;
+    final elapsed = DateTime.now().difference(m.utcDate).inMinutes.clamp(1, 120);
+    final lastMin = m.goals.fold(0, (max, g) => g.minute > max ? g.minute : max);
+    return lastMin > 0 && (elapsed - lastMin) <= 5;
   }
 }
 
@@ -294,4 +303,29 @@ class _PulseDotState extends State<_PulseDot>
               const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
         ),
       );
+}
+
+class _GoalBadge extends StatelessWidget {
+  const _GoalBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(right: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        gradient: AppTheme.liveGradient,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: const Text(
+        'GOAL!',
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 9,
+          fontWeight: FontWeight.w900,
+          letterSpacing: 0.5,
+        ),
+      ),
+    );
+  }
 }

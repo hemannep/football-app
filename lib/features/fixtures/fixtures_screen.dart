@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../core/providers/live_score_provider.dart';
+import '../../core/services/live_data_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/match_card.dart';
 import '../league picker/league_picker.dart';
@@ -29,6 +30,8 @@ class _FixturesScreenState extends ConsumerState<FixturesScreen> {
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
     final s = ref.watch(liveScoreProvider);
+    final freshnessLabel =
+        ref.watch(relayMetaProvider).asData?.value.freshnessLabel ?? '';
     final stages = [
       'ALL',
       ...{...s.matches.map((m) => m.stage)}
@@ -72,6 +75,15 @@ class _FixturesScreenState extends ConsumerState<FixturesScreen> {
                 ],
               ),
             ),
+            if (freshnessLabel.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(freshnessLabel,
+                      style: TextStyle(fontSize: 11, color: p.textLow)),
+                ),
+              ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               child: TextField(
