@@ -3,37 +3,57 @@
 // Football Fan Hub 2026 — Data Relay
 //
 // Runs on GitHub Actions (cron */5). Pulls from football-data.org (live scores,
-// events, standings) and API-Football (lineups, once per match), normalizes
-// everything into the schema the Flutter app expects, and writes to Firestore.
+// events, standings) for ALL 12 supported competitions, normalizes everything
+// into the schema the Flutter app expects, and writes to Firestore.
 //
 // The Flutter app NEVER calls these external APIs. It only reads Firestore.
 // External API keys live ONLY in GitHub Secrets — never in the APK.
 //
 // Design rules:
-//   • Every external call is wrapped — one failing source never aborts the run.
-//   • Writes are batched (1 commit for all matches) to stay cheap on quota.
-//   • Goals are written in the EXACT shape Match.fromJson()/MatchGoal expects:
-//       { minute, scorer:{name}, team:{id,tla}, type, assist:{name} }
-//   • meta/relay holds liveMatchIds + lastRun so the app reads 1 cheap doc first.
-//   • API-Football lineup calls are gated to newly-finished matches only,
-//     keeping total usage at ~104 calls for the whole tournament (limit 100/day).
+//   • All 12 competitions fetched in one run; rate-limited at 6.5 s/call.
+//   • Goals written in the EXACT shape MatchGoal.fromJson() expects.
+//   • Standings stored as {competitionCode}_{groupKey} so the app can filter
+//     by competition (e.g. watchStandings('PL') → only PL table).
+//   • meta/relay holds liveMatchIds + lastRun for 1 cheap app read first.
+//   • Play-Store-safe competition names: no "FIFA" / "World Cup" strings.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const admin = require('firebase-admin');
 
-// node-fetch v3 is ESM-only; use global fetch (Node 18+) if present, else import.
 const fetchFn = global.fetch
   ? global.fetch
   : (...args) => import('node-fetch').then(({ default: f }) => f(...args));
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 const FD_BASE = 'https://api.football-data.org/v4';
-const FD_COMPETITION = 'WC';
 const APIFOOTBALL_BASE = 'https://v3.football.api-sports.io';
 
-// A match is considered "in its window" from 15 min before kickoff to 3h after.
-const PRE_KICKOFF_MS = 15 * 60 * 1000;
-const POST_KICKOFF_MS = 3 * 60 * 60 * 1000;
+// All competitions the app supports. Matches are fetched for every one.
+const COMPETITIONS = ['WC', 'CL', 'EC', 'PL', 'PD', 'BL1', 'SA', 'FL1', 'DED', 'PPL', 'ELC', 'BSA'];
+
+// Play-Store safe display names — never use "FIFA" or "World Cup".
+const SAFE_NAMES = {
+  WC:  'International Football 2026',
+  CL:  'Champions League',
+  EC:  'European Championship',
+  PL:  'Premier League',
+  PD:  'La Liga',
+  BL1: 'Bundesliga',
+  SA:  'Serie A',
+  FL1: 'Ligue 1',
+  DED: 'Eredivisie',
+  PPL: 'Primeira Liga',
+  ELC: 'Championship',
+  BSA: 'Série A Brasil',
+};
+
+// football-data.org free tier: 10 calls/min → wait ≥ 6 s between calls.
+const RATE_LIMIT_MS = 6500;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Match window: 15 min before kickoff to 3h after.
+const PRE_KICKOFF_MS  = 15 * 60 * 1000;
+const POST_KICKOFF_MS =  3 * 60 * 60 * 1000;
 
 const LIVE_STATUSES = new Set(['IN_PLAY', 'PAUSED']);
 
@@ -45,16 +65,16 @@ if (!process.env.FIREBASE_SA) {
 admin.initializeApp({
   credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SA)),
 });
-const db = admin.firestore();
+const db  = admin.firestore();
 const NOW = admin.firestore.FieldValue.serverTimestamp;
 
-// ─── HTTP helpers ───────────────────────────────────────────────────────────────
+// ─── HTTP helpers ────────────────────────────────────────────────────────────
 async function fdGet(path) {
   const res = await fetchFn(`${FD_BASE}${path}`, {
     headers: { 'X-Auth-Token': process.env.FD_TOKEN },
   });
   if (res.status === 429) {
-    console.warn(`football-data.org rate limited on ${path} — backing off.`);
+    console.warn(`football-data.org rate limited on ${path} — skipping.`);
     return null;
   }
   if (!res.ok) {
@@ -76,17 +96,15 @@ async function apiFootballGet(path) {
   return res.json();
 }
 
-// ─── Normalizers ────────────────────────────────────────────────────────────────
-// football-data.org returns goals at /matches/{id}.goals. We reshape each one
-// to the EXACT structure MatchGoal.fromJson() reads in the Flutter app.
+// ─── Normalizers ──────────────────────────────────────────────────────────────
 function normalizeGoals(rawGoals) {
   if (!Array.isArray(rawGoals)) return [];
   return rawGoals.map((g) => ({
     minute: g.minute ?? 0,
-    type: g.type ?? 'REGULAR', // REGULAR | OWN | PENALTY
+    type:   g.type   ?? 'REGULAR',
     scorer: { name: g.scorer?.name ?? null },
-    assist: { name: g.assist?.name ?? null },
-    team: { id: g.team?.id ?? null, tla: g.team?.tla ?? null },
+    assist: { name: g.assist?.name  ?? null },
+    team:   { id: g.team?.id ?? null, tla: g.team?.tla ?? null },
   }));
 }
 
@@ -95,46 +113,45 @@ function normalizeBookings(raw) {
   return raw.map((b) => ({
     minute: b.minute ?? 0,
     player: b.player?.name ?? null,
-    team: b.team?.tla ?? b.team?.name ?? null,
-    card: b.card ?? 'YELLOW', // YELLOW | RED | YELLOW_RED
+    team:   b.team?.tla ?? b.team?.name ?? null,
+    card:   b.card ?? 'YELLOW',
   }));
 }
 
 function normalizeSubs(raw) {
   if (!Array.isArray(raw)) return [];
   return raw.map((s) => ({
-    minute: s.minute ?? 0,
-    playerIn: s.playerIn?.name ?? null,
+    minute:    s.minute ?? 0,
+    playerIn:  s.playerIn?.name  ?? null,
     playerOut: s.playerOut?.name ?? null,
-    team: s.team?.tla ?? s.team?.name ?? null,
+    team:      s.team?.tla ?? s.team?.name ?? null,
   }));
 }
 
-// ─── Step 1: bulk matches (live scores, statuses) ───────────────────────────────
-// Cheap: one external call, one batched Firestore commit for all 104 matches.
-async function fetchAndStoreMatches() {
-  const data = await fdGet(`/competitions/${FD_COMPETITION}/matches`);
+// ─── Step 1: matches for ONE competition ──────────────────────────────────────
+async function fetchAndStoreMatchesForComp(comp) {
+  const data = await fdGet(`/competitions/${comp}/matches`);
   if (!data || !Array.isArray(data.matches)) return [];
 
-  const compName = data.competition?.name ?? 'World Cup';
-  const batch = db.batch();
-  const liveIds = [];
+  const compName = SAFE_NAMES[comp] ?? comp;
+  const batch    = db.batch();
+  const liveIds  = [];
 
   for (const m of data.matches) {
     const ref = db.collection('matches').doc(String(m.id));
     batch.set(
       ref,
       {
-        id: m.id,
-        status: m.status,
-        utcDate: m.utcDate,
-        homeTeam: m.homeTeam ?? {},
-        awayTeam: m.awayTeam ?? {},
-        score: m.score ?? {},
-        stage: m.stage ?? 'GROUP_STAGE',
-        group: m.group ?? null,
-        competition: { name: compName, code: FD_COMPETITION },
-        updatedAt: NOW(),
+        id:          m.id,
+        status:      m.status,
+        utcDate:     m.utcDate,
+        homeTeam:    m.homeTeam ?? {},
+        awayTeam:    m.awayTeam ?? {},
+        score:       m.score    ?? {},
+        stage:       m.stage    ?? 'GROUP_STAGE',
+        group:       m.group    ?? null,
+        competition: { name: compName, code: comp },
+        updatedAt:   NOW(),
       },
       { merge: true }
     );
@@ -142,68 +159,83 @@ async function fetchAndStoreMatches() {
   }
 
   await batch.commit();
-  console.log(`✓ Stored ${data.matches.length} matches (${liveIds.length} live).`);
+  console.log(`  [${comp}] ${data.matches.length} matches stored (${liveIds.length} live)`);
   return data.matches;
 }
 
-// ─── Step 2: standings (hourly / during windows) ────────────────────────────────
-async function fetchAndStoreStandings() {
-  const data = await fdGet(`/competitions/${FD_COMPETITION}/standings`);
-  if (!data || !Array.isArray(data.standings)) return;
+// ─── Step 2: standings for ONE competition ────────────────────────────────────
+// Docs are keyed as "{comp}_{groupKey}" so the Flutter app can query by
+// competitionCode without mixing groups from different leagues.
+async function fetchAndStoreStandingsForComp(comp) {
+  const data = await fdGet(`/competitions/${comp}/standings`);
+  if (!data) return;
+
+  const standings = Array.isArray(data.standings)
+    ? data.standings
+    : data.standings
+    ? [data.standings]
+    : [];
+
+  if (!standings.length) {
+    console.log(`  [${comp}] No standings returned.`);
+    return;
+  }
 
   const batch = db.batch();
-  for (const s of data.standings) {
+  for (const s of standings) {
     const groupKey = s.group ?? s.stage ?? 'TOTAL';
-    const ref = db.collection('standings').doc(groupKey);
+    const docKey   = `${comp}_${groupKey}`;
+    const ref      = db.collection('standings').doc(docKey);
     batch.set(
       ref,
-      { group: groupKey, table: s.table ?? [], updatedAt: NOW() },
+      {
+        group:           groupKey,
+        competitionCode: comp,
+        table:           s.table ?? [],
+        updatedAt:       NOW(),
+      },
       { merge: true }
     );
   }
   await batch.commit();
-  console.log(`✓ Stored ${data.standings.length} standings groups.`);
+  console.log(`  [${comp}] ${standings.length} standing group(s) stored`);
 }
 
-// ─── Step 3: per-match detail (goals, cards, subs) for live + just-finished ─────
+// ─── Step 3: per-match detail (goals, cards, subs) ───────────────────────────
 async function fetchMatchDetail(matchId) {
   const m = await fdGet(`/matches/${matchId}`);
   if (!m) return;
 
   await db.collection('matches').doc(String(matchId)).set(
     {
-      goals: normalizeGoals(m.goals),
-      bookings: normalizeBookings(m.bookings),
+      goals:         normalizeGoals(m.goals),
+      bookings:      normalizeBookings(m.bookings),
       substitutions: normalizeSubs(m.substitutions),
-      score: m.score ?? {},
-      status: m.status,
+      score:         m.score  ?? {},
+      status:        m.status,
       detailUpdatedAt: NOW(),
     },
     { merge: true }
   );
 }
 
-// ─── Step 4: lineups via API-Football (once per match, newly finished) ──────────
-// NOTE: API-Football uses its own fixture ID system — different from football-
-// data.org. The `/fixtures?id=X` call here will only work if you've stored an
-// fd→apifootball ID mapping in schedule.json (not required for launch; Bzzoiro
-// covers lineups for the live enrichment window). Until that map exists this
-// step is a no-op but still safe to run.
+// ─── Step 4: post-match lineup via API-Football ───────────────────────────────
+// NOTE: API-Football uses its own fixture IDs — different from football-data.org.
+// The /fixtures?id=X call only works if the fd→apifootball ID happens to match.
+// Bzzoiro covers lineups for the live window; this is a supplemental fallback.
 async function fetchAndStoreLineup(matchId) {
-  const data = await apiFootballGet(`/fixtures?id=${matchId}`);
+  const data    = await apiFootballGet(`/fixtures?id=${matchId}`);
   const fixture = data?.response?.[0];
   if (!fixture) return;
 
-  // Write to the dedicated lineups/ collection.
   await db.collection('lineups').doc(String(matchId)).set({
-    home: fixture.lineups?.[0] ?? null,
-    away: fixture.lineups?.[1] ?? null,
-    events: fixture.events ?? [],
+    home:      fixture.lineups?.[0] ?? null,
+    away:      fixture.lineups?.[1] ?? null,
+    events:    fixture.events ?? [],
     fetchedAt: NOW(),
   });
 
-  // Also merge into the matches/ doc under confirmedLineup so the Flutter app
-  // can read it via getMatchRaw() without a second collection fetch.
+  // Also merge into the matches/ doc so the app can read it via getMatchRaw().
   if (fixture.lineups?.length) {
     await db.collection('matches').doc(String(matchId)).set(
       {
@@ -217,12 +249,10 @@ async function fetchAndStoreLineup(matchId) {
     );
   }
 
-  console.log(`✓ Stored lineup for match ${matchId}.`);
+  console.log(`  Lineup stored for match ${matchId}`);
 }
 
-// ─── Match-window detection ──────────────────────────────────────────────────────
-// Returns { live:[ids], windowOpen:bool } based on the live statuses we already
-// pulled, plus a time-window check so we still poll detail just before kickoff.
+// ─── Match-window detection ───────────────────────────────────────────────────
 function classifyMatches(matches, now) {
   const live = [];
   let windowOpen = false;
@@ -242,15 +272,13 @@ function classifyMatches(matches, now) {
   return { live, windowOpen };
 }
 
-// Compares the previous run's status (stored in meta/relay.statuses) with the
-// current pull to detect matches that transitioned INTO "FINISHED" this run.
 async function detectNewlyFinished(matches) {
-  const metaRef = db.collection('meta').doc('relay');
-  const prev = (await metaRef.get()).data() ?? {};
+  const metaRef      = db.collection('meta').doc('relay');
+  const prev         = (await metaRef.get()).data() ?? {};
   const prevStatuses = prev.statuses ?? {};
 
   const newlyFinished = [];
-  const statuses = {};
+  const statuses      = {};
   for (const m of matches) {
     statuses[m.id] = m.status;
     if (m.status === 'FINISHED' && prevStatuses[String(m.id)] !== 'FINISHED') {
@@ -265,37 +293,57 @@ async function main() {
   const now = new Date();
   console.log(`▶ Relay start ${now.toISOString()}`);
 
-  // 1. Bulk matches (always).
-  const matches = await fetchAndStoreMatches();
+  // Phase 1 — Fetch matches for all competitions (rate-limited).
+  console.log('Phase 1: fetching matches…');
+  const allMatches = [];
+  for (const comp of COMPETITIONS) {
+    const matches = await fetchAndStoreMatchesForComp(comp);
+    allMatches.push(...matches);
+    await sleep(RATE_LIMIT_MS);
+  }
+  console.log(`  Total: ${allMatches.length} matches across ${COMPETITIONS.length} competitions`);
 
-  // 2. Classify what's live / in-window.
-  const { live, windowOpen } = classifyMatches(matches, now);
+  // Phase 2 — Classify.
+  const { live, windowOpen } = classifyMatches(allMatches, now);
 
-  // 3. Standings: during a window, or at the top of the hour.
+  // Phase 3 — Standings: in window OR top of hour.
   if (windowOpen || now.getUTCMinutes() < 5) {
-    await fetchAndStoreStandings();
+    console.log('Phase 3: fetching standings…');
+    for (const comp of COMPETITIONS) {
+      await fetchAndStoreStandingsForComp(comp);
+      await sleep(RATE_LIMIT_MS);
+    }
   }
 
-  // 4. Per-match detail for every live match (goals/cards/subs).
-  for (const id of live) {
-    await fetchMatchDetail(id);
+  // Phase 4 — Per-match detail for every live match.
+  if (live.length) {
+    console.log(`Phase 4: fetching detail for ${live.length} live match(es)…`);
+    for (const id of live) {
+      await fetchMatchDetail(id);
+      await sleep(RATE_LIMIT_MS);
+    }
   }
 
-  // 5. Newly finished: one final detail pull + one lineup pull each.
-  const { newlyFinished, statuses } = await detectNewlyFinished(matches);
-  for (const id of newlyFinished) {
-    await fetchMatchDetail(id);
-    await fetchAndStoreLineup(id);
+  // Phase 5 — Newly finished: final detail + lineup.
+  const { newlyFinished, statuses } = await detectNewlyFinished(allMatches);
+  if (newlyFinished.length) {
+    console.log(`Phase 5: ${newlyFinished.length} newly finished match(es)…`);
+    for (const id of newlyFinished) {
+      await fetchMatchDetail(id);
+      await fetchAndStoreLineup(id);
+      await sleep(RATE_LIMIT_MS);
+    }
   }
 
-  // 6. Write meta doc LAST — app reads this first (1 cheap doc).
+  // Phase 6 — Write meta LAST (app reads this doc first).
   await db.collection('meta').doc('relay').set(
     {
-      lastRun: NOW(),
-      lastRunIso: now.toISOString(),
-      liveMatchIds: live,
+      lastRun:        NOW(),
+      lastRunIso:     now.toISOString(),
+      liveMatchIds:   live,
       windowOpen,
-      statuses, // used next run to detect transitions
+      statuses,
+      competitions:   COMPETITIONS,
     },
     { merge: true }
   );

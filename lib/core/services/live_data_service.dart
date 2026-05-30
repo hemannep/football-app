@@ -260,6 +260,22 @@ class LiveDataService {
     });
   }
 
+  /// Standings filtered to a single competition — used by the Standings screen
+  /// so switching leagues shows only that competition's groups/table.
+  /// Docs are stored as "{competitionCode}_{groupKey}" by the relay, each
+  /// with a competitionCode field that Firestore uses for the where clause.
+  Stream<List<GroupTable>> watchStandingsByLeague(String competitionCode) {
+    return _db
+        .collection('standings')
+        .where('competitionCode', isEqualTo: competitionCode)
+        .snapshots()
+        .map((snap) {
+      final raw = snap.docs.map((d) => d.data()).toList();
+      _cache('standings_$competitionCode', raw);
+      return raw.map((e) => GroupTable.fromJson(e)).toList();
+    });
+  }
+
   // ─── Bracket ──────────────────────────────────────────────────────────────
   Future<Map<String, dynamic>?> getBracket() async {
     const key = 'bracket_current';
@@ -462,4 +478,13 @@ final playersForTeamProvider =
 /// Live news stream for the News screen.
 final newsStreamProvider = StreamProvider<List<Map<String, dynamic>>>(
   (ref) => ref.watch(liveDataServiceProvider).watchNews(),
+);
+
+/// Standings for a specific competition code — drives the Standings screen.
+/// Relay stores docs as "{code}_{group}" with a competitionCode field so
+/// Firestore can filter without a composite index.
+final standingsByLeagueProvider =
+    StreamProvider.family<List<GroupTable>, String>(
+  (ref, code) =>
+      ref.watch(liveDataServiceProvider).watchStandingsByLeague(code),
 );

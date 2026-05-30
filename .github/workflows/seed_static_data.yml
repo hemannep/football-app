@@ -15,14 +15,14 @@ concurrency:
 jobs:
   seed:
     runs-on: ubuntu-latest
-    timeout-minutes: 15  # per-team fallback may take ~6 min for 48 teams
+    timeout-minutes: 30  # 12 competitions × rate-limited fetches can take ~20 min
     steps:
       - uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
 
       - name: Install dependencies

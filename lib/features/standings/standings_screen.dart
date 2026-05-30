@@ -28,7 +28,7 @@ class _StandingsScreenState extends ConsumerState<StandingsScreen> {
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
     final league = ref.watch(selectedLeagueProvider);
-    final standingsAsync = ref.watch(standingsStreamProvider);
+    final standingsAsync = ref.watch(standingsByLeagueProvider(league.code));
     final matchesAsync = ref.watch(matchesStreamProvider);
     final metaAsync = ref.watch(relayMetaProvider);
 
@@ -57,7 +57,7 @@ class _StandingsScreenState extends ConsumerState<StandingsScreen> {
                   IconButton(
                     icon: const Icon(Icons.refresh_rounded),
                     onPressed: () {
-                      ref.invalidate(standingsStreamProvider);
+                      ref.invalidate(standingsByLeagueProvider(league.code));
                       ref.invalidate(matchesStreamProvider);
                     },
                   ),
@@ -100,7 +100,13 @@ class _StandingsScreenState extends ConsumerState<StandingsScreen> {
                     loading: () =>
                         const Center(child: CircularProgressIndicator()),
                     error: (_, __) => _empty(p),
-                    data: (matches) {
+                    data: (allMatches) {
+                      // Filter to selected league before building the preview.
+                      final matches = allMatches
+                          .where((m) =>
+                              m.competitionCode == null ||
+                              m.competitionCode == league.code)
+                          .toList();
                       final preview = _buildPreview(matches);
                       if (preview.isEmpty) return _empty(p);
                       return ListView(
@@ -128,7 +134,9 @@ class _StandingsScreenState extends ConsumerState<StandingsScreen> {
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
-                                    'Tables update once the tournament begins (June 11)',
+                                    league.code == 'WC'
+                                        ? 'Tables update once the tournament begins (June 11)'
+                                        : 'Tables will appear once the season is underway',
                                     style: TextStyle(
                                         fontSize: 12,
                                         color: p.textMid,
