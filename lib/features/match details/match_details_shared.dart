@@ -30,16 +30,15 @@ class _SectionLabel extends StatelessWidget {
 /// A standardised card wrapper used throughout the detail tabs.
 class _DetailCard extends StatelessWidget {
   final Widget child;
-  final EdgeInsetsGeometry? padding;
   final EdgeInsetsGeometry? margin;
-  const _DetailCard({required this.child, this.padding, this.margin});
+  const _DetailCard({required this.child, this.margin});
 
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
     return Container(
       margin: margin ?? const EdgeInsets.only(bottom: 0),
-      padding: padding ?? const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: p.surface,
         borderRadius: BorderRadius.circular(AppTheme.r),

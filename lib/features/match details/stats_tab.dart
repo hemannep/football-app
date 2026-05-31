@@ -142,31 +142,31 @@ class _StatsTab extends ConsumerWidget {
         .toList();
 
     // Extract shot stats for the accuracy gauge.
-    MatchStat? _findStat(List<String> names) {
+    MatchStat? findStat(List<String> names) {
       for (final s in filteredStats) {
         if (names.any((n) => s.name == n)) return s;
       }
       return null;
     }
 
-    final totalShots = _findStat(['Total Shots']);
-    final shotsOnGoal = _findStat(['Shots on Goal']);
+    final totalShots = findStat(['Total Shots']);
+    final shotsOnGoal = findStat(['Shots on Goal']);
     final showAccuracy = totalShots != null && shotsOnGoal != null;
 
     // Group the remaining stats by category.
-    List<MatchStat> _cat(Set<String> keys) =>
+    List<MatchStat> cat(Set<String> keys) =>
         filteredStats.where((s) => keys.contains(s.name)).toList();
-    List<MatchStat> _other() => filteredStats
+    List<MatchStat> other() => filteredStats
         .where((s) =>
             !_kAttackStats.contains(s.name) &&
             !_kPassingStats.contains(s.name) &&
             !_kDisciplineStats.contains(s.name))
         .toList();
 
-    final attackStats = _cat(_kAttackStats);
-    final passingStats = _cat(_kPassingStats);
-    final disciplineStats = _cat(_kDisciplineStats);
-    final otherStats = _other();
+    final attackStats = cat(_kAttackStats);
+    final passingStats = cat(_kPassingStats);
+    final disciplineStats = cat(_kDisciplineStats);
+    final otherStats = other();
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(12, 14, 12, 30),
