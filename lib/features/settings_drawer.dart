@@ -248,6 +248,96 @@ class SettingsDrawer extends ConsumerWidget {
               ),
               child: Column(
                 children: [
+                  // ╔══════════════════════════════════════════════════╗
+                  // ║  DEV TOOL — comment out the block below before   ║
+                  // ║  publishing to the store.                        ║
+                  // ╚══════════════════════════════════════════════════╝
+                  StatefulBuilder(
+                    builder: (ctx, setState) {
+                      final removed = AdService.adsRemoved;
+                      return GestureDetector(
+                        onTap: () async {
+                          await AdService.setAdsRemoved(!removed);
+                          setState(() {});
+                          if (ctx.mounted) {
+                            ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+                              content: Text(removed
+                                  ? '🔴 Ads re-enabled'
+                                  : '🟢 Ads disabled for this session'),
+                              duration: const Duration(seconds: 2),
+                            ));
+                          }
+                        },
+                        child: Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: removed
+                                ? const Color(0xFF1A2A10)
+                                : const Color(0xFF2A1A08),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: removed
+                                  ? AppTheme.brand.withValues(alpha: 0.55)
+                                  : const Color(0xFFFF9800)
+                                      .withValues(alpha: 0.55),
+                              width: 1.2,
+                            ),
+                          ),
+                          child: Row(children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 5, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFF9800)
+                                    .withValues(alpha: 0.18),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Text('DEV',
+                                  style: TextStyle(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w900,
+                                      color: Color(0xFFFF9800),
+                                      letterSpacing: 1.2)),
+                            ),
+                            const SizedBox(width: 10),
+                            Icon(
+                              removed
+                                  ? Icons.block_rounded
+                                  : Icons.ads_click_rounded,
+                              size: 16,
+                              color: removed
+                                  ? AppTheme.brand
+                                  : const Color(0xFFFF9800),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                removed ? 'Ads OFF' : 'Ads ON',
+                                style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    color: removed
+                                        ? AppTheme.brand
+                                        : const Color(0xFFFF9800)),
+                              ),
+                            ),
+                            Icon(
+                              removed
+                                  ? Icons.toggle_on_rounded
+                                  : Icons.toggle_off_rounded,
+                              size: 26,
+                              color: removed
+                                  ? AppTheme.brand
+                                  : const Color(0xFFFF9800),
+                            ),
+                          ]),
+                        ),
+                      );
+                    },
+                  ),
+                  // ── end DEV TOOL ──────────────────────────────────
                   Text('${t.appName} v1.0',
                       style: TextStyle(fontSize: 11, color: p.textLow)),
                   const SizedBox(height: 2),
