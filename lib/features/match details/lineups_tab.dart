@@ -632,8 +632,9 @@ class _TeamStrip extends StatelessWidget {
 
     // Shorten coach name to "F. Surname" style to save space.
     String? coachShort;
-    if (coach != null && coach!.trim().isNotEmpty) {
-      final parts = coach!.trim().split(' ');
+    final coachVal = coach;
+    if (coachVal != null && coachVal.trim().isNotEmpty) {
+      final parts = coachVal.trim().split(' ');
       coachShort = parts.length > 1
           ? '${parts.first[0]}. ${parts.last}'
           : coach;
@@ -786,16 +787,9 @@ class _PlayerChip extends StatelessWidget {
   }
 
   Widget _initialsWidget(String name, dynamic jersey) {
+    final initials = name.trim().split(' ').map((w) => w.isEmpty ? '' : w[0]).join();
     final text = jersey?.toString() ??
-        (name.trim().isEmpty
-            ? '?'
-            : name
-                .trim()
-                .split(' ')
-                .map((w) => w.isEmpty ? '' : w[0])
-                .join()
-                .substring(0, math.min(2,
-                    name.trim().split(' ').map((w) => w.isEmpty ? '' : w[0]).join().length)));
+        (name.trim().isEmpty ? '?' : initials.substring(0, math.min(2, initials.length)));
     return Center(
       child: Text(text,
           style: const TextStyle(

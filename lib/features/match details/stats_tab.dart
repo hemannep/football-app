@@ -456,7 +456,7 @@ class _ShotAccuracyCard extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 4),
-        Text('${(homeAcc == accuracy ? homeAcc : awayAcc) * 100 ~/ 1}%',
+        Text('${(accuracy * 100).toInt()}%',
             style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.w900,
