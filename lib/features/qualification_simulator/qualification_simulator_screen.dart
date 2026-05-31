@@ -15,7 +15,7 @@ import '../../core/theme/app_theme.dart';
 import '../../shared/models/match.dart';
 import '../../shared/models/standing.dart';
 import '../../shared/widgets/ad_banner_widget.dart';
-import '../../shared/widgets/flag_widget.dart';
+import '../../shared/widgets/team_crest_widget.dart';
 
 
 class QualificationSimulatorScreen extends ConsumerStatefulWidget {
@@ -460,7 +460,7 @@ class _PickerSheetState extends State<_PickerSheet> {
                       ),
                       child: Row(
                         children: [
-                          FlagWidget(tla: t.tla, size: 22),
+                          TeamCrestWidget(crestUrl: t.crest, tla: t.tla, size: 22),
                           const SizedBox(width: 12),
                           Expanded(
                               child: Text(t.teamName,
@@ -641,7 +641,7 @@ class _RemainingMatchTile extends ConsumerWidget {
                       color: p.textLow,
                       fontWeight: FontWeight.w700)),
               const SizedBox(width: 8),
-              FlagWidget(tla: opponent.tla, size: 20),
+              TeamCrestWidget(crestUrl: opponent.crest, tla: opponent.tla, size: 20),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(opponent.name,
@@ -838,7 +838,7 @@ class _ProjectionCard extends StatelessWidget {
                               fontSize: 11,
                               fontWeight: FontWeight.w800,
                               color: p.textMid))),
-                  FlagWidget(tla: t.tla, size: 18),
+                  TeamCrestWidget(crestUrl: t.crest, tla: t.tla, size: 18),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(t.name,

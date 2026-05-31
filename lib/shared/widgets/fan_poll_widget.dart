@@ -5,6 +5,7 @@
 // a single match is featured.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show HapticFeedback;
 import '../../core/services/fan_polls_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../models/match.dart';
@@ -28,6 +29,7 @@ class _FanPollWidgetState extends State<FanPollWidget> {
 
   void _vote(int i) {
     if (_poll.userChoice == i) return;
+    HapticFeedback.selectionClick();
     setState(() {
       _poll = FanPollsService.vote(_poll.id, i);
     });
@@ -91,15 +93,20 @@ class _FanPollWidgetState extends State<FanPollWidget> {
                         ),
                       ),
                       if (hasVoted)
-                        FractionallySizedBox(
-                          widthFactor: pct,
-                          child: Container(
-                            height: 38,
-                            decoration: BoxDecoration(
-                              color: isMine
-                                  ? AppTheme.brand.withValues(alpha: 0.45)
-                                  : AppTheme.brand.withValues(alpha: 0.18),
-                              borderRadius: BorderRadius.circular(10),
+                        TweenAnimationBuilder<double>(
+                          tween: Tween(begin: 0, end: pct),
+                          duration: const Duration(milliseconds: 500),
+                          curve: Curves.easeOut,
+                          builder: (_, v, __) => FractionallySizedBox(
+                            widthFactor: v,
+                            child: Container(
+                              height: 38,
+                              decoration: BoxDecoration(
+                                color: isMine
+                                    ? AppTheme.brand.withValues(alpha: 0.45)
+                                    : AppTheme.brand.withValues(alpha: 0.18),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
                             ),
                           ),
                         ),

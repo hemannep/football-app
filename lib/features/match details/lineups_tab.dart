@@ -30,31 +30,85 @@ class _LineupsTabState extends ConsumerState<_LineupsTab> {
 
     final raw = rawAsync.value;
 
+    // lineups/{matchId} collection — best-effort fallback from relay/API-Football.
+    // Watched here so the tab auto-updates if relay writes the lineup while open.
+    final lineupCollAsync = ref.watch(lineupProvider(widget.match.id));
+    final lineupColl = lineupCollAsync.value;
+
     // ── Determine which lineup to use ───────────────────────────────────────
-    // Use `is List` so Dart infers bool (not dynamic) for isActual.
+    // Priority:
+    //   1. bzzLineups  (Bzzoiro enricher — flat player list, most complete)
+    //   2. confirmedLineup in match doc (relay → API-Football merge, same doc)
+    //   3. lineups/{matchId} collection (relay writes this separately; may have
+    //      data when the match-doc field wasn't merged in time)
+    //   4. bzzPredictedLineup (Bzzoiro pre-match prediction)
+    //   5. null → empty pitch / not-available state
     final bzzLineupsList = raw?['bzzLineups'];
-    final hasBzzLineups =
-        bzzLineupsList is List && bzzLineupsList.isNotEmpty;
-    final isActual = hasBzzLineups &&
+    final hasBzzLineups = bzzLineupsList is List && bzzLineupsList.isNotEmpty;
+
+    final confirmedLineupMap = raw?['confirmedLineup'];
+    final hasConfirmedLineup = confirmedLineupMap is Map &&
+        (confirmedLineupMap['home'] != null || confirmedLineupMap['away'] != null);
+
+    // lineups collection fallback: has useful data when home/away are non-null.
+    final hasLineupColl = lineupColl != null &&
+        (lineupColl['home'] != null || lineupColl['away'] != null);
+
+    final isActual = (hasBzzLineups || hasConfirmedLineup || hasLineupColl) &&
         (widget.match.isLive ||
             widget.match.isFinished ||
             widget.match.status == 'PAUSED');
 
-    // For live/finished matches use bzzLineups (actual).
-    // For upcoming matches also use bzzLineups when present — Bzzoiro enriches
-    // within 24h of kickoff and may provide a predicted XI there. Only fall
-    // back to the separate bzzPredictedLineup field if bzzLineups is absent.
-    final lineupList = hasBzzLineups
-        ? bzzLineupsList
-        : (raw?['bzzPredictedLineup'] is List
-            ? raw!['bzzPredictedLineup'] as List
-            : null);
-    final isPredicted = !isActual && lineupList != null;
+    final List? lineupList;
+    final bool isPredicted;
 
-    final homeFormation =
+    if (hasBzzLineups) {
+      lineupList = bzzLineupsList;
+      isPredicted = !isActual;
+    } else if (hasConfirmedLineup) {
+      lineupList = _convertConfirmedLineup(
+          Map<String, dynamic>.from(confirmedLineupMap));
+      isPredicted = false;
+    } else if (hasLineupColl) {
+      // Convert the lineups-collection format {home: {players:[...]}, away:{...}}
+      // into the same flat bzzLineups structure the pitch view expects.
+      lineupList = _convertConfirmedLineup(
+          Map<String, dynamic>.from(lineupColl));
+      isPredicted = false;
+    } else if (raw?['bzzPredictedLineup'] is List) {
+      lineupList = raw!['bzzPredictedLineup'] as List;
+      isPredicted = !isActual;
+    } else {
+      lineupList = null;
+      isPredicted = false;
+    }
+
+    // Formation: Bzzoiro predicted → confirmedLineup actual → default.
+    String homeFormation =
         (raw?['bzzPredictedFormation']?['home'] as String?) ?? '4-3-3';
-    final awayFormation =
+    String awayFormation =
         (raw?['bzzPredictedFormation']?['away'] as String?) ?? '4-3-3';
+
+    // Coach names from confirmedLineup (API-Football) or bzzLineups metadata.
+    String? homeCoach = (raw?['bzzCoach']?['home']) as String?;
+    String? awayCoach = (raw?['bzzCoach']?['away']) as String?;
+
+    if (!hasBzzLineups && hasConfirmedLineup) {
+      if (confirmedLineupMap['home'] is Map) {
+        final home = confirmedLineupMap['home'] as Map;
+        homeFormation = home['formation'] as String? ?? homeFormation;
+        if (homeCoach == null && home['coach'] is Map) {
+          homeCoach = (home['coach'] as Map)['name'] as String?;
+        }
+      }
+      if (confirmedLineupMap['away'] is Map) {
+        final away = confirmedLineupMap['away'] as Map;
+        awayFormation = away['formation'] as String? ?? awayFormation;
+        if (awayCoach == null && away['coach'] is Map) {
+          awayCoach = (away['coach'] as Map)['name'] as String?;
+        }
+      }
+    }
 
     final allPlayers = lineupList == null
         ? <Map<String, dynamic>>[]
@@ -99,6 +153,8 @@ class _LineupsTabState extends ConsumerState<_LineupsTab> {
         awayStarters: awayStarters,
         homeFormation: homeFormation,
         awayFormation: awayFormation,
+        homeCoach: homeCoach,
+        awayCoach: awayCoach,
         isPredicted: isPredicted,
         lineupList: lineupList,
       );
@@ -135,19 +191,20 @@ class _LineupsTabState extends ConsumerState<_LineupsTab> {
     required List<Map<String, dynamic>> awayStarters,
     required String homeFormation,
     required String awayFormation,
+    String? homeCoach,
+    String? awayCoach,
     required bool isPredicted,
     required List? lineupList,
   }) {
     if (lineupList == null) {
-      return _Unavailable(
-        icon: Icons.groups_outlined,
-        message: widget.match.isFinished || widget.match.isLive
-            ? 'Lineups not available for this match.'
-            : 'Lineups available ~1 hour before kick-off.',
-        hint: widget.match.isFinished
-            ? 'Detailed lineup data isn\'t available for every competition.'
-            : null,
-      );
+      if (widget.match.isFinished || widget.match.isLive) {
+        return const _Unavailable(
+          icon: Icons.groups_outlined,
+          message: 'Lineups not available for this match.',
+          hint: 'Detailed lineup data isn\'t available for every competition.',
+        );
+      }
+      return _buildEmptyPitch(context);
     }
 
     return SingleChildScrollView(
@@ -218,7 +275,8 @@ class _LineupsTabState extends ConsumerState<_LineupsTab> {
                           match: widget.match,
                           isHome: true,
                           formation: homeFormation,
-                          players: homeStarters),
+                          players: homeStarters,
+                          coach: homeCoach),
                     ),
 
                     // Home players
@@ -257,6 +315,7 @@ class _LineupsTabState extends ConsumerState<_LineupsTab> {
                           isHome: false,
                           formation: awayFormation,
                           players: awayStarters,
+                          coach: awayCoach,
                           alignRight: true),
                     ),
                   ],
@@ -267,6 +326,158 @@ class _LineupsTabState extends ConsumerState<_LineupsTab> {
         ],
       ),
     );
+  }
+
+  // ── Empty pitch (upcoming match, no lineup yet) ─────────────────────────────
+
+  String _lineupEtaLabel() {
+    final ko = widget.match.utcDate;
+    final now = DateTime.now();
+    final diff = ko.difference(now);
+    if (diff.isNegative || diff.inMinutes < 60) {
+      return 'Lineup expected before kick-off';
+    }
+    final hoursUntil = diff.inHours;
+    if (hoursUntil < 24) {
+      return 'Lineup arrives ~1h before kick-off (in ${hoursUntil}h)';
+    }
+    final d = diff.inDays;
+    return 'Lineup arrives ~1h before kick-off (in ${d}d)';
+  }
+
+  Widget _buildEmptyPitch(BuildContext context) {
+    const formation = '4-3-3';
+    final homePos = formationPositions(
+        formation: formation, isHome: true, playerCount: 11);
+    final awayPos = formationPositions(
+        formation: formation, isHome: false, playerCount: 11);
+    final homeLabels = _posLabels(formation, true);
+    final awayLabels = _posLabels(formation, false);
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: AppTheme.warn.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppTheme.warn.withValues(alpha: 0.4)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.schedule_rounded, size: 13, color: AppTheme.warn),
+                const SizedBox(width: 5),
+                Text(_lineupEtaLabel(),
+                    style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.warn)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(AppTheme.r),
+            child: AspectRatio(
+              aspectRatio: 0.62,
+              child: LayoutBuilder(builder: (context, box) {
+                final pw = box.maxWidth;
+                final ph = box.maxHeight;
+                return Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    const PitchBackground(),
+                    for (int i = 0; i < math.min(homePos.length, homeLabels.length); i++)
+                      Positioned(
+                        left: homePos[i].dx * pw - 18,
+                        top: homePos[i].dy * ph - 18,
+                        child: _EmptyPositionChip(
+                            label: homeLabels[i], color: AppTheme.brand),
+                      ),
+                    for (int i = 0; i < math.min(awayPos.length, awayLabels.length); i++)
+                      Positioned(
+                        left: awayPos[i].dx * pw - 18,
+                        top: awayPos[i].dy * ph - 18,
+                        child: _EmptyPositionChip(
+                            label: awayLabels[i], color: AppTheme.live),
+                      ),
+                  ],
+                );
+              }),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static List<String> _posLabels(String formation, bool isHome) {
+    final rows = parseFormation(formation);
+    final labels = <String>[];
+    for (int ri = 0; ri < rows.length; ri++) {
+      final count = rows[ri];
+      if (ri == 0) {
+        labels.add('GK');
+      } else if (ri == rows.length - 1) {
+        if (count == 1) { labels.add('ST'); }
+        else if (count == 2) { labels.addAll(['ST', 'ST']); }
+        else if (count == 3) { labels.addAll(['LW', 'ST', 'RW']); }
+        else { labels.addAll(List.generate(count, (_) => 'FW')); }
+      } else if (ri == 1) {
+        if (count == 3) { labels.addAll(['LB', 'CB', 'RB']); }
+        else if (count == 4) { labels.addAll(['LB', 'CB', 'CB', 'RB']); }
+        else if (count == 5) { labels.addAll(['LWB', 'CB', 'CB', 'CB', 'RWB']); }
+        else { labels.addAll(List.generate(count, (_) => 'DEF')); }
+      } else {
+        if (count == 1) { labels.add('DM'); }
+        else if (count == 2) { labels.addAll(['CM', 'CM']); }
+        else if (count == 3) { labels.addAll(['CM', 'CM', 'CM']); }
+        else { labels.addAll(List.generate(count, (_) => 'MID')); }
+      }
+    }
+    return labels;
+  }
+
+  // ── Convert API-Football confirmedLineup → flat bzzLineups-compatible list ──
+
+  static List<Map<String, dynamic>>? _convertConfirmedLineup(
+      Map<String, dynamic> confirmedLineup) {
+    final out = <Map<String, dynamic>>[];
+
+    void processTeam(dynamic team, bool isHome) {
+      if (team is! Map) return;
+      for (final item in (team['startXI'] as List? ?? [])) {
+        final p = item is Map ? item['player'] as Map? : null;
+        if (p == null) continue;
+        out.add({
+          'player_name': p['name'],
+          'name': p['name'],
+          'jersey_number': p['number'],
+          'position': p['pos'],
+          'is_home': isHome,
+          'is_starter': true,
+        });
+      }
+      for (final item in (team['substitutes'] as List? ?? [])) {
+        final p = item is Map ? item['player'] as Map? : null;
+        if (p == null) continue;
+        out.add({
+          'player_name': p['name'],
+          'name': p['name'],
+          'jersey_number': p['number'],
+          'position': p['pos'],
+          'is_home': isHome,
+          'is_starter': false,
+        });
+      }
+    }
+
+    processTeam(confirmedLineup['home'], true);
+    processTeam(confirmedLineup['away'], false);
+    return out.isEmpty ? null : out;
   }
 
   // ── Subs list ───────────────────────────────────────────────────────────────
@@ -397,12 +608,14 @@ class _TeamStrip extends StatelessWidget {
   final bool isHome;
   final String formation;
   final List<Map<String, dynamic>> players;
+  final String? coach;
   final bool alignRight;
   const _TeamStrip({
     required this.match,
     required this.isHome,
     required this.formation,
     required this.players,
+    this.coach,
     this.alignRight = false,
   });
 
@@ -417,6 +630,15 @@ class _TeamStrip extends StatelessWidget {
         ? null
         : ratings.reduce((a, b) => a + b) / ratings.length;
 
+    // Shorten coach name to "F. Surname" style to save space.
+    String? coachShort;
+    if (coach != null && coach!.trim().isNotEmpty) {
+      final parts = coach!.trim().split(' ');
+      coachShort = parts.length > 1
+          ? '${parts.first[0]}. ${parts.last}'
+          : coach;
+    }
+
     final pills = <Widget>[
       _Pill(formation, Colors.black.withValues(alpha: 0.45)),
       if (avg != null) ...[
@@ -428,6 +650,15 @@ class _TeamStrip extends StatelessWidget {
           style: const TextStyle(
               color: Colors.white, fontSize: 12, fontWeight: FontWeight.w900,
               shadows: [Shadow(color: Colors.black54, blurRadius: 4)])),
+      if (coachShort != null) ...[
+        const SizedBox(width: 5),
+        Text(coachShort,
+            style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 9,
+                fontWeight: FontWeight.w600,
+                shadows: [Shadow(color: Colors.black54, blurRadius: 3)])),
+      ],
     ];
 
     return Row(
@@ -491,6 +722,26 @@ class _PlayerChip extends StatelessWidget {
                       : _initialsWidget(name, jersey),
                 ),
               ),
+              if (jersey != null)
+                Positioned(
+                  top: -2,
+                  right: -4,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: Colors.black87,
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.5), width: 0.5),
+                    ),
+                    child: Text(
+                      '$jersey',
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 7,
+                          fontWeight: FontWeight.w900),
+                    ),
+                  ),
+                ),
               if (rating != null)
                 Positioned(
                   bottom: -2,
@@ -519,9 +770,7 @@ class _PlayerChip extends StatelessWidget {
           ),
           const SizedBox(height: 3),
           Text(
-            jersey != null
-                ? '$jersey ${_short(lastName)}'
-                : _short(lastName),
+            _short(lastName),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
@@ -571,6 +820,8 @@ class _SubRow extends StatelessWidget {
     final name = (player['player_name'] ?? player['name'] ?? '') as String;
     final jersey = player['jersey_number'];
     final pos = player['position'] as String?;
+    final rating = (player['rating'] as num?)?.toDouble();
+    final rColor = _ratingColor(rating);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
@@ -599,6 +850,23 @@ class _SubRow extends StatelessWidget {
           ),
           if (pos != null)
             Text(pos, style: TextStyle(fontSize: 11, color: p.textLow)),
+          if (rating != null) ...[
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: rColor,
+                borderRadius: BorderRadius.circular(5),
+              ),
+              child: Text(
+                rating.toStringAsFixed(1),
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -644,6 +912,45 @@ class _UnavailRow extends StatelessWidget {
                     fontSize: 11,
                     color: p.textLow,
                     fontStyle: FontStyle.italic)),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Empty position chip (used on the no-lineup pitch) ───────────────────────
+
+class _EmptyPositionChip extends StatelessWidget {
+  final String label;
+  final Color color;
+  const _EmptyPositionChip({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 36,
+      height: 36,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.55),
+              shape: BoxShape.circle,
+              border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.4), width: 1),
+            ),
+          ),
+          Text(
+            label,
+            style: const TextStyle(
+                color: Colors.white,
+                fontSize: 8,
+                fontWeight: FontWeight.w900,
+                shadows: [Shadow(color: Colors.black54, blurRadius: 2)]),
+          ),
         ],
       ),
     );

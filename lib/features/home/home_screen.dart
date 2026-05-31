@@ -139,19 +139,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                           TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
                   if (liveCount > 0) ...[
                     const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        gradient: AppTheme.liveGradient,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text('$liveCount LIVE',
-                          style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 9,
-                              fontWeight: FontWeight.w900)),
-                    ),
+                    _LiveBadge(count: liveCount),
                   ],
                 ],
               ),
@@ -200,6 +188,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 onPick: (d) => setState(() => _selectedDay = d),
                 onCalendar: _pickDate,
                 palette: p,
+                matchDays: {
+                  ...s.matches.map((m) {
+                    final d = m.utcDate.toLocal();
+                    return DateTime(d.year, d.month, d.day);
+                  })
+                },
+                liveDays: {
+                  ...s.matches.where((m) => m.isLive).map((m) {
+                    final d = m.utcDate.toLocal();
+                    return DateTime(d.year, d.month, d.day);
+                  })
+                },
               ),
             ),
             // ── Engagement extras (orphan widgets we wire here) ────────────
@@ -208,8 +208,46 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             const SliverToBoxAdapter(child: DailyFactCard()),
             const SliverToBoxAdapter(child: OnThisDayCard()),
             if (favMatches.isNotEmpty) ...[
-              const SliverToBoxAdapter(
-                child: SectionLabel('⭐ YOUR FAVORITE TEAMS'),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 18, 16, 4),
+                  child: Row(
+                    children: [
+                      const Text('⭐  YOUR FAVORITES',
+                          style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.2,
+                              color: AppTheme.brand)),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: favorites
+                                .take(6)
+                                .map((tla) => Container(
+                                      margin: const EdgeInsets.only(right: 4),
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 7, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: AppTheme.brand
+                                            .withValues(alpha: 0.12),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Text(tla,
+                                          style: TextStyle(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w800,
+                                              color: p.textMid)),
+                                    ))
+                                .toList(),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
               SliverList.builder(
                 itemCount: favMatches.take(5).length,
@@ -286,7 +324,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               const SliverToBoxAdapter(child: SizedBox(height: 8)),
             ],
             SliverToBoxAdapter(
-              child: SectionLabel(_dayLabel(_selectedDay, league.name)),
+              child: SectionLabel(
+                dayMatches.isEmpty
+                    ? _dayLabel(_selectedDay, league.name)
+                    : '${_dayLabel(_selectedDay, league.name)}  ·  ${dayMatches.length}',
+              ),
             ),
             if (s.isLoading && s.matches.isEmpty)
               const SliverToBoxAdapter(child: _SkeletonList()),
@@ -294,20 +336,46 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               SliverToBoxAdapter(
                 child: _EmptyDay(date: _selectedDay),
               ),
-            SliverList.builder(
-              itemCount: dayMatches.length,
-              itemBuilder: (_, i) {
-                final m = dayMatches[i];
-                return MatchCard(
-                  match: m,
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => MatchDetailsScreen(match: m),
+            // ── Matches grouped by competition ─────────────────────────
+            Builder(builder: (context) {
+              // Group by competition, preserving time-sort order.
+              final seen = <String>{};
+              final compOrder = <String>[];
+              final grouped = <String, List<Match>>{};
+              for (final m in dayMatches) {
+                final key = m.competitionName ?? m.competitionCode ?? 'Other';
+                if (seen.add(key)) compOrder.add(key);
+                grouped.putIfAbsent(key, () => []).add(m);
+              }
+              // Flat list: alternating header + match items.
+              final items = <({String? header, int liveCount, Match? match})>[];
+              for (final comp in compOrder) {
+                final live = grouped[comp]!.where((m) => m.isLive).length;
+                items.add((header: comp, liveCount: live, match: null));
+                for (final m in grouped[comp]!) {
+                  items.add((header: null, liveCount: 0, match: m));
+                }
+              }
+              return SliverList.builder(
+                itemCount: items.length,
+                itemBuilder: (_, i) {
+                  final item = items[i];
+                  if (item.header != null) {
+                    return _CompetitionHeader(
+                        name: item.header!, liveCount: item.liveCount);
+                  }
+                  final m = item.match!;
+                  return MatchCard(
+                    match: m,
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => MatchDetailsScreen(match: m),
+                      ),
                     ),
-                  ),
-                );
-              },
-            ),
+                  );
+                },
+              );
+            }),
             if (s.lastUpdated != null)
               SliverToBoxAdapter(
                 child: Padding(
@@ -340,6 +408,64 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     if (d < 60) return '${d}s ago';
     if (d < 3600) return '${d ~/ 60}m ago';
     return '${d ~/ 3600}h ago';
+  }
+}
+
+// ─── Live badge (pulsing dot + count) ───────────────────────────────────────
+
+class _LiveBadge extends StatefulWidget {
+  final int count;
+  const _LiveBadge({required this.count});
+  @override
+  State<_LiveBadge> createState() => _LiveBadgeState();
+}
+
+class _LiveBadgeState extends State<_LiveBadge>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c;
+  @override
+  void initState() {
+    super.initState();
+    _c = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 900))
+      ..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        gradient: AppTheme.liveGradient,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FadeTransition(
+            opacity: _c,
+            child: Container(
+              width: 5,
+              height: 5,
+              decoration: const BoxDecoration(
+                  color: Colors.white, shape: BoxShape.circle),
+            ),
+          ),
+          const SizedBox(width: 4),
+          Text('${widget.count} LIVE',
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 9,
+                  fontWeight: FontWeight.w900)),
+        ],
+      ),
+    );
   }
 }
 
@@ -482,21 +608,28 @@ class _DateStripDelegate extends SliverPersistentHeaderDelegate {
   final ValueChanged<DateTime> onPick;
   final VoidCallback onCalendar;
   final Palette palette;
+  final Set<DateTime> matchDays;
+  final Set<DateTime> liveDays;
   _DateStripDelegate({
     required this.selected,
     required this.onPick,
     required this.onCalendar,
     required this.palette,
+    this.matchDays = const {},
+    this.liveDays = const {},
   });
 
   @override
-  double get minExtent => 72;
+  double get minExtent => 80;
   @override
-  double get maxExtent => 72;
+  double get maxExtent => 80;
 
   @override
   bool shouldRebuild(_DateStripDelegate old) =>
-      old.selected != selected || old.palette.isDark != palette.isDark;
+      old.selected != selected ||
+      old.palette.isDark != palette.isDark ||
+      old.matchDays.length != matchDays.length ||
+      old.liveDays.length != liveDays.length;
 
   @override
   Widget build(
@@ -539,6 +672,8 @@ class _DateStripDelegate extends SliverPersistentHeaderDelegate {
                 final d = days[i];
                 final isSelected = _sameDay(d, selected);
                 final isToday = _sameDay(d, today);
+                final hasMatches = matchDays.any((md) => _sameDay(md, d));
+                final hasLive = liveDays.any((ld) => _sameDay(ld, d));
                 return GestureDetector(
                   onTap: () => onPick(d),
                   child: AnimatedContainer(
@@ -577,6 +712,21 @@ class _DateStripDelegate extends SliverPersistentHeaderDelegate {
                             color: isSelected ? Colors.black : palette.textHi,
                           ),
                         ),
+                        const SizedBox(height: 3),
+                        Container(
+                          width: 5,
+                          height: 5,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: hasMatches
+                                ? (isSelected
+                                    ? Colors.black.withValues(alpha: 0.5)
+                                    : hasLive
+                                        ? AppTheme.live
+                                        : AppTheme.brand)
+                                : Colors.transparent,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -595,24 +745,99 @@ class _DateStripDelegate extends SliverPersistentHeaderDelegate {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-class _SkeletonList extends StatelessWidget {
+class _SkeletonList extends StatefulWidget {
   const _SkeletonList();
+  @override
+  State<_SkeletonList> createState() => _SkeletonListState();
+}
+
+class _SkeletonListState extends State<_SkeletonList>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c;
+  @override
+  void initState() {
+    super.initState();
+    _c = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 1100))
+      ..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
-    return Column(
-      children: List.generate(
-        4,
-        (_) => Container(
-          height: 76,
-          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: p.surface,
-            borderRadius: BorderRadius.circular(AppTheme.r),
-            border: Border.all(color: p.stroke),
-          ),
-        ),
-      ),
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (_, __) {
+        final opacity = 0.4 + 0.6 * _c.value;
+        return Column(
+          children: List.generate(4, (i) {
+            return Container(
+              height: 84,
+              margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+              decoration: BoxDecoration(
+                color: p.surface,
+                borderRadius: BorderRadius.circular(AppTheme.r),
+                border: Border.all(color: p.stroke),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Stage chip placeholder
+                    Container(
+                      width: 60,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        color: p.surfaceHi.withValues(alpha: opacity),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        // Home team
+                        Container(width: 28, height: 28,
+                            decoration: BoxDecoration(
+                              color: p.surfaceHi.withValues(alpha: opacity),
+                              borderRadius: BorderRadius.circular(6))),
+                        const SizedBox(width: 8),
+                        Container(width: 70, height: 10,
+                            decoration: BoxDecoration(
+                              color: p.surfaceHi.withValues(alpha: opacity),
+                              borderRadius: BorderRadius.circular(4))),
+                        const Spacer(),
+                        // Score box
+                        Container(width: 68, height: 34,
+                            decoration: BoxDecoration(
+                              color: p.surfaceHi.withValues(alpha: opacity),
+                              borderRadius: BorderRadius.circular(8))),
+                        const Spacer(),
+                        // Away team
+                        Container(width: 70, height: 10,
+                            decoration: BoxDecoration(
+                              color: p.surfaceHi.withValues(alpha: opacity),
+                              borderRadius: BorderRadius.circular(4))),
+                        const SizedBox(width: 8),
+                        Container(width: 28, height: 28,
+                            decoration: BoxDecoration(
+                              color: p.surfaceHi.withValues(alpha: opacity),
+                              borderRadius: BorderRadius.circular(6))),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+        );
+      },
     );
   }
 }
@@ -658,6 +883,65 @@ class _EmptyDay extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ─── Competition group header ────────────────────────────────────────────────
+
+class _CompetitionHeader extends StatelessWidget {
+  final String name;
+  final int liveCount;
+  const _CompetitionHeader({required this.name, this.liveCount = 0});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 14, 12, 4),
+      child: Row(
+        children: [
+          Container(
+            width: 3,
+            height: 14,
+            decoration: BoxDecoration(
+              color: liveCount > 0 ? AppTheme.live : AppTheme.brand,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              name.toUpperCase(),
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.8,
+                color: p.textMid,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          if (liveCount > 0) ...[
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: AppTheme.live,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                '$liveCount LIVE',
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w900),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

@@ -73,7 +73,9 @@ class _StandingsTable extends StatelessWidget {
                     fontSize: 12, fontWeight: FontWeight.w800, color: p.textHi),
               ),
             ),
-            ..._headerCell('P'),
+            ..._headerCell('W', color: AppTheme.good),
+            ..._headerCell('D', color: AppTheme.warn),
+            ..._headerCell('L', color: AppTheme.bad),
             ..._headerCell('GD'),
             ..._headerCell('Pts', bold: true),
           ]),
@@ -97,7 +99,7 @@ class _StandingsTable extends StatelessWidget {
                           color: p.textLow)),
                 ),
                 const SizedBox(width: 8),
-                FlagWidget(tla: t.tla, size: 16),
+                TeamCrestWidget(crestUrl: t.crest, tla: t.tla, size: 18),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(t.teamName,
@@ -108,7 +110,9 @@ class _StandingsTable extends StatelessWidget {
                           fontWeight: isHl ? FontWeight.w800 : FontWeight.w600,
                           color: p.textHi)),
                 ),
-                ..._valueCell('${t.playedGames}', p),
+                ..._wdlCell('${t.won}', t.won > 0 ? AppTheme.good : p.textLow, t.won > 0),
+                ..._wdlCell('${t.draw}', p.textMid, false),
+                ..._wdlCell('${t.lost}', t.lost > 0 ? AppTheme.bad : p.textLow, t.lost > 0),
                 ..._gdCell(t.goalDifference, p),
                 ..._valueCell('${t.points}', p, bold: true),
               ]),
@@ -119,16 +123,28 @@ class _StandingsTable extends StatelessWidget {
     );
   }
 
-  List<Widget> _headerCell(String s, {bool bold = false}) => [
+  List<Widget> _headerCell(String s, {bool bold = false, Color? color}) => [
         SizedBox(
-          width: 34,
+          width: 28,
           child: Text(s,
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.5,
-                  color: Color(0xFF9E9E9E))),
+                  color: color ?? const Color(0xFF9E9E9E))),
+        ),
+      ];
+
+  List<Widget> _wdlCell(String v, Color color, bool bold) => [
+        SizedBox(
+          width: 28,
+          child: Text(v,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
+                  color: color)),
         ),
       ];
 

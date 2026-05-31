@@ -15,14 +15,12 @@ import '../../shared/widgets/team_crest_widget.dart';
 
 final _teamMatchesProvider =
     FutureProvider.family<List<Match>, int>((ref, teamId) async {
-  return LiveDataService.instance
-      .watchMatches()
-      .map((all) => all
-          .where((m) =>
-              (m.homeTeam.id != null && m.homeTeam.id == teamId) ||
-              (m.awayTeam.id != null && m.awayTeam.id == teamId))
-          .toList())
-      .first;
+  final all = await LiveDataService.instance.getMatches();
+  return all
+      .where((m) =>
+          (m.homeTeam.id != null && m.homeTeam.id == teamId) ||
+          (m.awayTeam.id != null && m.awayTeam.id == teamId))
+      .toList();
 });
 
 class _TeamSummary {
@@ -570,40 +568,67 @@ class _StatRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
-    final aBetter = highlightBetter && a > b;
-    final bBetter = highlightBetter && b > a;
+    final aBetter = (highlightBetter || color != null) && a > b;
+    final bBetter = (highlightBetter || color != null) && b > a;
+    final total = a + b;
+    final aRatio = total > 0 ? a / total : 0.5;
+    final aColor = aBetter ? (color ?? AppTheme.brand) : p.textMid;
+    final bColor = bBetter ? (color ?? AppTheme.brand) : p.textMid;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
+      child: Column(
         children: [
-          Expanded(
-            child: Container(
-              alignment: Alignment.centerLeft,
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              child: Text('$a',
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  alignment: Alignment.centerLeft,
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  child: Text('$a',
+                      style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                          color: aColor)),
+                ),
+              ),
+              Text(label,
                   style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w900,
-                      color: aBetter ? AppTheme.brand : (color ?? p.textHi))),
-            ),
+                      fontSize: 11,
+                      letterSpacing: 0.5,
+                      fontWeight: FontWeight.w700,
+                      color: p.textLow)),
+              Expanded(
+                child: Container(
+                  alignment: Alignment.centerRight,
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  child: Text('$b',
+                      style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                          color: bColor)),
+                ),
+              ),
+            ],
           ),
-          Text(label,
-              style: TextStyle(
-                  fontSize: 11,
-                  letterSpacing: 0.5,
-                  fontWeight: FontWeight.w700,
-                  color: p.textLow)),
-          Expanded(
-            child: Container(
-              alignment: Alignment.centerRight,
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              child: Text('$b',
-                  style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w900,
-                      color: bBetter ? AppTheme.brand : (color ?? p.textHi))),
+          if (total > 0) ...[
+            const SizedBox(height: 4),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(3),
+              child: SizedBox(
+                height: 4,
+                child: Row(children: [
+                  Expanded(
+                    flex: (aRatio * 100).round().clamp(1, 99),
+                    child: ColoredBox(color: (color ?? AppTheme.brand).withValues(alpha: aBetter ? 1.0 : 0.35)),
+                  ),
+                  Expanded(
+                    flex: ((1 - aRatio) * 100).round().clamp(1, 99),
+                    child: ColoredBox(color: (color ?? AppTheme.live).withValues(alpha: bBetter ? 1.0 : 0.35)),
+                  ),
+                ]),
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );

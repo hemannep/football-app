@@ -42,6 +42,13 @@ class _SummaryTab extends ConsumerWidget {
     final xgHome = (xgDoc?['homeLive'] as num?)?.toDouble();
     final xgAway = (xgDoc?['awayLive'] as num?)?.toDouble();
 
+    // Ball possession from liveStats
+    final liveStats = rawDoc?['liveStats'];
+    final rawHome = liveStats is Map ? liveStats['home'] as Map? : null;
+    final rawAway = liveStats is Map ? liveStats['away'] as Map? : null;
+    final possHome = (rawHome?['possession'] as num?)?.toDouble();
+    final possAway = (rawAway?['possession'] as num?)?.toDouble();
+
     // Referee & venue from raw doc
     final referee = rawDoc?['referee'] as Map?;
     final refName = referee?['name'] as String?;
@@ -55,20 +62,59 @@ class _SummaryTab extends ConsumerWidget {
     final h2hDoc = rawDoc?['head_to_head'] as Map?;
     final h2hMatches = h2hDoc?['matches'] as List? ?? const [];
 
+    // Man of the Match / Highest Rated — derived from bzzLineups ratings
+    final bzzList = rawDoc?['bzzLineups'];
+    final allRatedPlayers = (bzzList is List)
+        ? bzzList
+            .whereType<Map>()
+            .map((m) => Map<String, dynamic>.from(m))
+            .where((pl) => pl['rating'] != null && pl['is_starter'] != false)
+            .toList()
+        : <Map<String, dynamic>>[];
+    allRatedPlayers
+        .sort((a, b) => ((b['rating'] as num?) ?? 0)
+            .compareTo((a['rating'] as num?) ?? 0));
+    final motm = allRatedPlayers.isNotEmpty ? allRatedPlayers.first : null;
+    final highestRated = allRatedPlayers.take(6).toList();
+
+    // Last 5 Matches / Next Match — from the live score cache
+    final allMatches = ref.watch(liveScoreProvider).matches;
+    List<Match> teamLast5(String tla) => allMatches
+        .where((m) =>
+            m.isFinished &&
+            (m.homeTeam.tla == tla || m.awayTeam.tla == tla))
+        .toList()
+      ..sort((a, b) => b.utcDate.compareTo(a.utcDate));
+    List<Match> teamNext(String tla) => allMatches
+        .where((m) =>
+            m.isScheduled &&
+            (m.homeTeam.tla == tla || m.awayTeam.tla == tla))
+        .toList()
+      ..sort((a, b) => a.utcDate.compareTo(b.utcDate));
+    final homeLast5 = teamLast5(match.homeTeam.tla).take(5).toList();
+    final awayLast5 = teamLast5(match.awayTeam.tla).take(5).toList();
+    final homeNext = teamNext(match.homeTeam.tla).take(2).toList();
+    final awayNext = teamNext(match.awayTeam.tla).take(2).toList();
+    final nextMatches = {...homeNext, ...awayNext}.toList()
+      ..sort((a, b) => a.utcDate.compareTo(b.utcDate));
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(12, 14, 12, 30),
       children: [
-        // ── Live ticker ─────────────────────────────────────────────────
-        if (match.isFinished || match.isLive)
-          _LiveTicker(
-            match: match,
-            fsIncidents: fsIncidents,
-            ref: ref,
+        // ── Ball Possession ──────────────────────────────────────────────
+        if (possHome != null && possAway != null &&
+            (match.isFinished || match.isLive)) ...[
+          const _SectionLabel('Ball Possession'),
+          _DetailCard(
+            child: _PossessionBar(
+              homeTeam: match.homeTeam.tla,
+              awayTeam: match.awayTeam.tla,
+              homePct: possHome,
+              awayPct: possAway,
+              p: p,
+            ),
           ),
-
-        // ── Match Heat Meter ────────────────────────────────────────────
-        if (match.isFinished || match.isLive)
-          MatchHeatMeter(match: goalsSource),
+        ],
 
         // ── Scorers section ─────────────────────────────────────────────
         if (match.isFinished || match.isLive) ...[
@@ -99,6 +145,21 @@ class _SummaryTab extends ConsumerWidget {
           ],
         ],
 
+        // ── Match Heat Meter ────────────────────────────────────────────
+        if (match.isFinished || match.isLive)
+          MatchHeatMeter(match: goalsSource),
+
+        // ── Match Events (live ticker / timeline) ────────────────────────
+        if (match.isFinished || match.isLive) ...[
+          const _SectionLabel('Match Events'),
+          _LiveTicker(
+            match: match,
+            fsIncidents: fsIncidents,
+            ref: ref,
+            rawScore: rawDoc?['score'] as Map?,
+          ),
+        ],
+
         // ── xG bar ──────────────────────────────────────────────────────
         if (xgHome != null && xgAway != null) ...[
           const _SectionLabel('Expected Goals'),
@@ -112,13 +173,51 @@ class _SummaryTab extends ConsumerWidget {
           ),
         ],
 
-        // ── Match info ───────────────────────────────────────────────────
-        const _SectionLabel('Match info'),
+        // ── Man of the Match ─────────────────────────────────────────────
+        if (motm != null && match.isFinished) ...[
+          const _SectionLabel('Man of the Match'),
+          _DetailCard(child: _MotmCard(player: motm, p: p)),
+        ],
+
+        // ── Highest Rated ────────────────────────────────────────────────
+        if (highestRated.length > 1 && match.isFinished) ...[
+          const _SectionLabel('Highest Rated'),
+          _DetailCard(child: _HighestRatedGrid(players: highestRated, p: p)),
+        ],
+
+        // ── Next Match ───────────────────────────────────────────────────
+        if (nextMatches.isNotEmpty) ...[
+          const _SectionLabel('Next Match'),
+          _DetailCard(child: _NextMatchList(matches: nextMatches, p: p)),
+        ],
+
+        // ── Last 5 Matches ───────────────────────────────────────────────
+        if (homeLast5.isNotEmpty || awayLast5.isNotEmpty) ...[
+          const _SectionLabel('Last 5 Matches'),
+          _DetailCard(
+            child: _Last5Grid(
+              homeTeam: match.homeTeam,
+              awayTeam: match.awayTeam,
+              homeMatches: homeLast5,
+              awayMatches: awayLast5,
+              p: p,
+            ),
+          ),
+        ],
+
+        // ── Match info (Referee and Stadium) ────────────────────────────
+        const _SectionLabel('Referee and Stadium'),
         _InfoRow(p: p, icon: Icons.calendar_today_rounded, label: 'Date',
             value: DateFormat('EEEE, d MMM yyyy').format(match.utcDate)),
         _InfoRow(p: p, icon: Icons.schedule_rounded,
             label: match.isFinished ? 'Kicked off' : 'Kick-off',
             value: '${DateFormat('HH:mm').format(match.utcDate)} local'),
+        if (match.venue != null)
+          _InfoRow(p: p, icon: Icons.stadium_rounded, label: 'Stadium',
+              value: match.venue!),
+        if (refName != null && refName.isNotEmpty)
+          _InfoRow(p: p, icon: Icons.sports_rounded, label: 'Referee',
+              value: refNat != null ? '$refName · $refNat' : refName),
         _InfoRow(p: p, icon: Icons.emoji_events_rounded, label: 'Competition',
             value: match.competitionName ?? '—'),
         _InfoRow(p: p, icon: Icons.flag_rounded, label: 'Stage',
@@ -126,19 +225,6 @@ class _SummaryTab extends ConsumerWidget {
         if (match.group != null)
           _InfoRow(p: p, icon: Icons.groups_2_rounded, label: 'Group',
               value: match.group!.replaceAll('GROUP_', 'Group ')),
-        if (match.venue != null)
-          _InfoRow(p: p, icon: Icons.stadium_rounded, label: 'Venue',
-              value: match.venue!),
-        if (refName != null && refName.isNotEmpty)
-          _InfoRow(p: p, icon: Icons.sports_rounded, label: 'Referee',
-              value: refNat != null ? '$refName · $refNat' : refName),
-        _InfoRow(p: p, icon: Icons.info_rounded, label: 'Status',
-            value: _statusLabel(match.status),
-            valueColor: match.isLive
-                ? AppTheme.live
-                : match.isFinished
-                    ? AppTheme.good
-                    : null),
 
         // ── H2H snippet ─────────────────────────────────────────────────
         if (h2hMatches.isNotEmpty) ...[
@@ -219,15 +305,420 @@ class _SummaryTab extends ConsumerWidget {
       .map((w) => w.isEmpty ? w : w[0] + w.substring(1).toLowerCase())
       .join(' ');
 
-  String _statusLabel(String s) => switch (s) {
-        'SCHEDULED' || 'TIMED' => 'Upcoming',
-        'IN_PLAY' => 'Live',
-        'PAUSED' => 'Half-time',
-        'FINISHED' => switch (null) {
-            _ => 'Finished',
-          },
-        _ => s,
-      };
+}
+
+// ─── Ball possession bar ──────────────────────────────────────────────────────
+
+class _PossessionBar extends StatelessWidget {
+  final String homeTeam;
+  final String awayTeam;
+  final double homePct;
+  final double awayPct;
+  final Palette p;
+  const _PossessionBar({
+    required this.homeTeam,
+    required this.awayTeam,
+    required this.homePct,
+    required this.awayPct,
+    required this.p,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final total = homePct + awayPct;
+    final hRatio = total > 0 ? homePct / total : 0.5;
+    final hLabel = '${homePct.toStringAsFixed(0)}%';
+    final aLabel = '${awayPct.toStringAsFixed(0)}%';
+
+    return Column(
+      children: [
+        Row(
+          children: [
+            Text(hLabel,
+                style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                    color: AppTheme.brand)),
+            const Spacer(),
+            Text('Possession',
+                style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: p.textLow)),
+            const Spacer(),
+            Text(aLabel,
+                style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                    color: p.textHi)),
+          ],
+        ),
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: SizedBox(
+            height: 8,
+            child: Row(
+              children: [
+                Expanded(
+                  flex: (hRatio * 100).round().clamp(1, 99),
+                  child: const ColoredBox(color: AppTheme.brand),
+                ),
+                Expanded(
+                  flex: ((1 - hRatio) * 100).round().clamp(1, 99),
+                  child: ColoredBox(color: p.textMid),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            Text(homeTeam,
+                style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: p.textMid)),
+            const Spacer(),
+            Text(awayTeam,
+                style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: p.textMid)),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+// ─── Man of the Match card ────────────────────────────────────────────────────
+
+class _MotmCard extends StatelessWidget {
+  final Map<String, dynamic> player;
+  final Palette p;
+  const _MotmCard({required this.player, required this.p});
+
+  @override
+  Widget build(BuildContext context) {
+    final name = (player['player_name'] ?? player['name'] ?? '') as String;
+    final rating = (player['rating'] as num?)?.toDouble();
+    final photoUrl = player['photo_url'] as String?;
+    final goals = player['goals'] as int?;
+    final assists = player['assists'] as int?;
+    final rColor = _ratingColor(rating);
+
+    return Row(
+      children: [
+        ClipOval(
+          child: Container(
+            width: 56,
+            height: 56,
+            color: AppTheme.brand.withValues(alpha: 0.15),
+            child: (photoUrl != null && photoUrl.isNotEmpty)
+                ? Image.network(photoUrl, fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => const Icon(
+                        Icons.person_rounded, size: 30, color: AppTheme.brand))
+                : const Icon(Icons.person_rounded,
+                    size: 30, color: AppTheme.brand),
+          ),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(name,
+                  style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: p.textHi)),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  if (goals != null && goals > 0) ...[
+                    const Icon(Icons.sports_soccer_rounded,
+                        size: 13, color: AppTheme.brand),
+                    const SizedBox(width: 3),
+                    Text('$goals',
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: p.textMid)),
+                    const SizedBox(width: 8),
+                  ],
+                  if (assists != null && assists > 0) ...[
+                    const Icon(Icons.assistant_rounded,
+                        size: 13, color: AppTheme.accent),
+                    const SizedBox(width: 3),
+                    Text('$assists',
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: p.textMid)),
+                  ],
+                ],
+              ),
+            ],
+          ),
+        ),
+        if (rating != null)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: rColor,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              rating.toStringAsFixed(1),
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+// ─── Highest Rated grid ───────────────────────────────────────────────────────
+
+class _HighestRatedGrid extends StatelessWidget {
+  final List<Map<String, dynamic>> players;
+  final Palette p;
+  const _HighestRatedGrid({required this.players, required this.p});
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: players.take(6).map((pl) {
+        final name = (pl['player_name'] ?? pl['name'] ?? '') as String;
+        final rating = (pl['rating'] as num?)?.toDouble();
+        final photoUrl = pl['photo_url'] as String?;
+        final goals = pl['goals'] as int?;
+        final assists = pl['assists'] as int?;
+        final rColor = _ratingColor(rating);
+        final parts = name.trim().split(' ');
+        final shortName =
+            parts.length > 1 ? '${parts.first[0]}. ${parts.last}' : name;
+
+        return SizedBox(
+          width: (MediaQuery.sizeOf(context).width - 80) / 2,
+          child: Row(
+            children: [
+              ClipOval(
+                child: Container(
+                  width: 38,
+                  height: 38,
+                  color: AppTheme.brand.withValues(alpha: 0.12),
+                  child: (photoUrl != null && photoUrl.isNotEmpty)
+                      ? Image.network(photoUrl, fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const Icon(
+                              Icons.person_rounded,
+                              size: 20,
+                              color: AppTheme.brand))
+                      : const Icon(Icons.person_rounded,
+                          size: 20, color: AppTheme.brand),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(shortName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: p.textHi)),
+                    if (goals != null && goals > 0 ||
+                        assists != null && assists > 0)
+                      Row(children: [
+                        if (goals != null && goals > 0) ...[
+                          const Icon(Icons.sports_soccer_rounded,
+                              size: 10, color: AppTheme.brand),
+                          Text(' $goals ',
+                              style: TextStyle(
+                                  fontSize: 10, color: p.textLow)),
+                        ],
+                        if (assists != null && assists > 0) ...[
+                          const Icon(Icons.assistant_rounded,
+                              size: 10, color: AppTheme.accent),
+                          Text(' $assists',
+                              style: TextStyle(
+                                  fontSize: 10, color: p.textLow)),
+                        ],
+                      ]),
+                  ],
+                ),
+              ),
+              if (rating != null)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: rColor,
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                  child: Text(rating.toStringAsFixed(1),
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800)),
+                ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+}
+
+// ─── Next Match list ──────────────────────────────────────────────────────────
+
+class _NextMatchList extends StatelessWidget {
+  final List<Match> matches;
+  final Palette p;
+  const _NextMatchList({required this.matches, required this.p});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: matches.map((m) {
+        final dateStr = DateFormat('dd/MM').format(m.utcDate.toLocal());
+        final timeStr = DateFormat('h:mm a').format(m.utcDate.toLocal());
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Row(
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(dateStr,
+                      style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: p.textHi)),
+                  Text(timeStr,
+                      style: TextStyle(fontSize: 10, color: p.textLow)),
+                ],
+              ),
+              const SizedBox(width: 12),
+              TeamCrestWidget(
+                  crestUrl: m.homeTeam.crest, tla: m.homeTeam.tla, size: 22),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(m.homeTeam.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: p.textHi)),
+              ),
+              TeamCrestWidget(
+                  crestUrl: m.awayTeam.crest, tla: m.awayTeam.tla, size: 22),
+              const SizedBox(width: 6),
+              Text(m.awayTeam.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: p.textHi)),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+}
+
+// ─── Last 5 Matches grid ──────────────────────────────────────────────────────
+
+class _Last5Grid extends StatelessWidget {
+  final TeamRef homeTeam;
+  final TeamRef awayTeam;
+  final List<Match> homeMatches;
+  final List<Match> awayMatches;
+  final Palette p;
+  const _Last5Grid({
+    required this.homeTeam,
+    required this.awayTeam,
+    required this.homeMatches,
+    required this.awayMatches,
+    required this.p,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        _teamRow(context, homeTeam, homeMatches),
+        const SizedBox(height: 10),
+        _teamRow(context, awayTeam, awayMatches),
+      ],
+    );
+  }
+
+  Widget _teamRow(
+      BuildContext context, TeamRef team, List<Match> matches) {
+    return Row(
+      children: [
+        TeamCrestWidget(crestUrl: team.crest, tla: team.tla, size: 22),
+        const SizedBox(width: 8),
+        ...matches.map((m) {
+          final isHome = m.homeTeam.tla == team.tla;
+          final hg = m.score.homeGoals ?? 0;
+          final ag = m.score.awayGoals ?? 0;
+          final teamGoals = isHome ? hg : ag;
+          final oppGoals = isHome ? ag : hg;
+          final String result;
+          final Color bg;
+          if (teamGoals > oppGoals) {
+            result = 'W';
+            bg = AppTheme.good;
+          } else if (teamGoals < oppGoals) {
+            result = 'L';
+            bg = AppTheme.bad;
+          } else {
+            result = 'D';
+            bg = AppTheme.warn;
+          }
+          return Container(
+            margin: const EdgeInsets.only(right: 5),
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(7),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(result,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w900)),
+                Text('$teamGoals-$oppGoals',
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 7,
+                        fontWeight: FontWeight.w700)),
+              ],
+            ),
+          );
+        }),
+      ],
+    );
+  }
 }
 
 // ─── xG horizontal bar ────────────────────────────────────────────────────────
@@ -339,7 +830,7 @@ class _GoalColumn extends StatelessWidget {
                 isRight ? MainAxisAlignment.end : MainAxisAlignment.start,
             children: [
               if (!isRight) ...[
-                FlagWidget(tla: team.tla, size: 14),
+                TeamCrestWidget(crestUrl: team.crest, tla: team.tla, size: 16),
                 const SizedBox(width: 5),
               ],
               Flexible(
@@ -351,7 +842,7 @@ class _GoalColumn extends StatelessWidget {
               ),
               if (isRight) ...[
                 const SizedBox(width: 5),
-                FlagWidget(tla: team.tla, size: 14),
+                TeamCrestWidget(crestUrl: team.crest, tla: team.tla, size: 16),
               ],
             ],
           ),
@@ -370,31 +861,44 @@ class _GoalColumn extends StatelessWidget {
                       ? ' (OG)'
                       : '';
               final text = "${g.minute}' ${g.scorerName ?? '—'}$extra";
+              final iconColor = g.isOwnGoal ? Colors.grey : AppTheme.brand;
+              final hasAssist = g.assistName != null && g.assistName!.isNotEmpty && !g.isPenalty && !g.isOwnGoal;
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 2),
-                child: Row(
-                  mainAxisAlignment: isRight
-                      ? MainAxisAlignment.end
-                      : MainAxisAlignment.start,
+                child: Column(
+                  crossAxisAlignment: isRight ? CrossAxisAlignment.end : CrossAxisAlignment.start,
                   children: [
-                    if (!isRight) ...[
-                      const Icon(Icons.sports_soccer_rounded,
-                          size: 12, color: AppTheme.brand),
-                      const SizedBox(width: 4),
-                      Flexible(
-                        child: Text(text,
-                            style: TextStyle(fontSize: 12, color: p.textHi)),
+                    Row(
+                      mainAxisAlignment: isRight
+                          ? MainAxisAlignment.end
+                          : MainAxisAlignment.start,
+                      children: [
+                        if (!isRight) ...[
+                          Icon(Icons.sports_soccer_rounded,
+                              size: 12, color: iconColor),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(text,
+                                style: TextStyle(fontSize: 12, color: p.textHi)),
+                          ),
+                        ] else ...[
+                          Flexible(
+                            child: Text(text,
+                                textAlign: TextAlign.right,
+                                style: TextStyle(fontSize: 12, color: p.textHi)),
+                          ),
+                          const SizedBox(width: 4),
+                          Icon(Icons.sports_soccer_rounded,
+                              size: 12, color: iconColor),
+                        ],
+                      ],
+                    ),
+                    if (hasAssist)
+                      Text(
+                        'Assist: ${g.assistName}',
+                        textAlign: isRight ? TextAlign.right : TextAlign.left,
+                        style: TextStyle(fontSize: 10, color: p.textLow, fontStyle: FontStyle.italic),
                       ),
-                    ] else ...[
-                      Flexible(
-                        child: Text(text,
-                            textAlign: TextAlign.right,
-                            style: TextStyle(fontSize: 12, color: p.textHi)),
-                      ),
-                      const SizedBox(width: 4),
-                      const Icon(Icons.sports_soccer_rounded,
-                          size: 12, color: AppTheme.brand),
-                    ],
                   ],
                 ),
               );
@@ -412,13 +916,11 @@ class _InfoRow extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
-  final Color? valueColor;
   const _InfoRow(
       {required this.p,
       required this.icon,
       required this.label,
-      required this.value,
-      this.valueColor});
+      required this.value});
 
   @override
   Widget build(BuildContext context) {
@@ -456,7 +958,7 @@ class _InfoRow extends StatelessWidget {
                 style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
-                    color: valueColor ?? p.textHi)),
+                    color: p.textHi)),
           ),
         ],
       ),
@@ -470,8 +972,13 @@ class _LiveTicker extends ConsumerWidget {
   final Match match;
   final List<MatchIncident>? fsIncidents;
   final WidgetRef ref;
-  const _LiveTicker(
-      {required this.match, required this.fsIncidents, required this.ref});
+  final Map? rawScore;
+  const _LiveTicker({
+    required this.match,
+    required this.fsIncidents,
+    required this.ref,
+    this.rawScore,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -492,7 +999,50 @@ class _LiveTicker extends ConsumerWidget {
 
   Widget _buildTicker(Palette p, List<MatchIncident> list) {
     if (list.isEmpty) return const SizedBox.shrink();
-    final shown = list.reversed.take(12).toList();
+
+    // Half-time and full-time scores from the raw Firestore score map.
+    final htMap = rawScore?['halfTime'] as Map?;
+    final htHome = htMap?['home'] as int?;
+    final htAway = htMap?['away'] as int?;
+    final ftMap = rawScore?['fullTime'] as Map?;
+    final ftHome = ftMap?['home'] as int? ?? match.score.homeGoals;
+    final ftAway = ftMap?['away'] as int? ?? match.score.awayGoals;
+
+    // Sort newest-first — the most recent events appear at the top, which is
+    // more natural for a live ticker and matches the reference app.
+    final sorted = [...list]..sort((a, b) => b.minute.compareTo(a.minute));
+
+    // Is the match past half-time? Used to decide whether to show the HT marker
+    // when all stored events are from 1st half (no event > 45 in our list).
+    final elapsed = DateTime.now().difference(match.utcDate).inMinutes;
+    final pastHalfTime = match.isFinished ||
+        match.status == 'PAUSED' ||
+        (match.status == 'IN_PLAY' && elapsed > 55);
+
+    // Build rows (newest at top).
+    // HT marker is inserted just before the first event with minute ≤ 45
+    // (i.e., between 2nd-half events above and 1st-half events below).
+    final rows = <Widget>[];
+    bool htInserted = false;
+    for (final inc in sorted) {
+      if (!htInserted && inc.minute <= 45) {
+        if (pastHalfTime) {
+          rows.add(_HtMarker(p: p, htHome: htHome, htAway: htAway));
+        }
+        htInserted = true;
+      }
+      rows.add(_IncidentRow(incident: inc, p: p));
+    }
+    // If all events were > 45 (all 2nd half), place HT below them.
+    if (!htInserted && pastHalfTime) {
+      rows.add(_HtMarker(p: p, htHome: htHome, htAway: htAway));
+    }
+
+    // FT marker sits at the very top for finished matches (newest event).
+    if (match.isFinished && ftHome != null && ftAway != null) {
+      rows.insert(0, _FtMarker(p: p, ftHome: ftHome, ftAway: ftAway));
+    }
+
     return _DetailCard(
       margin: const EdgeInsets.only(bottom: 10),
       child: Column(
@@ -501,7 +1051,7 @@ class _LiveTicker extends ConsumerWidget {
           Row(
             children: [
               Text(
-                match.isLive ? 'LIVE TICKER' : 'MATCH TIMELINE',
+                match.isLive ? 'LIVE TICKER' : 'MATCH EVENTS',
                 style: TextStyle(
                     fontSize: 10,
                     letterSpacing: 1.3,
@@ -513,13 +1063,7 @@ class _LiveTicker extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 10),
-          ...shown.map((i) => _IncidentRow(incident: i, p: p)),
-          if (list.length > 12)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text('+ ${list.length - 12} more',
-                  style: TextStyle(fontSize: 11, color: p.textLow)),
-            ),
+          ...rows,
         ],
       ),
     );
@@ -560,6 +1104,68 @@ class _PulsingDotState extends State<_PulsingDot>
       );
 }
 
+// HT divider shown between halves, optionally with the half-time score.
+class _HtMarker extends StatelessWidget {
+  final Palette p;
+  final int? htHome;
+  final int? htAway;
+  const _HtMarker({required this.p, this.htHome, this.htAway});
+
+  @override
+  Widget build(BuildContext context) {
+    final hasScore = htHome != null && htAway != null;
+    final label = hasScore ? 'HT  $htHome – $htAway' : 'HT';
+    return _MatchMarker(p: p, label: label);
+  }
+}
+
+// FT divider shown after all events for finished matches.
+class _FtMarker extends StatelessWidget {
+  final Palette p;
+  final int ftHome;
+  final int ftAway;
+  const _FtMarker({required this.p, required this.ftHome, required this.ftAway});
+
+  @override
+  Widget build(BuildContext context) =>
+      _MatchMarker(p: p, label: 'FT  $ftHome – $ftAway');
+}
+
+class _MatchMarker extends StatelessWidget {
+  final Palette p;
+  final String label;
+  const _MatchMarker({required this.p, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          Expanded(child: Divider(color: p.stroke, thickness: 1)),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+              decoration: BoxDecoration(
+                color: p.surfaceHi,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: p.stroke),
+              ),
+              child: Text(label,
+                  style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      color: p.textMid)),
+            ),
+          ),
+          Expanded(child: Divider(color: p.stroke, thickness: 1)),
+        ],
+      ),
+    );
+  }
+}
+
 class _IncidentRow extends StatelessWidget {
   final MatchIncident incident;
   final Palette p;
@@ -567,60 +1173,149 @@ class _IncidentRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (chipColor, icon) = switch (incident.type) {
-      'goal' => (AppTheme.brand.withValues(alpha: 0.12),
-          Icons.sports_soccer_rounded),
-      'yellowCard' => (const Color(0xFFFFF3CD), Icons.square_rounded),
-      'redCard' => (const Color(0xFFFFEBEE), Icons.square_rounded),
-      'substitution' => (p.surfaceHi, Icons.swap_horiz_rounded),
-      _ => (p.surfaceHi, Icons.circle_outlined),
-    };
-    final iconColor = switch (incident.type) {
-      'goal' => AppTheme.brand,
-      'yellowCard' => const Color(0xFFF5A623),
-      'redCard' => AppTheme.live,
-      _ => p.textMid,
-    };
-    final label = switch (incident.type) {
-      'substitution' =>
-        '${incident.player ?? '—'}${incident.assistOrOff != null ? ' → ${incident.assistOrOff}' : ''}',
-      _ => incident.player ?? '—',
-    };
+    final isGoal = incident.type == 'goal';
+    final isOG = isGoal && incident.subtype == 'ownGoal';
+    final isPen = isGoal && incident.subtype == 'penalty';
+    final isYellow = incident.type == 'yellowCard';
+    final isRed = incident.type == 'redCard';
+    final isSub = incident.type == 'substitution';
+
+    final IconData icon = isGoal
+        ? Icons.sports_soccer_rounded
+        : isSub
+            ? Icons.swap_horiz_rounded
+            : Icons.square_rounded;
+
+    final Color iconColor = isGoal
+        ? (isOG ? Colors.grey : isPen ? const Color(0xFFF5A623) : AppTheme.brand)
+        : isYellow
+            ? const Color(0xFFF5A623)
+            : isRed
+                ? AppTheme.live
+                : p.textMid;
+
+    final Color chipBg = isGoal
+        ? (isOG
+            ? Colors.grey.withValues(alpha: 0.12)
+            : isPen
+                ? const Color(0xFFFFF3CD)
+                : AppTheme.brand.withValues(alpha: 0.12))
+        : isYellow
+            ? const Color(0xFFFFF3CD)
+            : isRed
+                ? const Color(0xFFFFEBEE)
+                : p.surfaceHi;
+
+    final String playerLabel;
+    final String? subLabel;
+    if (isSub) {
+      // Show "PlayerIn / PlayerOut" on one line — matches reference app style.
+      final inName = incident.player;
+      final outName = incident.assistOrOff;
+      if (inName != null && outName != null) {
+        playerLabel = '$inName  /  $outName';
+        subLabel = null;
+      } else {
+        playerLabel = inName ?? outName ?? '—';
+        subLabel = null;
+      }
+    } else if (isGoal) {
+      playerLabel = incident.player ?? '—';
+      subLabel = isOG ? 'Own Goal' : isPen ? 'Penalty' : incident.assistOrOff != null ? 'Assist: ${incident.assistOrOff}' : null;
+    } else {
+      playerLabel = incident.player ?? '—';
+      subLabel = null;
+    }
+
+    final minuteBox = Container(
+      width: 38,
+      alignment: Alignment.center,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: isGoal
+              ? (isOG ? Colors.grey.withValues(alpha: 0.2) : AppTheme.brand.withValues(alpha: 0.15))
+              : isRed
+                  ? AppTheme.live.withValues(alpha: 0.12)
+                  : isYellow
+                      ? const Color(0xFFF5A623).withValues(alpha: 0.12)
+                      : p.surfaceHi,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          "${incident.minute}'",
+          style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              color: isGoal
+                  ? (isOG ? Colors.grey : AppTheme.brand)
+                  : isRed
+                      ? AppTheme.live
+                      : isYellow
+                          ? const Color(0xFFF5A623)
+                          : p.textMid),
+        ),
+      ),
+    );
+
+    final eventIcon = Container(
+      width: 24,
+      height: 24,
+      decoration: BoxDecoration(
+        color: chipBg,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Icon(icon, size: 13, color: iconColor),
+    );
+
+    Widget nameCol(bool alignRight) => Expanded(
+          child: Column(
+            crossAxisAlignment: alignRight
+                ? CrossAxisAlignment.end
+                : CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(playerLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: alignRight ? TextAlign.right : TextAlign.left,
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight:
+                          isGoal ? FontWeight.w800 : FontWeight.w600,
+                      color: isGoal ? p.textHi : p.textHi)),
+              if (subLabel != null)
+                Text(subLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign:
+                        alignRight ? TextAlign.right : TextAlign.left,
+                    style: TextStyle(fontSize: 10, color: p.textLow)),
+            ],
+          ),
+        );
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
-        children: [
-          SizedBox(
-            width: 32,
-            child: Text("${incident.minute}'",
-                style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: p.textMid)),
-          ),
-          Container(
-            width: 26,
-            height: 26,
-            decoration: BoxDecoration(
-              color: chipColor,
-              borderRadius: BorderRadius.circular(7),
-            ),
-            child: Icon(icon, size: 14, color: iconColor),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign:
-                    incident.isHome ? TextAlign.left : TextAlign.right,
-                style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: p.textHi)),
-          ),
-        ],
+        children: incident.isHome
+            ? [
+                nameCol(false),
+                const SizedBox(width: 6),
+                eventIcon,
+                const SizedBox(width: 4),
+                minuteBox,
+                const SizedBox(width: 4),
+                const Expanded(child: SizedBox()),
+              ]
+            : [
+                const Expanded(child: SizedBox()),
+                minuteBox,
+                const SizedBox(width: 4),
+                eventIcon,
+                const SizedBox(width: 6),
+                nameCol(true),
+              ],
       ),
     );
   }

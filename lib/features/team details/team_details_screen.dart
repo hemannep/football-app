@@ -7,6 +7,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -16,25 +17,26 @@ import '../../core/services/sportsdb_service.dart';
 import '../../core/theme/app_theme.dart' hide SectionLabel;
 import '../../shared/models/match.dart';
 import '../../shared/widgets/ad_banner_widget.dart';
+import '../../shared/models/standing.dart';
 import '../../shared/widgets/flag_widget.dart';
 import '../../shared/widgets/match_card.dart';
+import '../../shared/widgets/team_crest_widget.dart';
 import '../match details/match_details_screen.dart'
     show MatchDetailsScreen, SectionLabel;
 import '../player screen/player_details_screen.dart';
 
 // ─── Providers ──────────────────────────────────────────────────────────────
 
-// Team matches: filter the full Firestore match list by team id.
+// Team matches: watchMatches() now uses a shared in-memory TTL cache on the
+// LiveDataService singleton, so this stream emits from cache (0 reads) whenever
+// the same data was recently fetched by liveScoreProvider or any other caller.
 final _teamMatchesProvider =
-    FutureProvider.family<List<Match>, int>((ref, teamId) async {
-  return LiveDataService.instance
-      .watchMatches()
-      .map((all) => all
-          .where((m) =>
-              (m.homeTeam.id != null && m.homeTeam.id == teamId) ||
-              (m.awayTeam.id != null && m.awayTeam.id == teamId))
-          .toList())
-      .first;
+    StreamProvider.family<List<Match>, int>((ref, teamId) {
+  return LiveDataService.instance.watchMatches().map((all) => all
+      .where((m) =>
+          (m.homeTeam.id != null && m.homeTeam.id == teamId) ||
+          (m.awayTeam.id != null && m.awayTeam.id == teamId))
+      .toList());
 });
 
 final _sportsDbTeamProvider =
@@ -113,22 +115,95 @@ class TeamDetailScreen extends ConsumerWidget {
       ..sort((a, b) => b.utcDate.compareTo(a.utcDate));
     final last5 = played.take(5).toList();
 
+    // Most common competition code (best guess for league standings lookup)
+    final compFreq = <String, int>{};
+    for (final m in allMatches) {
+      if (m.competitionCode != null) {
+        compFreq[m.competitionCode!] = (compFreq[m.competitionCode!] ?? 0) + 1;
+      }
+    }
+    final compCode = compFreq.isEmpty
+        ? ''
+        : compFreq.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
+    final standingsAsync = ref.watch(standingsByLeagueProvider(compCode));
+    final standingsGroups = standingsAsync.asData?.value ?? [];
+    // Find the specific group (league/tournament table) that contains this team
+    final teamGroup = standingsGroups.cast<GroupTable?>().firstWhere(
+          (g) => g!.teams.any((t) => t.tla == tla),
+          orElse: () => null,
+        );
+    final teamStanding = teamGroup?.teams
+        .where((t) => t.tla == tla)
+        .firstOrNull;
+
     int w = 0, d = 0, l = 0, gf = 0, ga = 0;
+    int homeW = 0, homeD = 0, homeL = 0;
+    int awayW = 0, awayD = 0, awayL = 0;
+    for (final m in played) {
+      final hg = m.score.homeGoals ?? 0;
+      final ag = m.score.awayGoals ?? 0;
+      final isHome = m.homeTeam.tla == tla;
+      final us = isHome ? hg : ag;
+      final them = isHome ? ag : hg;
+      gf += us;
+      ga += them;
+      if (us > them) {
+        w++;
+        if (isHome) { homeW++; } else { awayW++; }
+      } else if (us < them) {
+        l++;
+        if (isHome) { homeL++; } else { awayL++; }
+      } else {
+        d++;
+        if (isHome) { homeD++; } else { awayD++; }
+      }
+    }
+
+    // Clean sheets (matches where opponent scored 0)
+    int cleanSheets = 0;
+    for (final m in played) {
+      final hg = m.score.homeGoals ?? 0;
+      final ag = m.score.awayGoals ?? 0;
+      final conceded = m.homeTeam.tla == tla ? ag : hg;
+      if (conceded == 0) cleanSheets++;
+    }
+
+    // Current unbeaten streak (from most recent match backwards)
+    int streak = 0;
     for (final m in played) {
       final hg = m.score.homeGoals ?? 0;
       final ag = m.score.awayGoals ?? 0;
       final us = m.homeTeam.tla == tla ? hg : ag;
       final them = m.homeTeam.tla == tla ? ag : hg;
-      gf += us;
-      ga += them;
-      if (us > them) {
-        w++;
-      } else if (us < them) {
-        l++;
+      if (us >= them) {
+        streak++;
       } else {
-        d++;
+        break;
       }
     }
+
+    // Win streak (consecutive wins only)
+    int winStreak = 0;
+    for (final m in played) {
+      final hg = m.score.homeGoals ?? 0;
+      final ag = m.score.awayGoals ?? 0;
+      final us = m.homeTeam.tla == tla ? hg : ag;
+      final them = m.homeTeam.tla == tla ? ag : hg;
+      if (us > them) {
+        winStreak++;
+      } else {
+        break;
+      }
+    }
+
+    final playedCount = w + d + l;
+    final gfPerGame = playedCount > 0 ? gf / playedCount : 0.0;
+    final gaPerGame = playedCount > 0 ? ga / playedCount : 0.0;
+
+    // Next non-live upcoming match
+    final liveNow = upcoming.where((m) => m.isLive).toList();
+    final scheduled = upcoming.where((m) => !m.isLive).toList();
+    final nextMatch = scheduled.isNotEmpty ? scheduled.first : null;
 
     return Scaffold(
       body: Column(
@@ -138,7 +213,7 @@ class TeamDetailScreen extends ConsumerWidget {
               headerSliverBuilder: (_, __) => [
                 SliverAppBar(
                   pinned: true,
-                  expandedHeight: 220,
+                  expandedHeight: 240,
                   backgroundColor: p.bg,
                   leading: IconButton(
                     icon: const Icon(Icons.arrow_back_rounded),
@@ -167,6 +242,9 @@ class TeamDetailScreen extends ConsumerWidget {
                       badgeUrl: fdCrest ??
                           sportsTeam?.badgeUrl ??
                           sportsTeam?.logoUrl,
+                      coach: coach,
+                      country: country ?? sportsTeam?.country,
+                      founded: founded?.toString(),
                     ),
                   ),
                 ),
@@ -175,14 +253,54 @@ class TeamDetailScreen extends ConsumerWidget {
                 padding: const EdgeInsets.only(bottom: 30),
                 children: [
                   if (sportsTeam != null) _IdentityCard(team: sportsTeam),
-                  const SectionLabel('RECENT FORM'),
-                  if (last5.isEmpty)
-                    _emptyBlock(p, 'No played matches yet')
-                  else
+
+                  // ── Live matches (highest priority — show immediately) ────
+                  if (liveNow.isNotEmpty) ...[
                     Container(
-                      margin: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 4),
-                      padding: const EdgeInsets.all(14),
+                      margin: const EdgeInsets.fromLTRB(12, 14, 12, 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: AppTheme.live.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppTheme.live.withValues(alpha: 0.4)),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.circle, size: 8, color: AppTheme.live),
+                          SizedBox(width: 6),
+                          Text('LIVE NOW',
+                              style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w900,
+                                  color: AppTheme.live,
+                                  letterSpacing: 1)),
+                        ],
+                      ),
+                    ),
+                    ...liveNow.map((m) => MatchCard(
+                          match: m,
+                          showDate: true,
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                                builder: (_) => MatchDetailsScreen(match: m)),
+                          ),
+                        )),
+                  ],
+
+                  // ── Next Match spotlight ─────────────────────────────────
+                  if (nextMatch != null) ...[
+                    const SectionLabel('NEXT MATCH'),
+                    _NextMatchCard(match: nextMatch, p: p, onTap: () =>
+                      Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => MatchDetailsScreen(match: nextMatch)))),
+                  ],
+
+                  // ── Recent form (last 5) — hidden until matches are played ─
+                  if (last5.isNotEmpty) ...[
+                  const SectionLabel('RECENT FORM'),
+                    Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
                       decoration: BoxDecoration(
                         color: p.surface,
                         borderRadius: BorderRadius.circular(AppTheme.r),
@@ -193,63 +311,79 @@ class TeamDetailScreen extends ConsumerWidget {
                         children: last5.map((m) {
                           final hg = m.score.homeGoals ?? 0;
                           final ag = m.score.awayGoals ?? 0;
-                          final us = m.homeTeam.tla == tla ? hg : ag;
-                          final them = m.homeTeam.tla == tla ? ag : hg;
-                          final res = us > them
-                              ? 'W'
-                              : us < them
-                                  ? 'L'
-                                  : 'D';
+                          final isHome = m.homeTeam.tla == tla;
+                          final us = isHome ? hg : ag;
+                          final them = isHome ? ag : hg;
+                          final opp = isHome ? m.awayTeam : m.homeTeam;
+                          final res = us > them ? 'W' : us < them ? 'L' : 'D';
                           final c = res == 'W'
                               ? AppTheme.good
-                              : res == 'L'
-                                  ? AppTheme.bad
-                                  : AppTheme.warn;
-                          return Container(
-                            width: 28,
-                            height: 28,
-                            alignment: Alignment.center,
-                            decoration:
-                                BoxDecoration(color: c, shape: BoxShape.circle),
-                            child: Text(res,
-                                style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w900)),
+                              : res == 'L' ? AppTheme.bad : AppTheme.warn;
+                          return Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 40,
+                                height: 40,
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                    color: c,
+                                    borderRadius: BorderRadius.circular(8)),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(res,
+                                        style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w900,
+                                            height: 1)),
+                                    Text('$us-$them',
+                                        style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 8,
+                                            fontWeight: FontWeight.w700)),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 5),
+                              // Opponent crest with H/A badge
+                              Stack(
+                                clipBehavior: Clip.none,
+                                children: [
+                                  TeamCrestWidget(crestUrl: opp.crest, tla: opp.tla, size: 20),
+                                  Positioned(
+                                    top: -4,
+                                    right: -5,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 2.5, vertical: 0.5),
+                                      decoration: BoxDecoration(
+                                        color: isHome ? AppTheme.brand : p.surfaceHi,
+                                        borderRadius: BorderRadius.circular(3),
+                                        border: Border.all(color: p.stroke, width: 0.5),
+                                      ),
+                                      child: Text(
+                                        isHome ? 'H' : 'A',
+                                        style: TextStyle(
+                                            fontSize: 7,
+                                            fontWeight: FontWeight.w900,
+                                            color: isHome ? Colors.white : p.textMid),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
                           );
                         }).toList(),
                       ),
                     ),
-                  const SectionLabel('STATS'),
-                  Container(
-                    margin:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    padding:
-                        const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
-                    decoration: BoxDecoration(
-                      color: p.surface,
-                      borderRadius: BorderRadius.circular(AppTheme.r),
-                      border: Border.all(color: p.stroke),
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(child: _stat('W', '$w', AppTheme.good, p)),
-                        Container(width: 1, height: 36, color: p.stroke),
-                        Expanded(child: _stat('D', '$d', AppTheme.warn, p)),
-                        Container(width: 1, height: 36, color: p.stroke),
-                        Expanded(child: _stat('L', '$l', AppTheme.bad, p)),
-                        Container(width: 1, height: 36, color: p.stroke),
-                        Expanded(child: _stat('GF', '$gf', p.textHi, p)),
-                        Container(width: 1, height: 36, color: p.stroke),
-                        Expanded(child: _stat('GA', '$ga', p.textHi, p)),
-                      ],
-                    ),
-                  ),
-                  const SectionLabel('UPCOMING MATCHES'),
-                  if (upcoming.isEmpty)
-                    _emptyBlock(p, 'No upcoming matches')
-                  else
-                    ...upcoming.take(8).map((m) => MatchCard(
+                  ], // end if (last5.isNotEmpty)
+
+                  // ── Recent results (hidden until matches played) ──────────
+                  if (played.isNotEmpty) ...[
+                    const SectionLabel('RECENT RESULTS'),
+                    ...played.take(5).map((m) => MatchCard(
                           match: m,
                           showDate: true,
                           onTap: () => Navigator.of(context).push(
@@ -257,12 +391,176 @@ class TeamDetailScreen extends ConsumerWidget {
                                 builder: (_) => MatchDetailsScreen(match: m)),
                           ),
                         )),
-                  const SectionLabel('SQUAD'),
+                  ],
+
+                  // ── Stats (only when matches have been played) ───────────
+                  if (playedCount > 0) ...[
+                    const SectionLabel('STATS'),
+                    Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: p.surface,
+                        borderRadius: BorderRadius.circular(AppTheme.r),
+                        border: Border.all(color: p.stroke),
+                      ),
+                      child: Column(
+                        children: [
+                          // W / D / L / GF / GA / optional streak
+                          // IntrinsicHeight ensures separators match tallest cell
+                          IntrinsicHeight(
+                            child: Row(
+                              children: [
+                                Expanded(child: _stat('W', '$w', AppTheme.good, p)),
+                                VerticalDivider(width: 1, color: p.stroke),
+                                Expanded(child: _stat('D', '$d', AppTheme.warn, p)),
+                                VerticalDivider(width: 1, color: p.stroke),
+                                Expanded(child: _stat('L', '$l', AppTheme.bad, p)),
+                                VerticalDivider(width: 1, color: p.stroke),
+                                Expanded(child: _stat('GF', '$gf', AppTheme.good, p)),
+                                VerticalDivider(width: 1, color: p.stroke),
+                                Expanded(child: _stat('GA', '$ga', AppTheme.bad, p)),
+                                if (winStreak >= 2) ...[
+                                  VerticalDivider(width: 1, color: p.stroke),
+                                  Expanded(child: _stat('🔥 Wins', '$winStreak', AppTheme.good, p)),
+                                ] else if (streak >= 3) ...[
+                                  VerticalDivider(width: 1, color: p.stroke),
+                                  Expanded(child: _stat('Unbeat.', '$streak', AppTheme.brand, p)),
+                                ],
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          // W/D/L ratio bar
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(5),
+                            child: SizedBox(
+                              height: 8,
+                              child: Row(children: [
+                                Expanded(
+                                  flex: w.clamp(1, 999),
+                                  child: const ColoredBox(color: AppTheme.good),
+                                ),
+                                Expanded(
+                                  flex: d.clamp(1, 999),
+                                  child: const ColoredBox(color: AppTheme.warn),
+                                ),
+                                Expanded(
+                                  flex: l.clamp(1, 999),
+                                  child: const ColoredBox(color: AppTheme.bad),
+                                ),
+                              ]),
+                            ),
+                          ),
+                          const SizedBox(height: 5),
+                          Row(
+                            children: [
+                              Text('${(w * 100 / playedCount).round()}% wins',
+                                  style: const TextStyle(fontSize: 10, color: AppTheme.good, fontWeight: FontWeight.w700)),
+                              Expanded(
+                                child: Text('$playedCount played',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(fontSize: 10, color: p.textLow, fontWeight: FontWeight.w600)),
+                              ),
+                              Text('${(l * 100 / playedCount).round()}% losses',
+                                  style: const TextStyle(fontSize: 10, color: AppTheme.bad, fontWeight: FontWeight.w700)),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          // Per-game and clean sheet stats
+                          Divider(height: 1, color: p.stroke),
+                          const SizedBox(height: 10),
+                          // IntrinsicHeight prevents separator misalignment
+                          IntrinsicHeight(
+                            child: Row(
+                              children: [
+                                Expanded(child: _stat('GF/Game', gfPerGame.toStringAsFixed(2), AppTheme.good, p)),
+                                VerticalDivider(width: 1, color: p.stroke),
+                                Expanded(child: _stat('GA/Game', gaPerGame.toStringAsFixed(2), AppTheme.bad, p)),
+                                VerticalDivider(width: 1, color: p.stroke),
+                                Expanded(child: _stat('C. Sheets', '$cleanSheets', AppTheme.brand, p)),
+                              ],
+                            ),
+                          ),
+                          // Home / Away breakdown
+                          if (homeW + homeD + homeL > 0 && awayW + awayD + awayL > 0) ...[
+                            const SizedBox(height: 12),
+                            Divider(height: 1, color: p.stroke),
+                            const SizedBox(height: 10),
+                            IntrinsicHeight(
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Expanded(
+                                    child: _homeAwayBlock(
+                                        'Home', homeW, homeD, homeL, AppTheme.brand, p),
+                                  ),
+                                  VerticalDivider(width: 1, color: p.stroke),
+                                  Expanded(
+                                    child: _homeAwayBlock(
+                                        'Away', awayW, awayD, awayL,
+                                        const Color(0xFF1E88E5), p),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+
+                  // ── Mini standings table ─────────────────────────────────
+                  if (teamGroup != null) ...[
+                    const SectionLabel('STANDING'),
+                    _MiniStandingsCard(
+                      group: teamGroup,
+                      teamTla: tla,
+                      p: p,
+                    ),
+                  ],
+
+                  // ── Upcoming matches (excluding the spotlight next match) ─
+                  if (scheduled.length > 1) ...[
+                    const SectionLabel('UPCOMING MATCHES'),
+                    ...scheduled.skip(1).take(5).map((m) => MatchCard(
+                          match: m,
+                          showDate: true,
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                                builder: (_) => MatchDetailsScreen(match: m)),
+                          ),
+                        )),
+                  ] else if (liveNow.isEmpty && nextMatch == null)
+                    _emptyBlock(p, 'No upcoming matches'),
+                  // Squad — show count once loaded
+                  Builder(builder: (ctx) {
+                    final count = ref.watch(playersForTeamProvider(teamId))
+                        .asData?.value.length ?? 0;
+                    return SectionLabel(count > 0 ? 'SQUAD ($count)' : 'SQUAD');
+                  }),
                   _SquadSection(
                     teamId: teamId,
                     teamHint: name,
                   ),
                   const SectionLabel('CLUB INFO'),
+                  if (teamStanding != null) ...[
+                    // Derive competition name from the team's matches
+                    Builder(builder: (ctx) {
+                      final compName = allMatches
+                          .where((m) => m.competitionCode == compCode)
+                          .map((m) => m.competitionName)
+                          .whereType<String>()
+                          .firstOrNull;
+                      final gd = teamStanding.goalDifference;
+                      return _info(
+                        p,
+                        Icons.format_list_numbered_rounded,
+                        compName ?? 'Position',
+                        '#${teamStanding.position}  ·  ${teamStanding.points} pts  ·  GD ${gd > 0 ? "+" : ""}$gd',
+                      );
+                    }),
+                  ],
                   if (founded != null)
                     _info(p, Icons.event_rounded, 'Founded', '$founded'),
                   if (coach != null && coach.isNotEmpty)
@@ -338,7 +636,70 @@ class TeamDetailScreen extends ConsumerWidget {
           Text(value,
               style: TextStyle(
                   fontSize: 18, fontWeight: FontWeight.w900, color: c)),
-          Text(label, style: TextStyle(fontSize: 10, color: p.textLow)),
+          Text(label,
+              style: TextStyle(fontSize: 9, color: p.textLow),
+              textAlign: TextAlign.center),
+        ],
+      );
+
+  Widget _homeAwayBlock(
+      String label, int w, int d, int l, Color accentColor, Palette p) {
+    final total = w + d + l;
+    return Column(
+      children: [
+        Text(label,
+            style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                color: p.textLow,
+                letterSpacing: 0.5)),
+        const SizedBox(height: 6),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _miniStat('$w', 'W', AppTheme.good, p),
+            const SizedBox(width: 10),
+            _miniStat('$d', 'D', AppTheme.warn, p),
+            const SizedBox(width: 10),
+            _miniStat('$l', 'L', AppTheme.bad, p),
+          ],
+        ),
+        if (total > 0) ...[
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(3),
+            child: SizedBox(
+              height: 4,
+              child: Row(children: [
+                Expanded(
+                  flex: w.clamp(1, 99),
+                  child: const ColoredBox(color: AppTheme.good),
+                ),
+                Expanded(
+                  flex: d.clamp(1, 99),
+                  child: const ColoredBox(color: AppTheme.warn),
+                ),
+                Expanded(
+                  flex: l.clamp(1, 99),
+                  child: const ColoredBox(color: AppTheme.bad),
+                ),
+              ]),
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text('${(w * 100 / total).round()}% win rate',
+              style: TextStyle(fontSize: 9, color: accentColor, fontWeight: FontWeight.w700)),
+        ],
+      ],
+    );
+  }
+
+  Widget _miniStat(String value, String label, Color c, Palette p) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(value,
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: c)),
+          Text(label, style: TextStyle(fontSize: 9, color: p.textLow)),
         ],
       );
 
@@ -407,13 +768,289 @@ class TeamDetailScreen extends ConsumerWidget {
   }
 }
 
+// ─── Next Match spotlight card ────────────────────────────────────────────────
+
+class _NextMatchCard extends StatelessWidget {
+  final Match match;
+  final Palette p;
+  final VoidCallback onTap;
+  const _NextMatchCard({required this.match, required this.p, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final diff = match.utcDate.toLocal().difference(now);
+    final String countdownStr;
+    if (diff.isNegative) {
+      countdownStr = 'Soon';
+    } else if (diff.inDays > 0) {
+      countdownStr = 'In ${diff.inDays}d ${diff.inHours % 24}h';
+    } else if (diff.inHours > 0) {
+      countdownStr = 'In ${diff.inHours}h ${diff.inMinutes % 60}m';
+    } else {
+      countdownStr = 'In ${diff.inMinutes}m';
+    }
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          gradient: AppTheme.brandGradient,
+          borderRadius: BorderRadius.circular(AppTheme.r),
+        ),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  (match.competitionName ?? match.stage).toUpperCase(),
+                  style: const TextStyle(
+                      color: Colors.black54,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(countdownStr,
+                      style: const TextStyle(
+                          color: Colors.black87,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    children: [
+                      TeamCrestWidget(crestUrl: match.homeTeam.crest, tla: match.homeTeam.tla, size: 40),
+                      const SizedBox(height: 6),
+                      Text(match.homeTeam.name,
+                          maxLines: 2,
+                          textAlign: TextAlign.center,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              color: Colors.black,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              height: 1.2)),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Column(
+                    children: [
+                      const Text('VS',
+                          style: TextStyle(
+                              color: Colors.black45,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w900)),
+                      const SizedBox(height: 4),
+                      Text(DateFormat('d MMM\nHH:mm').format(match.utcDate.toLocal()),
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                              color: Colors.black54,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              height: 1.3)),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: Column(
+                    children: [
+                      TeamCrestWidget(crestUrl: match.awayTeam.crest, tla: match.awayTeam.tla, size: 40),
+                      const SizedBox(height: 6),
+                      Text(match.awayTeam.name,
+                          maxLines: 2,
+                          textAlign: TextAlign.center,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              color: Colors.black,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              height: 1.2)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Mini standings card ──────────────────────────────────────────────────────
+
+class _MiniStandingsCard extends StatelessWidget {
+  final GroupTable group;
+  final String teamTla;
+  final Palette p;
+  const _MiniStandingsCard({
+    required this.group,
+    required this.teamTla,
+    required this.p,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final teams = group.teams;
+    if (teams.isEmpty) return const SizedBox.shrink();
+
+    // Show up to 5 rows centered around the team's position.
+    final teamIdx = teams.indexWhere((t) => t.tla == teamTla);
+    final startIdx = teamIdx < 0
+        ? 0
+        : (teamIdx - 2).clamp(0, (teams.length - 5).clamp(0, teams.length));
+    final visible = teams.skip(startIdx).take(5).toList();
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: BoxDecoration(
+        color: p.surface,
+        borderRadius: BorderRadius.circular(AppTheme.r),
+        border: Border.all(color: p.stroke),
+      ),
+      child: Column(
+        children: [
+          // Column headers
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+            child: Row(children: [
+              const SizedBox(width: 22),
+              const SizedBox(width: 8),
+              const Expanded(child: SizedBox()),
+              _hdr('P'),
+              _hdr('W'),
+              _hdr('D'),
+              _hdr('L'),
+              _hdr('GD'),
+              _hdr('Pts', bold: true),
+            ]),
+          ),
+          Divider(height: 1, color: p.stroke),
+          ...visible.map((t) {
+            final isMe = t.tla == teamTla;
+            final gdSign = t.goalDifference > 0 ? '+' : '';
+            return Container(
+              color: isMe
+                  ? AppTheme.brand.withValues(alpha: 0.08)
+                  : Colors.transparent,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                child: Row(children: [
+                  SizedBox(
+                    width: 22,
+                    child: Text(
+                      '${t.position}',
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: isMe ? FontWeight.w800 : FontWeight.w600,
+                          color: isMe ? AppTheme.brand : p.textLow),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  TeamCrestWidget(crestUrl: t.crest, tla: t.tla, size: 16),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      t.teamName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: isMe ? FontWeight.w800 : FontWeight.w600,
+                          color: isMe ? p.textHi : p.textMid),
+                    ),
+                  ),
+                  _cell('${t.playedGames}', p),
+                  _cell('${t.won}', p, color: t.won > 0 ? AppTheme.good : null),
+                  _cell('${t.draw}', p),
+                  _cell('${t.lost}', p, color: t.lost > 0 ? AppTheme.bad : null),
+                  _cell('$gdSign${t.goalDifference}', p,
+                      color: t.goalDifference > 0
+                          ? AppTheme.good
+                          : t.goalDifference < 0
+                              ? AppTheme.bad
+                              : null),
+                  _cell('${t.points}', p, bold: true),
+                ]),
+              ),
+            );
+          }),
+          // "View full table" hint if there are more teams
+          if (teams.length > 5)
+            InkWell(
+              onTap: () {},
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Text(
+                  '${teams.length} teams in table',
+                  style: TextStyle(
+                      fontSize: 11,
+                      color: p.textLow,
+                      fontWeight: FontWeight.w600),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _hdr(String s, {bool bold = false}) => SizedBox(
+        width: 30,
+        child: Text(s,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+                fontSize: 10,
+                fontWeight: bold ? FontWeight.w800 : FontWeight.w600,
+                color: const Color(0xFF9E9E9E),
+                letterSpacing: 0.3)),
+      );
+
+  Widget _cell(String v, Palette p, {Color? color, bool bold = false}) =>
+      SizedBox(
+        width: 30,
+        child: Text(v,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+                fontSize: 12,
+                fontWeight: bold ? FontWeight.w800 : FontWeight.w500,
+                color: color ?? (bold ? p.textHi : p.textMid))),
+      );
+}
+
 // ─── Hero ──────────────────────────────────────────────────────────────────
 
 class _Hero extends StatelessWidget {
   final String name;
   final String tla;
   final String? badgeUrl;
-  const _Hero({required this.name, required this.tla, this.badgeUrl});
+  final String? coach;
+  final String? country;
+  final String? founded;
+  const _Hero({
+    required this.name,
+    required this.tla,
+    this.badgeUrl,
+    this.coach,
+    this.country,
+    this.founded,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -437,6 +1074,36 @@ class _Hero extends StatelessWidget {
                       fontSize: 22,
                       fontWeight: FontWeight.w900,
                       letterSpacing: -0.5)),
+              if (coach != null && coach!.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    '👤 $coach',
+                    style: const TextStyle(
+                        color: Colors.black87,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ],
+              if (country != null || founded != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  [
+                    if (country != null) country!,
+                    if (founded != null) 'Est. $founded',
+                  ].join(' · '),
+                  style: const TextStyle(
+                      color: Colors.black54,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600),
+                ),
+              ],
             ],
           ),
         ),
@@ -589,8 +1256,8 @@ class _SquadSection extends ConsumerWidget {
 
     if (squadAsync.isLoading) {
       return const Padding(
-        padding: EdgeInsets.all(24),
-        child: Center(child: CircularProgressIndicator()),
+        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: LinearProgressIndicator(),
       );
     }
 
@@ -726,12 +1393,22 @@ class _PositionGroup extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
-            child: Text(label.toUpperCase(),
-                style: const TextStyle(
-                    fontSize: 11,
-                    letterSpacing: 1.2,
-                    fontWeight: FontWeight.w800,
-                    color: AppTheme.brand)),
+            child: Row(
+              children: [
+                Text(label.toUpperCase(),
+                    style: const TextStyle(
+                        fontSize: 11,
+                        letterSpacing: 1.2,
+                        fontWeight: FontWeight.w800,
+                        color: AppTheme.brand)),
+                const SizedBox(width: 6),
+                Text('(${players.length})',
+                    style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.brand)),
+              ],
+            ),
           ),
           SizedBox(
             height: 152,
@@ -825,6 +1502,14 @@ class _PlayerCard extends ConsumerWidget {
                     color: p.textLow),
               ),
             ),
+            if (player.nationality != null) ...[
+              const SizedBox(height: 4),
+              FlagWidget(
+                tla: nationalityToTla(player.nationality) ?? '---',
+                size: 14,
+              ),
+            ],
+            const SizedBox(height: 4),
           ],
         ),
       ),

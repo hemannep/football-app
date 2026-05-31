@@ -82,6 +82,7 @@ class SportsDbPlayer {
   final String? thumbUrl;
   final String? description;
   final int? birthYear;
+  final String? birthDate;
   final String? height;
   final String? weight;
   final String? wage;
@@ -96,6 +97,7 @@ class SportsDbPlayer {
     this.thumbUrl,
     this.description,
     this.birthYear,
+    this.birthDate,
     this.height,
     this.weight,
     this.wage,
@@ -103,9 +105,11 @@ class SportsDbPlayer {
 
   factory SportsDbPlayer.fromJson(Map<String, dynamic> j) {
     int? year;
+    String? birthDate;
     final dob = j['dateBorn'] as String?;
     if (dob != null && dob.length >= 4) {
       year = int.tryParse(dob.substring(0, 4));
+      birthDate = dob;
     }
     return SportsDbPlayer(
       playerId: j['idPlayer'] as String?,
@@ -117,6 +121,7 @@ class SportsDbPlayer {
       thumbUrl: j['strThumb'] as String?,
       description: j['strDescriptionEN'] as String?,
       birthYear: year,
+      birthDate: birthDate,
       height: j['strHeight'] as String?,
       weight: j['strWeight'] as String?,
       wage: j['strWage'] as String?,
@@ -132,7 +137,7 @@ class SportsDbPlayer {
         'strCutout': photoUrl,
         'strThumb': thumbUrl,
         'strDescriptionEN': description,
-        'dateBorn': birthYear?.toString(),
+        'dateBorn': birthDate ?? birthYear?.toString(),
         'strHeight': height,
         'strWeight': weight,
         'strWage': wage,

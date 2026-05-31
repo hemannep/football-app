@@ -16,6 +16,8 @@ jobs:
   seed:
     runs-on: ubuntu-latest
     timeout-minutes: 30  # 12 competitions × rate-limited fetches can take ~20 min
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - uses: actions/checkout@v4
 

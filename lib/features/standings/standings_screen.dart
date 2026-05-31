@@ -527,11 +527,21 @@ class _GroupCard extends StatelessWidget {
                           color: p.textLow,
                           fontWeight: FontWeight.w700)),
                 ),
-                SizedBox(
-                    width: 26,
-                    child: Text('P',
+                const SizedBox(
+                    width: 22,
+                    child: Text('W',
                         textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 10, color: p.textLow))),
+                        style: TextStyle(fontSize: 10, color: AppTheme.good))),
+                const SizedBox(
+                    width: 22,
+                    child: Text('D',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 10, color: AppTheme.warn))),
+                const SizedBox(
+                    width: 22,
+                    child: Text('L',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 10, color: AppTheme.bad))),
                 SizedBox(
                     width: 26,
                     child: Text('GD',
@@ -605,11 +615,26 @@ class _GroupCard extends StatelessWidget {
                               color: p.textHi)),
                     ),
                     SizedBox(
-                        width: 26,
-                        child: Text('${t.playedGames}',
+                        width: 22,
+                        child: Text('${t.won}',
                             textAlign: TextAlign.center,
-                            style:
-                                TextStyle(fontSize: 12, color: p.textMid))),
+                            style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: t.won > 0 ? FontWeight.w700 : FontWeight.w400,
+                                color: t.won > 0 ? AppTheme.good : p.textLow))),
+                    SizedBox(
+                        width: 22,
+                        child: Text('${t.draw}',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 12, color: p.textMid))),
+                    SizedBox(
+                        width: 22,
+                        child: Text('${t.lost}',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: t.lost > 0 ? FontWeight.w700 : FontWeight.w400,
+                                color: t.lost > 0 ? AppTheme.bad : p.textLow))),
                     SizedBox(
                       width: 26,
                       child: Text(

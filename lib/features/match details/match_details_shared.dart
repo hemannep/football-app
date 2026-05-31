@@ -126,44 +126,178 @@ class _Unavailable extends StatelessWidget {
 // the strongly-typed model the existing tab widgets already know how to render.
 // All helpers are null-safe: missing / wrong-typed fields produce empty output.
 
-List<MatchIncident> _incidentsFromRaw(Map<String, dynamic> raw) {
-  final list = raw['incidents'];
-  if (list is! List || list.isEmpty) return const [];
-  final out = <MatchIncident>[];
-  for (final item in list) {
-    if (item is! Map) continue;
-    final j = item.cast<String, dynamic>();
-    final type = (j['type'] ?? '') as String;
-    final minute =
-        ((j['minute'] ?? j['time'] ?? 0) as num).toInt();
-    final isHome = j['is_home'] as bool? ?? false;
-    String mapped;
-    String? sub;
-    switch (type) {
-      case 'goal':
-        mapped = 'goal';
-        if (j['is_penalty'] == true || j['subtype'] == 'penalty') { sub = 'penalty'; }
-        if (j['is_own_goal'] == true || j['subtype'] == 'ownGoal') { sub = 'ownGoal'; }
-      case 'card':
-        final ct = (j['card_type'] ?? j['cardType'] ?? '') as String;
-        mapped = ct.toLowerCase() == 'red' ? 'redCard' : 'yellowCard';
-      case 'substitution':
-        mapped = 'substitution';
-      default:
-        mapped = type;
-    }
-    out.add(MatchIncident(
-      minute: minute,
-      type: mapped,
-      player: j['player_name'] as String?,
-      assistOrOff: (j['assist'] ?? j['player_out'] ?? j['playerOut'])
-          as String?,
-      isHome: isHome,
-      subtype: sub,
-    ));
+// Extracts a name from either a plain string or a {"name": "..."} map.
+String? _extractName(dynamic v) {
+  if (v == null) return null;
+  if (v is String) return v.trim().isEmpty ? null : v.trim();
+  if (v is Map) {
+    final n = v['name'];
+    if (n is String && n.trim().isNotEmpty) return n.trim();
   }
+  return null;
+}
+
+List<MatchIncident> _incidentsFromRaw(Map<String, dynamic> raw) {
+  final out = <MatchIncident>[];
+
+  // ── Helper: determine if an event belongs to the home team ──────────────────
+  final homeTeamId = (raw['homeTeam'] as Map?)?['id'];
+  final homeTeamTla = (raw['homeTeam'] as Map?)?['tla'] as String?;
+
+  bool isHomeFor(Map<String, dynamic> j, {dynamic teamId, String? teamTla}) {
+    // Explicit boolean flag wins.
+    if (j['is_home'] is bool) return j['is_home'] as bool;
+    final side = (j['side'] ?? j['team_side'] ?? '').toString().toLowerCase();
+    if (side == 'home') return true;
+    if (side == 'away') return false;
+    // Match by numeric team id.
+    if (homeTeamId != null && teamId != null && teamId == homeTeamId) return true;
+    if (homeTeamId != null && teamId != null) return false;
+    // Match by TLA string.
+    if (homeTeamTla != null && teamTla != null && teamTla.isNotEmpty) {
+      return teamTla == homeTeamTla;
+    }
+    return false;
+  }
+
+  // ── Source 1: unified incidents array (Bzzoiro / API-Football events) ───────
+  final incidentsList = raw['incidents'];
+  if (incidentsList is List && incidentsList.isNotEmpty) {
+    for (final item in incidentsList) {
+      if (item is! Map) continue;
+      final j = item.cast<String, dynamic>();
+
+      final rawType = (j['type'] ?? j['incident_type'] ?? '').toString().toLowerCase();
+      final minuteRaw = j['minute'] ?? j['time'] ?? (j['time'] is Map ? (j['time'] as Map)['elapsed'] : null) ?? 0;
+      final minute = (minuteRaw as num).toInt();
+
+      // Team identification for isHome
+      final teamId = j['team'] is Map ? (j['team'] as Map)['id'] : null;
+      final teamTla = j['team'] is Map ? (j['team'] as Map)['tla'] as String? : j['team'] as String?;
+      final isHome = isHomeFor(j, teamId: teamId, teamTla: teamTla);
+
+      String mapped;
+      String? sub;
+
+      if (rawType.contains('goal')) {
+        mapped = 'goal';
+        if (rawType.contains('own') || j['is_own_goal'] == true || j['subtype'] == 'ownGoal') sub = 'ownGoal';
+        if (rawType.contains('pen') || j['is_penalty'] == true || j['subtype'] == 'penalty') sub = 'penalty';
+      } else if (rawType.contains('red') || rawType.contains('yellowred')) {
+        mapped = 'redCard';
+      } else if (rawType.contains('yellow') || rawType.contains('card')) {
+        final ct = (j['card_type'] ?? j['cardType'] ?? j['card'] ?? j['detail'] ?? '').toString().toLowerCase();
+        mapped = ct.contains('red') ? 'redCard' : 'yellowCard';
+      } else if (rawType.contains('sub')) {
+        mapped = 'substitution';
+      } else {
+        continue;
+      }
+
+      out.add(MatchIncident(
+        minute: minute,
+        type: mapped,
+        player: _extractName(j['player_name'] ?? j['player'] ?? j['scorer'] ?? j['player_in']),
+        assistOrOff: _extractName(j['assist'] ?? j['assistant'] ?? j['player_out'] ?? j['playerOut']),
+        isHome: isHome,
+        subtype: sub,
+      ));
+    }
+    if (out.isNotEmpty) {
+      out.sort((a, b) => a.minute.compareTo(b.minute));
+      return out;
+    }
+  }
+
+  // ── Source 2: relay.js format — separate goals / bookings / substitutions ───
+  // goals: [{ minute, type, scorer: {name}, assist: {name}, team: {id, tla} }]
+  final goals = raw['goals'];
+  if (goals is List) {
+    for (final item in goals) {
+      if (item is! Map) continue;
+      final j = item.cast<String, dynamic>();
+      final minute = ((j['minute'] ?? 0) as num).toInt();
+      final teamId = (j['team'] as Map?)?['id'];
+      final teamTla = (j['team'] as Map?)?['tla'] as String?;
+      final type = (j['type'] ?? 'REGULAR').toString().toUpperCase();
+      out.add(MatchIncident(
+        minute: minute,
+        type: 'goal',
+        player: _extractName(j['scorer'] ?? j['player_name'] ?? j['player']),
+        assistOrOff: _extractName(j['assist'] ?? j['assistant']),
+        isHome: isHomeFor(j, teamId: teamId, teamTla: teamTla),
+        subtype: type == 'OWN' ? 'ownGoal' : type == 'PENALTY' ? 'penalty' : null,
+      ));
+    }
+  }
+
+  // bookings: [{ minute, player: string, team: string (TLA), card: 'YELLOW'/'RED' }]
+  final bookings = raw['bookings'];
+  if (bookings is List) {
+    for (final item in bookings) {
+      if (item is! Map) continue;
+      final j = item.cast<String, dynamic>();
+      final minute = ((j['minute'] ?? 0) as num).toInt();
+      final card = (j['card'] ?? 'YELLOW').toString().toUpperCase();
+      final teamTla = j['team'] as String?;
+      out.add(MatchIncident(
+        minute: minute,
+        type: card.contains('RED') ? 'redCard' : 'yellowCard',
+        player: _extractName(j['player'] ?? j['player_name']),
+        assistOrOff: null,
+        isHome: isHomeFor(j, teamTla: teamTla),
+        subtype: null,
+      ));
+    }
+  }
+
+  // substitutions: [{ minute, playerIn: string, playerOut: string, team: string (TLA) }]
+  final subs = raw['substitutions'];
+  if (subs is List) {
+    for (final item in subs) {
+      if (item is! Map) continue;
+      final j = item.cast<String, dynamic>();
+      final minute = ((j['minute'] ?? 0) as num).toInt();
+      final teamTla = j['team'] as String?;
+      out.add(MatchIncident(
+        minute: minute,
+        type: 'substitution',
+        player: _extractName(j['playerIn'] ?? j['player_in'] ?? j['player']),
+        assistOrOff: _extractName(j['playerOut'] ?? j['player_out']),
+        isHome: isHomeFor(j, teamTla: teamTla),
+        subtype: null,
+      ));
+    }
+  }
+
   out.sort((a, b) => a.minute.compareTo(b.minute));
   return out;
+}
+
+// Normalize an API-Football "type" string to a camelCase key.
+String _apifbTypeToKey(String type) {
+  switch (type.toLowerCase().trim()) {
+    case 'shots on goal':       return 'shotsOnGoal';
+    case 'shots on target':     return 'shotsOnGoal';
+    case 'shots off goal':      return 'shotsOffGoal';
+    case 'shots off target':    return 'shotsOffGoal';
+    case 'total shots':         return 'totalShots';
+    case 'blocked shots':       return 'blockedShots';
+    case 'shots insidebox':     return 'shotsInsideBox';
+    case 'shots outsidebox':    return 'shotsOutsideBox';
+    case 'fouls':               return 'fouls';
+    case 'corner kicks':        return 'cornerKicks';
+    case 'offsides':            return 'offsides';
+    case 'ball possession':     return 'ballPossession';
+    case 'yellow cards':        return 'yellowCards';
+    case 'red cards':           return 'redCards';
+    case 'goalkeeper saves':    return 'saves';
+    case 'total passes':        return 'passes';
+    case 'passes accurate':     return 'passAccurate';
+    case 'passes %':            return 'passAccuracy';
+    case 'expected_goals':      return 'xg';
+    default:                    return '';
+  }
 }
 
 List<MatchStat> _statsFromRaw(Map<String, dynamic> raw) {
@@ -172,27 +306,67 @@ List<MatchStat> _statsFromRaw(Map<String, dynamic> raw) {
   final hm = ls['home'];
   final am = ls['away'];
   if (hm is! Map || am is! Map) return const [];
-  final h = hm.cast<String, dynamic>();
-  final a = am.cast<String, dynamic>();
-  final out = <MatchStat>[];
-  void add(String label, String key) {
-    final hv = h[key];
-    final av = a[key];
-    if (hv != null || av != null) {
-      out.add(MatchStat(
-          name: label, homeValue: '$hv', awayValue: '$av'));
+  // Use mutable maps so we can inject flattened API-Football array data.
+  final h = Map<String, dynamic>.from(hm.cast<String, dynamic>());
+  final a = Map<String, dynamic>.from(am.cast<String, dynamic>());
+
+  // If liveStats stores API-Football statistics arrays, flatten them into h/a.
+  void flattenStatsList(Map<String, dynamic> target, dynamic statsList) {
+    if (statsList is! List) return;
+    for (final s in statsList) {
+      if (s is! Map) continue;
+      final type = (s['type'] ?? '').toString();
+      final key = _apifbTypeToKey(type);
+      if (key.isNotEmpty) target.putIfAbsent(key, () => s['value']);
     }
   }
-  add('Possession', 'possession');
-  add('Shots', 'shots');
-  add('Shots on Target', 'shotsOnTarget');
-  add('Corners', 'corners');
-  add('Fouls', 'fouls');
-  add('Yellow Cards', 'yellowCards');
-  add('Offsides', 'offsides');
-  add('Passes', 'passes');
-  add('Pass Accuracy', 'passAccuracy');
-  return out;
+  flattenStatsList(h, h['statistics']);
+  flattenStatsList(a, a['statistics']);
+
+  final out = <MatchStat>[];
+
+  String fmt(dynamic v, {bool pct = false}) {
+    if (v == null) return '—';
+    final s = '$v';
+    if (s == 'null') return '—';
+    if (pct && !s.contains('%')) return '$s%';
+    return s;
+  }
+
+  // Try multiple key names for the same stat (different relay normalizations).
+  void add(String label, List<String> keys, {bool pct = false}) {
+    dynamic hv, av;
+    for (final key in keys) {
+      hv ??= h[key];
+      av ??= a[key];
+      if (hv != null && av != null) break;
+    }
+    if (hv != null || av != null) {
+      out.add(MatchStat(
+          name: label,
+          homeValue: fmt(hv, pct: pct),
+          awayValue: fmt(av, pct: pct)));
+    }
+  }
+
+  add('Shots on Goal',     ['shotsOnGoal', 'shotsOnTarget', 'onTarget']);
+  add('Shots off Goal',    ['shotsOffGoal', 'shotsOff', 'offTarget']);
+  add('Total Shots',       ['totalShots', 'shots']);
+  add('Blocked Shots',     ['blockedShots']);
+  add('Shots inside Box',  ['shotsInsideBox', 'shotsInBox']);
+  add('Shots outside Box', ['shotsOutsideBox', 'shotsOutBox']);
+  add('Ball Possession',   ['ballPossession', 'possession'], pct: true);
+  add('Passes',            ['passes', 'totalPasses']);
+  add('Pass Accuracy',     ['passAccuracy', 'passesPercentage'], pct: true);
+  add('Corner Kicks',      ['cornerKicks', 'corners']);
+  add('Fouls',             ['fouls']);
+  add('Yellow Cards',      ['yellowCards']);
+  add('Red Cards',         ['redCards']);
+  add('Offsides',          ['offsides']);
+  add('Saves',             ['saves', 'goalkeeperSaves']);
+  add('Tackles',           ['tackles']);
+  // Remove rows where both sides are "—"
+  return out.where((s) => s.homeValue != '—' || s.awayValue != '—').toList();
 }
 
 // ─── Public re-export so other files can use SectionLabel ────────────────────

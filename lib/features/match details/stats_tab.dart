@@ -29,19 +29,28 @@ class _StatsTab extends ConsumerWidget {
     // ── Possession from raw or from BSD stats ───────────────────────────────
     final rawHomeMap = liveStats is Map ? liveStats['home'] as Map? : null;
     final rawAwayMap = liveStats is Map ? liveStats['away'] as Map? : null;
-    final possHome =
-        (rawHomeMap?['possession'] as num?)?.toDouble();
-    final possAway =
-        (rawAwayMap?['possession'] as num?)?.toDouble();
+    double? parsePct(dynamic v) {
+      if (v is num) return v.toDouble();
+      if (v is String) return double.tryParse(v.replaceAll('%', '').trim());
+      return null;
+    }
+    final possHome = parsePct(rawHomeMap?['possession'] ?? rawHomeMap?['ballPossession']);
+    final possAway = parsePct(rawAwayMap?['possession'] ?? rawAwayMap?['ballPossession']);
+
+    // Always watch incidents — needed for momentum chart regardless of stats source.
+    final incsAsync = ref.watch(_incidentsProvider(match));
+    List<MomentumPoint>? momentumFromIncs;
+    incsAsync.whenData((incs) {
+      if (incs.length >= 2) momentumFromIncs = Momentum.fromIncidents(incs);
+    });
 
     if (fsStats != null && fsStats.isNotEmpty) {
       return _buildBody(p, ref, fsStats, possHome, possAway, xgHome, xgAway,
-          showXg, fromFirestore: true);
+          showXg, fromFirestore: true, momentumPoints: momentumFromIncs);
     }
 
     // Fall back to BSD resolver
     final statsAsync = ref.watch(_statsProvider(match));
-    final incsAsync = ref.watch(_incidentsProvider(match));
 
     return statsAsync.when(
       loading: () =>
@@ -61,19 +70,9 @@ class _StatsTab extends ConsumerWidget {
             break;
           }
         }
-        // Momentum from incidents
-        return incsAsync.when(
-          loading: () => _buildBody(p, ref, allStats,
-              bsdPossHome, bsdPossAway, xgHome, xgAway, showXg),
-          error: (_, __) => _buildBody(p, ref, allStats,
-              bsdPossHome, bsdPossAway, xgHome, xgAway, showXg),
-          data: (incs) {
-            final pts = Momentum.fromIncidents(incs);
-            return _buildBody(p, ref, allStats,
-                bsdPossHome, bsdPossAway, xgHome, xgAway, showXg,
-                momentumPoints: pts);
-          },
-        );
+        return _buildBody(p, ref, allStats,
+            bsdPossHome, bsdPossAway, xgHome, xgAway, showXg,
+            momentumPoints: momentumFromIncs);
       },
     );
   }
@@ -369,10 +368,10 @@ class _XgCard extends StatelessWidget {
           Row(
             children: [
               Text(homeXg.toStringAsFixed(2),
-                  style: TextStyle(
+                  style: const TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.w900,
-                      color: p.textHi)),
+                      color: AppTheme.brand)),
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -384,13 +383,11 @@ class _XgCard extends StatelessWidget {
                         children: [
                           Expanded(
                             flex: (hRatio * 100).round().clamp(1, 99),
-                            child: ColoredBox(
-                                color: AppTheme.accent.withValues(alpha: 0.8)),
+                            child: const ColoredBox(color: AppTheme.brand),
                           ),
                           Expanded(
                             flex: ((1 - hRatio) * 100).round().clamp(1, 99),
-                            child: ColoredBox(
-                                color: AppTheme.accent.withValues(alpha: 0.4)),
+                            child: const ColoredBox(color: AppTheme.live),
                           ),
                         ],
                       ),
@@ -399,10 +396,10 @@ class _XgCard extends StatelessWidget {
                 ),
               ),
               Text(awayXg.toStringAsFixed(2),
-                  style: TextStyle(
+                  style: const TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.w900,
-                      color: p.textHi)),
+                      color: AppTheme.live)),
             ],
           ),
         ],
@@ -424,19 +421,21 @@ class _StatRow extends StatelessWidget {
     final a = double.tryParse(stat.awayValue.replaceAll('%', '')) ?? 0;
     final total = (h + a) <= 0 ? 1.0 : (h + a);
     final hRatio = h / total;
+    final homeWins = h > a;
+    final awayWins = a > h;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(vertical: 7),
       child: Column(
         children: [
           Row(children: [
             SizedBox(
-              width: 44,
+              width: 48,
               child: Text(stat.homeValue,
                   textAlign: TextAlign.left,
                   style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                      color: p.textHi)),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                      color: homeWins ? AppTheme.brand : p.textHi)),
             ),
             Expanded(
               child: Text(stat.name,
@@ -444,31 +443,37 @@ class _StatRow extends StatelessWidget {
                   style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
-                      color: p.textMid)),
+                      color: p.textLow)),
             ),
             SizedBox(
-              width: 44,
+              width: 48,
               child: Text(stat.awayValue,
                   textAlign: TextAlign.right,
                   style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                      color: p.textHi)),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                      color: awayWins ? AppTheme.live : p.textHi)),
             ),
           ]),
-          const SizedBox(height: 5),
+          const SizedBox(height: 7),
           ClipRRect(
-            borderRadius: BorderRadius.circular(3),
+            borderRadius: BorderRadius.circular(5),
             child: SizedBox(
-              height: 4,
+              height: 8,
               child: Row(children: [
                 Expanded(
                   flex: (hRatio * 100).round().clamp(1, 99),
-                  child: const ColoredBox(color: AppTheme.brand),
+                  child: ColoredBox(
+                      color: homeWins
+                          ? AppTheme.brand
+                          : AppTheme.brand.withValues(alpha: 0.4)),
                 ),
                 Expanded(
                   flex: ((1 - hRatio) * 100).round().clamp(1, 99),
-                  child: const ColoredBox(color: AppTheme.live),
+                  child: ColoredBox(
+                      color: awayWins
+                          ? AppTheme.live
+                          : AppTheme.live.withValues(alpha: 0.4)),
                 ),
               ]),
             ),

@@ -37,12 +37,13 @@ import '../../shared/widgets/pitch_painter.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/models/match.dart';
 import '../../shared/models/standing.dart';
-import '../../shared/widgets/flag_widget.dart';
+import '../../shared/widgets/team_crest_widget.dart';
 import '../../shared/widgets/match_heat_meter.dart';
 import '../../shared/widgets/rivalry_card_widget.dart';
 import '../../shared/widgets/ai_insights_widget.dart';
 import '../../shared/widgets/fan_poll_widget.dart';
 import '../team details/team_details_screen.dart';
+import '../team_comparison/team_comparison_screen.dart';
 
 part 'match_details_shared.dart';
 part 'summary_tab.dart';
@@ -73,11 +74,13 @@ final _matchStandingsProvider = FutureProvider.family
   return LiveDataService.instance.getStandings();
 });
 
-/// Raw Firestore match document — includes all Bzzoiro-enriched fields such as
-/// incidents, bzzLineups, liveStats, xg, head_to_head, etc.
-final _rawMatchProvider = FutureProvider.family
-    .autoDispose<Map<String, dynamic>?, int>((ref, matchId) async {
-  return LiveDataService.instance.getMatchRaw(matchId);
+/// Real-time Firestore match document stream — includes all Bzzoiro-enriched
+/// fields: incidents, bzzLineups, liveStats, xg, head_to_head, etc.
+/// Using StreamProvider means the ticker, stats, and lineup tabs all update
+/// automatically as the relay writes new data during live matches (~5 min cadence).
+final _rawMatchProvider = StreamProvider.family
+    .autoDispose<Map<String, dynamic>?, int>((ref, matchId) {
+  return LiveDataService.instance.watchMatchRaw(matchId);
 });
 
 // ─── Screen ─────────────────────────────────────────────────────────────────
@@ -97,7 +100,7 @@ class _MatchDetailsScreenState extends ConsumerState<MatchDetailsScreen>
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 4, vsync: this);
+    _tab = TabController(length: 5, vsync: this);
 
     // Opening a match details counts as a meaningful action — feeds the
     // frequency cap so that *eventually* an interstitial will fire, but
@@ -136,7 +139,7 @@ class _MatchDetailsScreenState extends ConsumerState<MatchDetailsScreen>
         headerSliverBuilder: (_, __) => [
           SliverAppBar(
             pinned: true,
-            expandedHeight: 268,
+            expandedHeight: 310,
             backgroundColor: p.bg,
             elevation: 0,
             leading: IconButton(
@@ -165,13 +168,30 @@ class _MatchDetailsScreenState extends ConsumerState<MatchDetailsScreen>
               ),
               const SizedBox(width: 4),
               _NavAction(
+                icon: Icons.compare_arrows_rounded,
+                color: Colors.white,
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => TeamComparisonScreen(
+                    initialA: m.homeTeam,
+                    initialB: m.awayTeam,
+                  ),
+                )),
+              ),
+              const SizedBox(width: 4),
+              _NavAction(
                 icon: Icons.share_rounded,
                 color: Colors.white,
-                onTap: () => Share.share(
-                  '⚽ ${m.homeTeam.name} ${m.score.display} ${m.awayTeam.name}\n'
-                  '${DateFormat('EEE d MMM • HH:mm').format(m.utcDate)}\n'
-                  '${m.competitionName ?? ''}',
-                ),
+                onTap: () {
+                  final scorers = _sortedGoals(m)
+                      .map(_heroScorerLine)
+                      .join(' · ');
+                  Share.share(
+                    '⚽ ${m.homeTeam.name} ${m.score.display} ${m.awayTeam.name}\n'
+                    '${scorers.isNotEmpty ? '$scorers\n' : ''}'
+                    '${DateFormat('EEE d MMM • HH:mm').format(m.utcDate)}'
+                    '${m.competitionName != null ? ' • ${m.competitionName}' : ''}',
+                  );
+                },
               ),
               const SizedBox(width: 8),
             ],
@@ -205,6 +225,7 @@ class _MatchDetailsScreenState extends ConsumerState<MatchDetailsScreen>
                     Tab(text: 'Lineup'),
                     Tab(text: 'Stats'),
                     Tab(text: 'Standings'),
+                    Tab(text: 'H2H'),
                   ],
                 ),
               ),
@@ -218,6 +239,7 @@ class _MatchDetailsScreenState extends ConsumerState<MatchDetailsScreen>
             _LineupsTab(match: m),
             _StatsTab(match: m),
             _StandingsTab(match: m),
+            _H2HTab(match: m),
           ],
         ),
       ),
@@ -264,7 +286,17 @@ class _MatchHero extends StatelessWidget {
     // Status text + color shown below the score
     final String statusText;
     final Color statusColor;
-    if (match.status == 'PAUSED') {
+    if (match.status == 'IN_PLAY') {
+      final elapsed = DateTime.now().difference(match.utcDate).inMinutes;
+      // match.minute comes from the relay's fetchMatchDetail and is the most
+      // accurate source; fall back to a wall-clock estimate when not yet set.
+      final liveMin = match.minute ??
+          (elapsed < 55 ? elapsed : elapsed < 105 ? elapsed - 15 : elapsed - 30)
+              .clamp(1, 120);
+      final half = liveMin <= 45 ? '1st Half' : liveMin <= 90 ? '2nd Half' : 'Extra Time';
+      statusText = "$half · $liveMin'";
+      statusColor = AppTheme.live;
+    } else if (match.status == 'PAUSED') {
       statusText = 'Half-Time';
       statusColor = AppTheme.warn;
     } else if (match.isFinished) {
@@ -339,6 +371,7 @@ class _MatchHero extends StatelessWidget {
                     child: _TappableTeamColumn(
                       tla: match.homeTeam.tla,
                       name: match.homeTeam.name,
+                      crest: match.homeTeam.crest,
                       teamId: match.homeTeam.id,
                     ),
                   ),
@@ -348,22 +381,41 @@ class _MatchHero extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         if (match.status == 'IN_PLAY') ...[
-                          _LiveChip(
-                            minute: DateTime.now()
+                          Builder(builder: (ctx) {
+                            final elapsed = DateTime.now()
                                 .difference(match.utcDate)
-                                .inMinutes
-                                .clamp(1, 90),
-                          ),
+                                .inMinutes;
+                            final liveMin = match.minute ??
+                                (elapsed < 55
+                                        ? elapsed
+                                        : elapsed < 105
+                                            ? elapsed - 15
+                                            : elapsed - 30)
+                                    .clamp(1, 120);
+                            final half = liveMin <= 45 ? '1H' : liveMin <= 90 ? '2H' : 'ET';
+                            return _LiveChip(minute: liveMin, half: half);
+                          }),
+                          const SizedBox(height: 6),
+                        ] else if (match.status == 'PAUSED') ...[
+                          _HalfTimeChip(),
                           const SizedBox(height: 6),
                         ],
-                        Text(
-                          scoreText,
-                          style: const TextStyle(
-                              color: Colors.black,
-                              fontSize: 40,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: -2,
-                              height: 1),
+                        AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 400),
+                          transitionBuilder: (child, anim) => ScaleTransition(
+                            scale: anim,
+                            child: FadeTransition(opacity: anim, child: child),
+                          ),
+                          child: Text(
+                            scoreText,
+                            key: ValueKey(scoreText),
+                            style: const TextStyle(
+                                color: Colors.black,
+                                fontSize: 40,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: -2,
+                                height: 1),
+                          ),
                         ),
                         const SizedBox(height: 4),
                         Text(
@@ -373,6 +425,29 @@ class _MatchHero extends StatelessWidget {
                               fontSize: 10,
                               fontWeight: FontWeight.w700),
                         ),
+                        if ((match.isFinished || match.isLive) &&
+                            match.goals.isNotEmpty) ...[
+                          const SizedBox(height: 6),
+                          ..._sortedGoals(match).take(5).map(
+                            (g) => Text(
+                              _heroScorerLine(g),
+                              style: const TextStyle(
+                                  color: Colors.black54,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  height: 1.5),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                          if (match.goals.length > 5)
+                            Text(
+                              '+ ${match.goals.length - 5} more',
+                              style: const TextStyle(
+                                  color: Colors.black38,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w600),
+                            ),
+                        ],
                       ],
                     ),
                   ),
@@ -381,21 +456,26 @@ class _MatchHero extends StatelessWidget {
                     child: _TappableTeamColumn(
                       tla: match.awayTeam.tla,
                       name: match.awayTeam.name,
+                      crest: match.awayTeam.crest,
                       teamId: match.awayTeam.id,
                     ),
                   ),
                 ],
               ),
-              // Sub-row: stage · group
-              if (subRow.isNotEmpty) ...[
+              // Sub-row: stage · group · venue
+              if (subRow.isNotEmpty || match.venue != null) ...[
                 const SizedBox(height: 8),
                 Text(
-                  subRow,
+                  [
+                    if (subRow.isNotEmpty) subRow,
+                    if (match.venue != null) match.venue!,
+                  ].join(' · '),
                   style: const TextStyle(
                       color: Colors.black45,
                       fontSize: 10,
                       fontWeight: FontWeight.w600,
                       letterSpacing: 0.5),
+                  textAlign: TextAlign.center,
                 ),
               ],
             ],
@@ -413,10 +493,12 @@ class _MatchHero extends StatelessWidget {
 class _TappableTeamColumn extends StatelessWidget {
   final String tla;
   final String name;
+  final String? crest;
   final int? teamId;
   const _TappableTeamColumn({
     required this.tla,
     required this.name,
+    this.crest,
     required this.teamId,
   });
 
@@ -424,7 +506,7 @@ class _TappableTeamColumn extends StatelessWidget {
   Widget build(BuildContext context) {
     final col = Column(
       children: [
-        _TeamBadge(tla: tla),
+        _TeamBadge(tla: tla, crest: crest),
         const SizedBox(height: 8),
         Text(
           name,
@@ -459,29 +541,46 @@ class _TappableTeamColumn extends StatelessWidget {
   }
 }
 
+List<MatchGoal> _sortedGoals(Match m) =>
+    [...m.goals]..sort((a, b) => a.minute.compareTo(b.minute));
+
+String _heroScorerLine(MatchGoal g) {
+  final name = g.scorerName ?? '';
+  final parts = name.trim().split(' ');
+  final short = parts.length > 1
+      ? '${parts.first[0]}. ${parts.last}'
+      : name;
+  final suffix = g.isPenalty ? ' (P)' : g.isOwnGoal ? ' (OG)' : '';
+  return "${g.minute}' $short$suffix";
+}
+
 class _TeamBadge extends StatelessWidget {
   final String tla;
-  const _TeamBadge({required this.tla});
+  final String? crest;
+  const _TeamBadge({required this.tla, this.crest});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 48,
-      height: 48,
+      width: 52,
+      height: 52,
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.25),
         shape: BoxShape.circle,
         border:
             Border.all(color: Colors.white.withValues(alpha: 0.5), width: 1.5),
       ),
-      child: Center(child: FlagWidget(tla: tla, size: 26)),
+      child: Center(
+        child: TeamCrestWidget(crestUrl: crest, tla: tla, size: 34, circular: true),
+      ),
     );
   }
 }
 
 class _LiveChip extends StatefulWidget {
   final int? minute;
-  const _LiveChip({this.minute});
+  final String? half;
+  const _LiveChip({this.minute, this.half});
 
   @override
   State<_LiveChip> createState() => _LiveChipState();
@@ -527,7 +626,11 @@ class _LiveChipState extends State<_LiveChip>
           ),
           const SizedBox(width: 5),
           Text(
-            widget.minute != null ? "LIVE · ${widget.minute}'" : 'LIVE',
+            widget.minute != null
+                ? widget.half != null
+                    ? "LIVE · ${widget.half} · ${widget.minute}'"
+                    : "LIVE · ${widget.minute}'"
+                : 'LIVE',
             style: const TextStyle(
                 color: Colors.white,
                 fontSize: 11,
@@ -535,6 +638,27 @@ class _LiveChipState extends State<_LiveChip>
                 letterSpacing: 0.5),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _HalfTimeChip extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppTheme.warn,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: const Text(
+        'HALF TIME',
+        style: TextStyle(
+            color: Colors.white,
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.5),
       ),
     );
   }

@@ -154,12 +154,32 @@ class _HeroCard extends StatelessWidget {
               if (article.imageUrl != null)
                 AspectRatio(
                   aspectRatio: 16 / 9,
-                  child: Image.network(
-                    article.imageUrl!,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
-                        color: p.surfaceHi,
-                        child: const Icon(Icons.image_not_supported_outlined)),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      Image.network(
+                        article.imageUrl!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                            color: p.surfaceHi,
+                            child: const Icon(Icons.image_not_supported_outlined)),
+                      ),
+                      Positioned.fill(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.transparent,
+                                Colors.black.withValues(alpha: 0.45),
+                              ],
+                              stops: const [0.5, 1.0],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               Padding(
@@ -193,6 +213,11 @@ class _HeroCard extends StatelessWidget {
                         const Spacer(),
                         Text(_ago(article.publishedAt),
                             style: TextStyle(fontSize: 11, color: p.textLow)),
+                        if (article.description != null) ...[
+                          Text(' · ', style: TextStyle(color: p.textLow, fontSize: 11)),
+                          Text('${_readMin(article.description!)} min',
+                              style: TextStyle(fontSize: 11, color: p.textLow)),
+                        ],
                       ],
                     ),
                     const SizedBox(height: 10),
@@ -294,6 +319,13 @@ class _ArticleTile extends StatelessWidget {
                       ],
                       Text(_ago(article.publishedAt),
                           style: TextStyle(fontSize: 10.5, color: p.textLow)),
+                      if (article.description != null) ...[
+                        Text(' • ', style: TextStyle(color: p.textLow, fontSize: 10.5)),
+                        Text(
+                          '${_readMin(article.description!)} min read',
+                          style: TextStyle(fontSize: 10.5, color: p.textLow),
+                        ),
+                      ],
                     ],
                   ),
                 ],
@@ -307,6 +339,8 @@ class _ArticleTile extends StatelessWidget {
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
+
+int _readMin(String text) => (text.trim().split(RegExp(r'\s+')).length / 200).ceil().clamp(1, 10);
 
 String _ago(DateTime dt) {
   final d = DateTime.now().difference(dt);

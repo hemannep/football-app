@@ -27,8 +27,6 @@ import 'features/predictor/predictor_screen.dart';
 import 'features/trivia/trivia_screen.dart';
 import 'features/bracket/bracket_screen.dart';
 import 'features/standings/standings_screen.dart';
-import 'features/news/news_screen.dart';
-import 'features/format_guide/format_guide_screen.dart';
 import 'features/onboarding/onboarding_screen.dart';
 import 'features/onboarding/splash_screen.dart';
 
@@ -168,8 +166,6 @@ class _RootShellState extends ConsumerState<RootShell>
     TriviaScreen(),
     BracketScreen(),
     StandingsScreen(),
-    NewsScreen(),
-    FormatGuideScreen(),
   ];
 
   List<_NavTab> _buildTabs(AppL10n t) => [
@@ -179,8 +175,6 @@ class _RootShellState extends ConsumerState<RootShell>
         _NavTab(Icons.psychology_rounded, t.navTrivia),
         _NavTab(Icons.account_tree_rounded, t.navBracket),
         _NavTab(Icons.leaderboard_rounded, t.navStandings),
-        const _NavTab(Icons.article_outlined, 'News'),
-        _NavTab(Icons.menu_book_rounded, t.navFormat),
       ];
 
   @override

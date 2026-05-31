@@ -19,6 +19,7 @@ import 'new fan mode/new_fan_mode_screen.dart';
 import 'offline pack/offline_pack_screen.dart';
 import 'settings/language_picker_screen.dart';
 import 'news/news_screen.dart';
+import 'format_guide/format_guide_screen.dart';
 import 'team_comparison/team_comparison_screen.dart';
 import 'qualification_simulator/qualification_simulator_screen.dart';
 
@@ -128,6 +129,15 @@ class SettingsDrawer extends ConsumerWidget {
                       Navigator.of(context).pop();
                       Navigator.of(context).push(MaterialPageRoute(
                           builder: (_) => const NewsScreen()));
+                    },
+                  ),
+                  _Tile(
+                    icon: Icons.menu_book_rounded,
+                    label: 'Format Guide',
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      Navigator.of(context).push(MaterialPageRoute(
+                          builder: (_) => const FormatGuideScreen()));
                     },
                   ),
                   _Tile(

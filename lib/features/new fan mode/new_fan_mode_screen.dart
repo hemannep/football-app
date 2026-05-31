@@ -4,6 +4,7 @@
 // in a friendly, swipeable format. Pure local content, no APIs.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show HapticFeedback;
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/ad_banner_widget.dart';
 
@@ -212,9 +213,12 @@ class _NewFanModeScreenState extends State<NewFanModeScreen> {
                   if (_index > 0)
                     Expanded(
                       child: OutlinedButton(
-                        onPressed: () => _ctrl.previousPage(
-                            duration: const Duration(milliseconds: 250),
-                            curve: Curves.easeOut),
+                        onPressed: () {
+                          HapticFeedback.selectionClick();
+                          _ctrl.previousPage(
+                              duration: const Duration(milliseconds: 250),
+                              curve: Curves.easeOut);
+                        },
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           side: BorderSide(color: p.stroke),
@@ -229,6 +233,7 @@ class _NewFanModeScreenState extends State<NewFanModeScreen> {
                     flex: 2,
                     child: ElevatedButton(
                       onPressed: () {
+                        HapticFeedback.selectionClick();
                         if (_index < _lessons.length - 1) {
                           _ctrl.nextPage(
                               duration: const Duration(milliseconds: 250),

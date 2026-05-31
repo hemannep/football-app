@@ -11,6 +11,8 @@ class Match {
   final String? competitionCode;
   final String? venue;
   final List<MatchGoal> goals;
+  // Actual live match minute stored by the relay (null until relay updates).
+  final int? minute;
 
   const Match({
     required this.id,
@@ -25,6 +27,7 @@ class Match {
     this.competitionCode,
     this.venue,
     this.goals = const [],
+    this.minute,
   });
 
   factory Match.fromJson(Map<String, dynamic> j) {
@@ -42,6 +45,7 @@ class Match {
       competitionCode: j['competition']?['code'],
       venue: j['venue'],
       goals: goalsList.map((e) => MatchGoal.fromJson(e)).toList(),
+      minute: j['minute'] as int?,
     );
   }
 
@@ -57,6 +61,7 @@ class Match {
         'competition': {'name': competitionName, 'code': competitionCode},
         'venue': venue,
         'goals': goals.map((g) => g.toJson()).toList(),
+        if (minute != null) 'minute': minute,
       };
 
   bool get isLive => status == 'IN_PLAY' || status == 'PAUSED';

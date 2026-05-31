@@ -12,14 +12,12 @@ import '../models/match.dart';
 
 final _teamMatchesProvider =
     FutureProvider.family.autoDispose<List<Match>, int>((ref, teamId) async {
-  return LiveDataService.instance
-      .watchMatches()
-      .map((all) => all
-          .where((m) =>
-              (m.homeTeam.id != null && m.homeTeam.id == teamId) ||
-              (m.awayTeam.id != null && m.awayTeam.id == teamId))
-          .toList())
-      .first;
+  final all = await LiveDataService.instance.getMatches();
+  return all
+      .where((m) =>
+          (m.homeTeam.id != null && m.homeTeam.id == teamId) ||
+          (m.awayTeam.id != null && m.awayTeam.id == teamId))
+      .toList();
 });
 
 class AiInsightsWidget extends ConsumerWidget {

@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../core/providers/live_score_provider.dart';
 import '../../core/providers/selected_leagues_provider.dart';
 import '../../core/theme/app_theme.dart';
-import '../../shared/widgets/flag_widget.dart';
+import '../../shared/widgets/team_crest_widget.dart';
 import '../league picker/league_picker.dart';
 
 class BracketScreen extends ConsumerStatefulWidget {
@@ -35,23 +36,38 @@ class _BracketScreenState extends ConsumerState<BracketScreen> {
 
   void _autoFill() {
     final s = ref.read(liveScoreProvider);
+    final league = ref.read(selectedLeagueProvider);
     final teams = <_BT>{};
     for (final m in s.matches) {
-      teams.add(_BT(m.homeTeam.name, m.homeTeam.tla));
-      teams.add(_BT(m.awayTeam.name, m.awayTeam.tla));
+      if (m.competitionCode != league.code) continue;
+      teams.add(_BT(m.homeTeam.name, m.homeTeam.tla, m.homeTeam.crest));
+      teams.add(_BT(m.awayTeam.name, m.awayTeam.tla, m.awayTeam.crest));
       if (teams.length >= 32) break;
     }
-    if (teams.isNotEmpty) {
-      setState(() {
-        _r32 = teams.take(32).toList();
-        while (_r32.length < 32) {
-          _r32.add(_BT('Team ${_r32.length + 1}', 'T${_r32.length + 1}'));
-        }
-      });
+    if (teams.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('No ${league.name} matches loaded yet.'),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ));
+      return;
     }
+    setState(() {
+      _r32 = teams.take(32).toList();
+      while (_r32.length < 32) {
+        _r32.add(_BT('Team ${_r32.length + 1}', 'T${_r32.length + 1}'));
+      }
+      // Clear downstream rounds when teams change.
+      _r16 = List.filled(16, null);
+      _qf = List.filled(8, null);
+      _sf = List.filled(4, null);
+      _f = List.filled(2, null);
+      _champion = null;
+    });
   }
 
   void _pick(int round, int slot, _BT pick) {
+    HapticFeedback.lightImpact();
     setState(() {
       if (round == 0) {
         _r16[slot ~/ 2] = pick;
@@ -258,7 +274,7 @@ class _BracketScreenState extends ConsumerState<BracketScreen> {
         ),
         child: Row(
           children: [
-            FlagWidget(tla: team.tla, size: 16),
+            TeamCrestWidget(crestUrl: team.crest, tla: team.tla, size: 18),
             const SizedBox(width: 6),
             Expanded(
               child: Text(team.name,
@@ -288,7 +304,8 @@ class _BracketScreenState extends ConsumerState<BracketScreen> {
 
 class _BT {
   final String name, tla;
-  _BT(this.name, this.tla);
+  final String? crest;
+  _BT(this.name, this.tla, [this.crest]);
   @override
   bool operator ==(Object o) => o is _BT && o.tla == tla;
   @override
@@ -326,7 +343,7 @@ class _ChampionCard extends StatelessWidget {
                 const SizedBox(height: 2),
                 Row(
                   children: [
-                    FlagWidget(tla: team.tla, size: 20),
+                    TeamCrestWidget(crestUrl: team.crest, tla: team.tla, size: 24),
                     const SizedBox(width: 8),
                     Flexible(
                       child: Text(team.name,

@@ -11,12 +11,12 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../core/services/live_data_service.dart';
 import '../../core/services/sportsdb_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/ad_banner_widget.dart';
-import '../../shared/widgets/flag_widget.dart';
 
 final _playerProvider = FutureProvider.family
     .autoDispose<SportsDbPlayer?, String>((ref, key) async {
@@ -64,29 +64,46 @@ class PlayerDetailScreen extends ConsumerWidget {
         sdbPlayer?.position ??
         position;
 
+    // Age + born display
     int? age;
+    String? bornDisplay;
     final dobStr = fsPlayer?['dateOfBirth'] as String?;
     if (dobStr != null) {
       final dob = DateTime.tryParse(dobStr);
-      if (dob != null) age = DateTime.now().difference(dob).inDays ~/ 365;
+      if (dob != null) {
+        age = DateTime.now().difference(dob).inDays ~/ 365;
+        bornDisplay = '${DateFormat('d MMM yyyy').format(dob)} · $age yrs';
+      }
+    } else if (sdbPlayer?.birthDate != null) {
+      final dob = DateTime.tryParse(sdbPlayer!.birthDate!);
+      if (dob != null) {
+        age = DateTime.now().difference(dob).inDays ~/ 365;
+        bornDisplay = '${DateFormat('d MMM yyyy').format(dob)} · $age yrs';
+      }
     } else if (sdbPlayer?.birthYear != null) {
       age = DateTime.now().year - sdbPlayer!.birthYear!;
+      bornDisplay = '$age yrs (${sdbPlayer.birthYear})';
     }
 
-    final teamVal =
-        (fsPlayer?['teamName'] as String?) ?? sdbPlayer?.team;
+    final teamVal = (fsPlayer?['teamName'] as String?) ?? sdbPlayer?.team;
     final nationalityVal =
         (fsPlayer?['nationality'] as String?) ?? sdbPlayer?.nationality;
     final heightVal = sdbPlayer?.height;
     final weightVal = sdbPlayer?.weight;
+    final wageVal = sdbPlayer?.wage;
     final bio = sdbPlayer?.description;
 
     final rows = <(IconData, String, String)>[];
+    if (nationalityVal != null) {
+      rows.add((Icons.public_rounded, 'Nationality', nationalityVal));
+    }
     if (resolvedPosition != null) {
       rows.add((Icons.sports_soccer_rounded, 'Position', resolvedPosition));
     }
-    if (teamVal != null) rows.add((Icons.shield_rounded, 'Team', teamVal));
-    if (age != null) rows.add((Icons.cake_rounded, 'Age', '$age yrs'));
+    if (teamVal != null) rows.add((Icons.shield_rounded, 'Club', teamVal));
+    if (bornDisplay != null) {
+      rows.add((Icons.cake_rounded, 'Born', bornDisplay));
+    }
     if (heightVal != null && heightVal.isNotEmpty) {
       rows.add((Icons.height_rounded, 'Height', heightVal));
     }
@@ -95,6 +112,9 @@ class PlayerDetailScreen extends ConsumerWidget {
     }
     if (shirtNumber != null) {
       rows.add((Icons.tag_rounded, 'Shirt', '#$shirtNumber'));
+    }
+    if (wageVal != null && wageVal.isNotEmpty) {
+      rows.add((Icons.attach_money_rounded, 'Market Value', wageVal));
     }
 
     final noData = !isLoading && fsPlayer == null && sdbPlayer == null;
@@ -138,11 +158,6 @@ class PlayerDetailScreen extends ConsumerWidget {
                   SliverList(
                     delegate: SliverChildListDelegate([
                       _InfoSection(title: 'PROFILE', rows: rows),
-                      if (nationalityVal != null)
-                        _NationalityInfoRow(
-                          nationality: nationalityVal,
-                          tla: nationalityToTla(nationalityVal),
-                        ),
                       if (bio != null && bio.isNotEmpty) ...[
                         const _SectionLabel('BIOGRAPHY'),
                         Container(
@@ -369,62 +384,6 @@ class _InfoSection extends StatelessWidget {
               ),
             )),
       ],
-    );
-  }
-}
-
-class _NationalityInfoRow extends StatelessWidget {
-  final String nationality;
-  final String? tla;
-  const _NationalityInfoRow({required this.nationality, this.tla});
-
-  @override
-  Widget build(BuildContext context) {
-    final p = AppTheme.of(context);
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: p.surface,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: p.stroke),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: AppTheme.brand.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(Icons.public_rounded, size: 16, color: AppTheme.brand),
-          ),
-          const SizedBox(width: 10),
-          Text('Nationality',
-              style: TextStyle(
-                  fontSize: 12,
-                  color: p.textLow,
-                  fontWeight: FontWeight.w600)),
-          const Spacer(),
-          if (tla != null) ...[
-            FlagWidget(tla: tla!, size: 16),
-            const SizedBox(width: 8),
-          ],
-          Flexible(
-            child: Text(
-              nationality,
-              textAlign: TextAlign.right,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: p.textHi),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

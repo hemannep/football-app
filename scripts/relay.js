@@ -136,10 +136,10 @@ async function commitBatches(ops) {
 }
 
 // ─── Phase 1: matches for one competition (smart diff) ────────────────────────
-// Returns the raw match array, list of live IDs, and new match-state snapshot.
+// Returns the raw match array, list of live IDs, whether any are live, and state snapshot.
 async function fetchAndStoreMatchesForComp(comp, prevStates) {
   const data = await fdGet(`/competitions/${comp}/matches`);
-  if (!data || !Array.isArray(data.matches)) return { matches: [], liveIds: [], states: {} };
+  if (!data || !Array.isArray(data.matches)) return { matches: [], liveIds: [], hasLive: false, states: {} };
 
   const compName = SAFE_NAMES[comp] ?? comp;
   const liveIds  = [];
@@ -174,7 +174,7 @@ async function fetchAndStoreMatchesForComp(comp, prevStates) {
   }
 
   console.log(`  [${comp}] ${data.matches.length} fetched, ${toWrite.length} written`);
-  return { matches: data.matches, liveIds, states };
+  return { matches: data.matches, liveIds, hasLive: liveIds.length > 0, states };
 }
 
 // ─── Phase 2: standings for one competition ───────────────────────────────────
@@ -198,19 +198,36 @@ async function fetchAndStoreStandingsForComp(comp) {
   console.log(`  [${comp}] ${standings.length} standing group(s) written`);
 }
 
-// ─── Phase 3: per-match detail (goals, cards, subs) ──────────────────────────
+// ─── Phase 3: per-match detail (goals, cards, subs, minute) ─────────────────
 async function fetchMatchDetail(matchId) {
   const m = await fdGet(`/matches/${matchId}`);
   if (!m) return;
   await db.collection('matches').doc(String(matchId)).set({
     goals: normalizeGoals(m.goals), bookings: normalizeBookings(m.bookings),
     substitutions: normalizeSubs(m.substitutions), score: m.score ?? {},
-    status: m.status, detailUpdatedAt: NOW(),
+    status: m.status,
+    // Store the actual live match minute so the app can display it accurately.
+    minute: m.minute ?? null,
+    detailUpdatedAt: NOW(),
   }, { merge: true });
 }
 
-// ─── Phase 4: post-match lineup (API-Football, best-effort) ──────────────────
-async function fetchAndStoreLineup(matchId) {
+// ─── Phase 4: lineup (API-Football, best-effort) ─────────────────────────────
+// Used for both live matches (pre-match lineups) and newly-finished matches.
+// Rate-limited: skips if lineup was already stored within the last 20 minutes
+// to avoid burning the API-Football daily quota during long live-match windows.
+async function fetchAndStoreLineup(matchId, { force = false } = {}) {
+  if (!force) {
+    try {
+      const existing = await db.collection('lineups').doc(String(matchId)).get();
+      const fetchedAt = existing.data()?.fetchedAt;
+      if (fetchedAt && (Date.now() - fetchedAt.toMillis()) < 20 * 60 * 1000) {
+        console.log(`  Lineup for ${matchId} fetched recently, skipping`);
+        return;
+      }
+    } catch (_) {}
+  }
+
   const data    = await apiFootballGet(`/fixtures?id=${matchId}`);
   const fixture = data?.response?.[0];
   if (!fixture) return;
@@ -241,12 +258,14 @@ async function main() {
   console.log('Phase 1: fetching matches…');
   const allMatches    = [];
   const allLiveIds    = [];
+  const liveCompCodes = new Set(); // competitions with at least one live match
   const allNewStates  = {};
 
   for (const comp of COMPETITIONS) {
-    const { matches, liveIds, states } = await fetchAndStoreMatchesForComp(comp, prevMatchStates);
+    const { matches, liveIds, hasLive, states } = await fetchAndStoreMatchesForComp(comp, prevMatchStates);
     allMatches.push(...matches);
     allLiveIds.push(...liveIds);
+    if (hasLive) liveCompCodes.add(comp);
     Object.assign(allNewStates, states);
     await sleep(RATE_LIMIT_MS);
   }
@@ -259,21 +278,34 @@ async function main() {
     return t >= ko - PRE_KICKOFF_MS && t <= ko + POST_KICKOFF_MS;
   });
 
-  // ── Phase 3: standings (in window or top of hour) ──────────────────────────
-  if (windowOpen || now.getUTCMinutes() < 5) {
-    console.log('Phase 3: fetching standings…');
-    for (const comp of COMPETITIONS) {
+  // ── Phase 3: standings ─────────────────────────────────────────────────────
+  // Top of hour → refresh all competitions (full snapshot, once per hour).
+  // During a match window → only update competitions that have live matches.
+  // This avoids writing all 12 standings docs every 5 min during busy periods.
+  const topOfHour = now.getUTCMinutes() < 5;
+  const compsForStandings = topOfHour
+    ? COMPETITIONS
+    : liveCompCodes.size > 0 ? [...liveCompCodes] : [];
+
+  if (compsForStandings.length > 0) {
+    console.log(`Phase 3: standings for ${compsForStandings.length} comp(s)…`);
+    for (const comp of compsForStandings) {
       await fetchAndStoreStandingsForComp(comp);
       await sleep(RATE_LIMIT_MS);
     }
   }
 
-  // ── Phase 4: per-match detail for live matches ─────────────────────────────
+  // ── Phase 4: per-match detail + lineups for live matches ──────────────────
   if (allLiveIds.length) {
     console.log(`Phase 4: detail for ${allLiveIds.length} live match(es)…`);
     for (const id of allLiveIds) {
       await fetchMatchDetail(id);
       await sleep(RATE_LIMIT_MS);
+      // Also try to grab lineups from API-Football (rate-limited internally).
+      if (process.env.APIFOOTBALL_KEY) {
+        await fetchAndStoreLineup(id);
+        await sleep(RATE_LIMIT_MS);
+      }
     }
   }
 
@@ -309,4 +341,13 @@ async function main() {
 
 main()
   .then(() => process.exit(0))
-  .catch((err) => { console.error('Relay failed:', err); process.exit(1); });
+  .catch((err) => {
+    if (err.code === 8) {
+      // Firestore RESOURCE_EXHAUSTED — daily quota used up. Exit cleanly so
+      // the GitHub Actions run stays green; data will catch up on the next run.
+      console.warn('⚠ Firestore quota exceeded — skipping this relay run.');
+      process.exit(0);
+    }
+    console.error('Relay failed:', err);
+    process.exit(1);
+  });

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/providers/live_score_provider.dart';
 import '../../core/providers/selected_leagues_provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/models/leagues.dart';
@@ -12,6 +13,9 @@ class LeaguePickerChip extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final p = AppTheme.of(context);
     final league = ref.watch(selectedLeagueProvider);
+    final liveCount = ref.watch(liveScoreProvider).matches
+        .where((m) => m.isLive)
+        .length;
     return GestureDetector(
       onTap: () => showLeagueSheet(context, ref),
       child: Container(
@@ -19,7 +23,11 @@ class LeaguePickerChip extends ConsumerWidget {
         decoration: BoxDecoration(
           color: p.surface,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppTheme.brand.withValues(alpha: 0.3)),
+          border: Border.all(
+            color: liveCount > 0
+                ? AppTheme.live.withValues(alpha: 0.5)
+                : AppTheme.brand.withValues(alpha: 0.3),
+          ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -38,6 +46,23 @@ class LeaguePickerChip extends ConsumerWidget {
                 ),
               ),
             ),
+            if (liveCount > 0) ...[
+              const SizedBox(width: 5),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                decoration: BoxDecoration(
+                  color: AppTheme.live,
+                  borderRadius: BorderRadius.circular(5),
+                ),
+                child: Text(
+                  '$liveCount',
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w900),
+                ),
+              ),
+            ],
             const SizedBox(width: 4),
             Icon(Icons.expand_more_rounded, size: 16, color: p.textMid),
           ],
@@ -60,6 +85,15 @@ void showLeagueSheet(BuildContext context, WidgetRef ref) {
         child: Consumer(
           builder: (ctx, r, _) {
             final current = r.watch(selectedLeagueProvider);
+            final allMatches = r.watch(liveScoreProvider).matches;
+            // Count live + total matches per competition code
+            Map<String, int> liveByCode = {};
+            Map<String, int> totalByCode = {};
+            for (final m in allMatches) {
+              final code = m.competitionCode ?? '';
+              totalByCode[code] = (totalByCode[code] ?? 0) + 1;
+              if (m.isLive) liveByCode[code] = (liveByCode[code] ?? 0) + 1;
+            }
             return Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -152,6 +186,29 @@ void showLeagueSheet(BuildContext context, WidgetRef ref) {
                                   ],
                                 ),
                               ),
+                              if ((liveByCode[l.code] ?? 0) > 0) ...[
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.live,
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    '${liveByCode[l.code]} LIVE',
+                                    style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w900),
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                              ] else if ((totalByCode[l.code] ?? 0) > 0) ...[
+                                Text(
+                                  '${totalByCode[l.code]}',
+                                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: p.textLow),
+                                ),
+                                const SizedBox(width: 6),
+                              ],
                               if (isSelected)
                                 const Icon(Icons.check_circle_rounded,
                                     color: AppTheme.brand, size: 20),

@@ -9,6 +9,7 @@
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
@@ -21,7 +22,7 @@ import '../../core/services/user_profile_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/models/match.dart';
 import '../../shared/widgets/display_name_sheet.dart';
-import '../../shared/widgets/flag_widget.dart';
+import '../../shared/widgets/team_crest_widget.dart';
 import '../league picker/league_picker.dart';
 
 // ─── Screen ──────────────────────────────────────────────────────────────────
@@ -99,6 +100,7 @@ class _PredictorScreenState extends ConsumerState<PredictorScreen>
                 submitted: stats.submitted,
                 settled: stats.settled,
                 exactScores: stats.exactScores,
+                correctResults: stats.correctResults,
               ),
             ),
             const SizedBox(height: 12),
@@ -257,6 +259,7 @@ class _PredictionTileState extends ConsumerState<_PredictionTile> {
   }
 
   Future<void> _submit() async {
+    HapticFeedback.mediumImpact();
     // If user hasn't set a name yet, prompt them first
     if (!UserProfileService.instance.hasSetName && mounted) {
       await showDisplayNameSheet(context, ref, isFirstTime: true);
@@ -444,7 +447,7 @@ class _PredictionTileState extends ConsumerState<_PredictionTile> {
 
   Widget _teamCol(TeamRef t, Palette p) => Column(
         children: [
-          FlagWidget(tla: t.tla, size: 36),
+          TeamCrestWidget(crestUrl: t.crest, tla: t.tla, size: 36),
           const SizedBox(height: 8),
           Text(t.name,
               textAlign: TextAlign.center,
@@ -489,19 +492,19 @@ class _CommunityBar extends StatelessWidget {
             children: [
               if (stats.homePct > 0)
                 Expanded(
-                  flex: homePct,
+                  flex: homePct.clamp(1, 98),
                   child: Container(height: 8, color: AppTheme.brand),
                 ),
               if (stats.drawPct > 0)
                 Expanded(
-                  flex: drawPct,
+                  flex: drawPct.clamp(1, 98),
                   child: Container(
-                      height: 8, color: palette.textLow.withValues(alpha: 0.4)),
+                      height: 8, color: palette.textMid.withValues(alpha: 0.5)),
                 ),
               if (stats.awayPct > 0)
                 Expanded(
-                  flex: awayPct,
-                  child: Container(height: 8, color: Colors.blueAccent),
+                  flex: awayPct.clamp(1, 98),
+                  child: Container(height: 8, color: AppTheme.live),
                 ),
             ],
           ),
@@ -521,7 +524,7 @@ class _CommunityBar extends StatelessWidget {
                 style: const TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
-                    color: Colors.blueAccent)),
+                    color: AppTheme.live)),
           ],
         ),
       ],
@@ -796,16 +799,20 @@ class _MyCard extends StatelessWidget {
 // ─── Stats card ───────────────────────────────────────────────────────────────
 
 class _StatsCard extends StatelessWidget {
-  final int points, submitted, settled, exactScores;
+  final int points, submitted, settled, exactScores, correctResults;
   const _StatsCard(
       {required this.points,
       required this.submitted,
       required this.settled,
-      required this.exactScores});
+      required this.exactScores,
+      required this.correctResults});
 
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
+    final accuracy = settled > 0
+        ? ((exactScores + correctResults) / settled * 100).round()
+        : null;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -842,6 +849,12 @@ class _StatsCard extends StatelessWidget {
                             color: p.textLow, fontWeight: FontWeight.w700)),
                   ],
                 ),
+                if (accuracy != null)
+                  Text('$accuracy% accuracy',
+                      style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.brand)),
               ],
             ),
           ),
@@ -892,7 +905,7 @@ class _Counter extends StatelessWidget {
     return Column(
       children: [
         InkWell(
-          onTap: enabled ? () => onChanged!((value + 1).clamp(0, 20)) : null,
+          onTap: enabled ? () { HapticFeedback.selectionClick(); onChanged!((value + 1).clamp(0, 20)); } : null,
           customBorder: const CircleBorder(),
           child: Container(
             width: 28,
@@ -924,7 +937,7 @@ class _Counter extends StatelessWidget {
                   height: 1.0)),
         ),
         InkWell(
-          onTap: enabled ? () => onChanged!((value - 1).clamp(0, 20)) : null,
+          onTap: enabled ? () { HapticFeedback.selectionClick(); onChanged!((value - 1).clamp(0, 20)); } : null,
           customBorder: const CircleBorder(),
           child: Container(
             width: 28,

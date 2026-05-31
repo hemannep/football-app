@@ -26,9 +26,10 @@ const FEEDS = [
   { source: 'Guardian Football', url: 'https://www.theguardian.com/football/rss' },
 ];
 
-// Keep at most this many articles in Firestore. Older ones get deleted at the
-// end of each run so the news collection doesn't grow unbounded.
-const KEEP_LATEST = 150;
+// Delete articles older than this many days. RSS feeds never contain content
+// older than a few days, so this naturally caps collection size without the
+// expensive offset() scan that charges reads for every doc before the offset.
+const PRUNE_AFTER_DAYS = 7;
 
 if (!process.env.FIREBASE_SA) {
   console.error('FATAL: FIREBASE_SA missing.');
@@ -161,20 +162,23 @@ async function main() {
   }
   console.log(`✓ Upserted ${writes.length} articles.`);
 
-  // Prune anything beyond KEEP_LATEST so the collection doesn't grow forever.
-  const snap = await db
+  // Prune articles older than PRUNE_AFTER_DAYS using a where() filter.
+  // This only reads docs that actually qualify for deletion (typically zero,
+  // since RSS feeds never carry content older than a few days). The previous
+  // offset()-based approach charged for every doc before the offset position,
+  // burning thousands of free-tier reads per day.
+  const cutoffMs = Date.now() - PRUNE_AFTER_DAYS * 24 * 60 * 60 * 1000;
+  const oldSnap = await db
     .collection('news')
-    .orderBy('publishedAtMs', 'desc')
-    .offset(KEEP_LATEST)
+    .where('publishedAtMs', '<', cutoffMs)
     .get();
-  if (!snap.empty) {
-    for (let i = 0; i < snap.docs.length; i += 450) {
-      const chunk = snap.docs.slice(i, i + 450);
+  if (!oldSnap.empty) {
+    for (let i = 0; i < oldSnap.docs.length; i += 450) {
       const batch = db.batch();
-      for (const d of chunk) batch.delete(d.ref);
+      for (const d of oldSnap.docs.slice(i, i + 450)) batch.delete(d.ref);
       await batch.commit();
     }
-    console.log(`✓ Pruned ${snap.size} old articles.`);
+    console.log(`✓ Pruned ${oldSnap.size} article(s) older than ${PRUNE_AFTER_DAYS} days.`);
   }
 
   await db.collection('meta').doc('news').set(
@@ -192,6 +196,12 @@ async function main() {
 main()
   .then(() => process.exit(0))
   .catch((err) => {
+    if (err.code === 8) {
+      // Firestore RESOURCE_EXHAUSTED — daily quota used up. Exit cleanly so
+      // the GitHub Actions run stays green; news will refresh on the next run.
+      console.warn('⚠ Firestore quota exceeded — skipping this news run.');
+      process.exit(0);
+    }
     console.error('News worker failed:', err);
     process.exit(1);
   });

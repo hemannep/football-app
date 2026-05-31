@@ -6,6 +6,7 @@
 // screen — the whole app rebuilds instantly with the new translations.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers/locale_provider.dart';
 import '../../core/theme/app_theme.dart';
@@ -55,6 +56,7 @@ class LanguagePickerScreen extends ConsumerWidget {
                   final english = languageEnglishNames[code] ?? code;
                   return InkWell(
                     onTap: () async {
+                      HapticFeedback.selectionClick();
                       await ref
                           .read(localeProvider.notifier)
                           .setLocale(Locale(code));

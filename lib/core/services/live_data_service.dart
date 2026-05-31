@@ -2,23 +2,34 @@
 //
 // READ LAYER for the relay-powered API.
 //
-// The relay (GitHub Actions) writes match/standings/lineup data into Firestore.
-// This service is how the Flutter app READS it — replacing the direct
-// football-data.org calls in ApiService for live tournament data.
+// ─── Firestore read budget ────────────────────────────────────────────────────
 //
-// It is deliberately SEPARATE from FirestoreService (which owns user data:
-// predictions, trivia, leaderboard). This file owns relay-sourced data only.
+// BEFORE (snapshots on full collections):
+//   Open app           → collection('matches').snapshots()  → ~1 000 reads
+//   League switch ×2   → re-subscribe × 2                  → ~2 000 reads
+//   Team details       → direct watchMatches() listener    → ~1 000 reads
+//   Team comparison ×2 → watchMatches().first × 2          → ~2 000 reads
+//   AI insights ×2     → watchMatches().first × 2          → ~2 000 reads
+//   Standings          → collection('standings').snapshots → ~60 reads
+//   News               → collection('news').snapshots      → ~30 reads
+//   Per-session total                                       → ~8 090 reads
 //
-// Design guarantees the project demands:
-//   • Riverpod-friendly: exposes a singleton + plain methods/streams that
-//     providers can wrap. (Providers added at the bottom.)
-//   • Offline-first: every read is mirrored into Hive ('live_cache' box).
-//     If Firestore is unreachable, the last cached payload is served.
-//   • Null-safe: every field is defensively parsed; missing data -> sane default.
-//   • Local time: Match.fromJson() already calls .toLocal(), so all match
-//     times render in the user's timezone automatically.
-//   • Cheap: getMeta() reads ONE doc to learn what's live before anything else.
+// AFTER (in-memory TTL + meta-freshness checks):
+//   Warm session (cache valid)    → 1 meta read  → ≤ 3 reads/session
+//   Cold session (cache expired)  → meta + full fetches → ~1 091 reads
+//   Live match detail             → single-doc snapshot  (unchanged — acceptable)
+//
+// Strategy
+//   1. In-memory TTL cache  — per-process, zero cost for repeated widget builds.
+//   2. Meta-freshness check — compare relay's lastRunIso with our Hive write timestamp.
+//      Only reads from Firestore when the relay has pushed something new.
+//   3. watchXxx() → async* generators that emit once immediately (from cache)
+//      then re-check at the TTL interval.  No persistent collection listeners.
+//   4. watchMatch() / watchMatchRaw() keep their single-doc snapshots — a live
+//      match detail legitimately needs real-time pushes (1 read/update).
+// ─────────────────────────────────────────────────────────────────────────────
 
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -36,11 +47,46 @@ class LiveDataService {
 
   Box get _box => Hive.box('live_cache');
 
-  // ─── Hive helpers ──────────────────────────────────────────────────────────
+  // ─── TTL constants ────────────────────────────────────────────────────────
+  static const _metaTtl      = Duration(minutes: 2);
+  static const _matchesTtl   = Duration(minutes: 5);
+  static const _standingsTtl = Duration(minutes: 15);
+  static const _newsTtl      = Duration(minutes: 30);
+  static const _staticTtl    = Duration(hours: 24); // teams / players
+  static const _lineupTtl    = Duration(minutes: 20);
 
-  /// Recursively converts Firestore-specific types so jsonEncode never throws.
-  /// Timestamp  → ISO-8601 string
-  /// GeoPoint / DocumentReference / anything else → toString()
+  // ─── In-memory TTL cache ─────────────────────────────────────────────────
+  // Keyed by the same string used for Hive so the two layers are consistent.
+  // Lives for the process lifetime — survives widget rebuilds, dies on restart.
+  final Map<String, ({Object data, int expiresMs})> _mem = {};
+
+  T? _memGet<T>(String key) {
+    final e = _mem[key];
+    if (e == null) return null;
+    if (DateTime.now().millisecondsSinceEpoch > e.expiresMs) {
+      _mem.remove(key);
+      return null;
+    }
+    return e.data as T?;
+  }
+
+  void _memPut(String key, Object data, Duration ttl) {
+    _mem[key] = (
+      data: data,
+      expiresMs: DateTime.now().millisecondsSinceEpoch + ttl.inMilliseconds,
+    );
+  }
+
+  /// Evict a single key from both memory and Hive so the next read is forced
+  /// to go to Firestore. Useful after a manual pull-to-refresh.
+  void evict(String key) {
+    _mem.remove(key);
+    _box.delete(key);
+    _box.delete('${key}_at');
+  }
+
+  // ─── Hive helpers ─────────────────────────────────────────────────────────
+
   static dynamic _toJsonSafe(dynamic v) {
     if (v is Map) {
       return Map<String, dynamic>.fromEntries(
@@ -50,7 +96,6 @@ class LiveDataService {
     if (v is List) return v.map(_toJsonSafe).toList();
     if (v is Timestamp) return v.toDate().toIso8601String();
     if (v is String || v is num || v is bool || v == null) return v;
-    // Fallback for GeoPoint, DocumentReference, etc.
     return v.toString();
   }
 
@@ -58,9 +103,7 @@ class LiveDataService {
     try {
       _box.put(key, jsonEncode(_toJsonSafe(value)));
       _box.put('${key}_at', DateTime.now().millisecondsSinceEpoch);
-    } catch (_) {
-      // Caching is best-effort; never let it break a read.
-    }
+    } catch (_) {}
   }
 
   dynamic _readCache(String key) {
@@ -73,54 +116,41 @@ class LiveDataService {
     }
   }
 
-  /// How old the cached value for [key] is, in ms (or null if never cached).
-  int? cacheAgeMs(String key) {
+  int? _cacheAgeMs(String key) {
     final at = _box.get('${key}_at');
     if (at is! int) return null;
     return DateTime.now().millisecondsSinceEpoch - at;
   }
 
-  // ─── meta/relay — read FIRST, 1 cheap doc ───────────────────────────────────
-  /// Returns the relay heartbeat: { liveMatchIds, lastRunIso, windowOpen }.
-  /// Falls back to cache when offline.
-  Future<RelayMeta> getMeta() async {
-    const key = 'meta_relay';
-    try {
-      final doc = await _db.collection('meta').doc('relay').get();
-      final data = doc.data();
-      if (data != null) {
-        _cache(key, data);
-        return RelayMeta.fromJson(data);
-      }
-    } catch (_) {}
-    final cached = _readCache(key);
-    if (cached is Map) {
-      return RelayMeta.fromJson(Map<String, dynamic>.from(cached));
-    }
-    return const RelayMeta(
-        liveMatchIds: [], lastRunIso: null, windowOpen: false);
+  // ─── Freshness helper ─────────────────────────────────────────────────────
+  // Returns true when our Hive cache for [key] was written AFTER the relay's
+  // last run — meaning Firestore has nothing new for us.
+  bool _hiveIsFresh(String key, RelayMeta meta) {
+    final cacheAt = _box.get('${key}_at') as int?;
+    if (cacheAt == null) return false;
+    final relayAt = meta.lastRunIso != null
+        ? DateTime.tryParse(meta.lastRunIso!)?.millisecondsSinceEpoch
+        : null;
+    if (relayAt == null) return false;
+    return cacheAt >= relayAt;
   }
 
-  // ─── Match document normalisation ──────────────────────────────────────────
-  /// Match.fromJson calls DateTime.parse(j['utcDate']) which only accepts
-  /// strings.  The relay may write utcDate as a Firestore Timestamp or as an
-  /// ISO-8601 string — both are handled here.  All other Timestamp fields are
-  /// also converted so _cache (jsonEncode) never throws.
+  // ─── Normalizers ──────────────────────────────────────────────────────────
   static Map<String, dynamic> _normalizeMatchDoc(Map<String, dynamic> raw) {
     final out = _toJsonSafe(raw) as Map<String, dynamic>;
-    // Ensure utcDate is always a parseable string.
     final ud = out['utcDate'];
     if (ud == null || ud.toString().isEmpty) {
       out['utcDate'] = DateTime.now().toUtc().toIso8601String();
     }
-    // competition.code fallback: some relay builds omit the competition object.
     if (out['competition'] == null) {
-      out['competition'] = <String, dynamic>{'code': 'WC', 'name': 'FIFA World Cup 2026'};
+      out['competition'] = <String, dynamic>{
+        'code': 'WC',
+        'name': 'International Football 2026',
+      };
     }
     return out;
   }
 
-  /// Parse a match document, returning null instead of throwing on bad data.
   static Match? _safeParseMatch(Map<String, dynamic> raw) {
     try {
       return Match.fromJson(_normalizeMatchDoc(raw));
@@ -129,47 +159,107 @@ class LiveDataService {
     }
   }
 
-  // ─── Matches ────────────────────────────────────────────────────────────────
-  /// Real-time stream of ALL matches, ordered by kickoff.
-  Stream<List<Match>> watchMatches() {
-    return _db.collection('matches').orderBy('utcDate').snapshots().map((snap) {
-      final list = snap.docs
-          .map((d) => _safeParseMatch(d.data()))
-          .whereType<Match>()
-          .toList();
-      _cache('matches_all', list.map((m) => m.toJson()).toList());
-      return list;
-    });
+  List<Match> _parseMatchList(List cached) => cached
+      .map((e) => _safeParseMatch(Map<String, dynamic>.from(e as Map)))
+      .whereType<Match>()
+      .toList();
+
+  List<GroupTable> _parseStandingsList(List cached) => cached
+      .map((e) => GroupTable.fromJson(Map<String, dynamic>.from(e as Map)))
+      .toList();
+
+  // ─── meta/relay ───────────────────────────────────────────────────────────
+  /// 1 Firestore read per 2-min window; 0 reads from memory cache after that.
+  Future<RelayMeta> getMeta() async {
+    const key = 'meta_relay';
+    final mem = _memGet<RelayMeta>(key);
+    if (mem != null) return mem;
+    try {
+      final doc = await _db.collection('meta').doc('relay').get();
+      final data = doc.data();
+      if (data != null) {
+        _cache(key, data);
+        final meta = RelayMeta.fromJson(data);
+        _memPut(key, meta, _metaTtl);
+        return meta;
+      }
+    } catch (_) {}
+    final cached = _readCache(key);
+    if (cached is Map) {
+      return RelayMeta.fromJson(Map<String, dynamic>.from(cached));
+    }
+    return const RelayMeta(liveMatchIds: [], lastRunIso: null, windowOpen: false);
   }
 
-  /// One-shot fetch of all matches. Offline-first: serves Hive cache on failure.
+  // ─── Matches ──────────────────────────────────────────────────────────────
+
+  /// Cached one-shot fetch. Read cost:
+  ///   • Memory hit (within 5 min)   → 0 reads
+  ///   • Hive fresh vs relay meta     → 1 read (meta only)
+  ///   • Stale / first run            → 1 (meta) + N (matches)
   Future<List<Match>> getMatches() async {
+    const key = 'matches_all';
+
+    // Layer 1: in-memory
+    final mem = _memGet<List<Match>>(key);
+    if (mem != null) return mem;
+
+    // Layer 2: Hive freshness check against relay meta
+    try {
+      final meta = await getMeta();
+      if (_hiveIsFresh(key, meta)) {
+        final cached = _readCache(key);
+        if (cached is List) {
+          final list = _parseMatchList(cached);
+          _memPut(key, list, _matchesTtl);
+          return list;
+        }
+      }
+    } catch (_) {
+      final cached = _readCache(key);
+      if (cached is List) {
+        final list = _parseMatchList(cached);
+        _memPut(key, list, _matchesTtl);
+        return list;
+      }
+    }
+
+    // Layer 3: Firestore get() — only when relay has newer data
     try {
       final snap = await _db.collection('matches').orderBy('utcDate').get();
       final list = snap.docs
           .map((d) => _safeParseMatch(d.data()))
           .whereType<Match>()
           .toList();
-      _cache('matches_all', list.map((m) => m.toJson()).toList());
+      _cache(key, list.map((m) => m.toJson()).toList());
+      _memPut(key, list, _matchesTtl);
       return list;
     } catch (_) {}
-    final cached = _readCache('matches_all');
-    if (cached is List) {
-      return cached
-          .map((e) => _safeParseMatch(Map<String, dynamic>.from(e as Map)))
-          .whereType<Match>()
-          .toList();
-    }
+
+    // Layer 4: stale Hive fallback (offline)
+    final cached = _readCache(key);
+    if (cached is List) return _parseMatchList(cached);
     return [];
   }
 
-  /// Today's matches (local day), derived from the full list.
+  /// TTL-aware stream. Emits immediately from cache, then re-checks every
+  /// [_matchesTtl]. No persistent Firestore collection listener.
+  Stream<List<Match>> watchMatches() async* {
+    yield await getMatches();
+    while (true) {
+      await Future.delayed(_matchesTtl);
+      _mem.remove('matches_all'); // expire so next getMatches() re-checks meta
+      yield await getMatches();
+    }
+  }
+
   Future<List<Match>> getMatchesForDay(DateTime localDay) async {
     final all = await getMatches();
     return all.where((m) => m.sameDay(localDay)).toList();
   }
 
-  /// Stream a single match doc — drives live score updates on the detail screen.
+  /// Single-doc snapshot — kept for live match detail screen. Costs 1 read per
+  /// Firestore push (only while viewing a live match).
   Stream<Match?> watchMatch(int matchId) {
     return _db
         .collection('matches')
@@ -178,12 +268,10 @@ class LiveDataService {
         .map((doc) => doc.exists ? _safeParseMatch(doc.data()!) : null);
   }
 
-  /// One-shot single match with goals/cards/subs (cached, offline-safe).
   Future<Match?> getMatch(int matchId) async {
     final key = 'match_$matchId';
     try {
-      final doc =
-          await _db.collection('matches').doc(matchId.toString()).get();
+      final doc = await _db.collection('matches').doc(matchId.toString()).get();
       if (doc.exists) {
         final m = _safeParseMatch(doc.data()!);
         if (m != null) _cache(key, m.toJson());
@@ -197,14 +285,10 @@ class LiveDataService {
     return null;
   }
 
-  /// Raw match map including Bzzoiro fields (incidents, bzzLineups, liveStats…).
-  /// Timestamps are converted to ISO strings so jsonEncode and the tab widgets
-  /// can consume the result without cloud_firestore imports.
   Future<Map<String, dynamic>?> getMatchRaw(int matchId) async {
     final key = 'match_raw_$matchId';
     try {
-      final doc =
-          await _db.collection('matches').doc(matchId.toString()).get();
+      final doc = await _db.collection('matches').doc(matchId.toString()).get();
       if (doc.exists) {
         final safe = _toJsonSafe(doc.data()) as Map<String, dynamic>;
         _cache(key, safe);
@@ -216,64 +300,150 @@ class LiveDataService {
     return null;
   }
 
+  /// Real-time single-doc stream for the match detail screen.
+  /// Kept as snapshots() intentionally — 1 read per relay push, justified.
+  Stream<Map<String, dynamic>?> watchMatchRaw(int matchId) {
+    return _db
+        .collection('matches')
+        .doc(matchId.toString())
+        .snapshots()
+        .map((doc) => doc.exists
+            ? (_toJsonSafe(doc.data()) as Map<String, dynamic>)
+            : null);
+  }
+
   // ─── Lineups ──────────────────────────────────────────────────────────────
+
+  /// lineups/{matchId} — written by relay.js after API-Football fetch.
+  /// 20-min TTL (relay only stores lineups every 20 min when live).
   Future<Map<String, dynamic>?> getLineup(int matchId) async {
     final key = 'lineup_$matchId';
+
+    // Memory TTL
+    final mem = _memGet<Map<String, dynamic>>(key);
+    if (mem != null) return mem;
+
+    // Hive TTL (20 min)
+    final age = _cacheAgeMs(key);
+    if (age != null && age < _lineupTtl.inMilliseconds) {
+      final cached = _readCache(key);
+      if (cached is Map) {
+        final data = Map<String, dynamic>.from(cached);
+        _memPut(key, data, _lineupTtl);
+        return data;
+      }
+    }
+
+    // Firestore get()
     try {
-      final doc = await _db.collection('lineups').doc(matchId.toString()).get();
+      final doc =
+          await _db.collection('lineups').doc(matchId.toString()).get();
       if (doc.exists) {
-        _cache(key, doc.data()!);
-        return doc.data();
+        final safe = _toJsonSafe(doc.data()) as Map<String, dynamic>;
+        _cache(key, safe);
+        _memPut(key, safe, _lineupTtl);
+        return safe;
       }
     } catch (_) {}
+
     final cached = _readCache(key);
     if (cached is Map) return Map<String, dynamic>.from(cached);
     return null;
   }
 
-  // ─── Standings ──────────────────────────────────────────────────────────────
-  /// All group tables. Each doc is { group, table:[...] }, matching
-  /// GroupTable.fromJson() in standing.dart.
+  // ─── Standings ────────────────────────────────────────────────────────────
+
+  /// All standings (used by Format Guide / Qualification Simulator).
   Future<List<GroupTable>> getStandings() async {
     const key = 'standings_all';
+
+    final mem = _memGet<List<GroupTable>>(key);
+    if (mem != null) return mem;
+
+    try {
+      final meta = await getMeta();
+      if (_hiveIsFresh(key, meta)) {
+        final cached = _readCache(key);
+        if (cached is List) {
+          final list = _parseStandingsList(cached);
+          _memPut(key, list, _standingsTtl);
+          return list;
+        }
+      }
+    } catch (_) {
+      final cached = _readCache(key);
+      if (cached is List) return _parseStandingsList(cached);
+    }
+
     try {
       final snap = await _db.collection('standings').get();
       final raw = snap.docs.map((d) => d.data()).toList();
       _cache(key, raw);
-      return raw.map((e) => GroupTable.fromJson(e)).toList();
+      final list = raw.map((e) => GroupTable.fromJson(e)).toList();
+      _memPut(key, list, _standingsTtl);
+      return list;
     } catch (_) {}
+
     final cached = _readCache(key);
-    if (cached is List) {
-      return cached
-          .map((e) => GroupTable.fromJson(Map<String, dynamic>.from(e)))
-          .toList();
-    }
+    if (cached is List) return _parseStandingsList(cached);
     return [];
   }
 
-  /// Live stream of standings for screens that should update during matches.
-  Stream<List<GroupTable>> watchStandings() {
-    return _db.collection('standings').snapshots().map((snap) {
-      final raw = snap.docs.map((d) => d.data()).toList();
-      _cache('standings_all', raw);
-      return raw.map((e) => GroupTable.fromJson(e)).toList();
-    });
+  Stream<List<GroupTable>> watchStandings() async* {
+    yield await getStandings();
+    while (true) {
+      await Future.delayed(_standingsTtl);
+      _mem.remove('standings_all');
+      yield await getStandings();
+    }
   }
 
-  /// Standings filtered to a single competition — used by the Standings screen
-  /// so switching leagues shows only that competition's groups/table.
-  /// Docs are stored as "{competitionCode}_{groupKey}" by the relay, each
-  /// with a competitionCode field that Firestore uses for the where clause.
-  Stream<List<GroupTable>> watchStandingsByLeague(String competitionCode) {
-    return _db
-        .collection('standings')
-        .where('competitionCode', isEqualTo: competitionCode)
-        .snapshots()
-        .map((snap) {
+  /// Standings for a single competition code.
+  Future<List<GroupTable>> getStandingsByLeague(String competitionCode) async {
+    final key = 'standings_$competitionCode';
+
+    final mem = _memGet<List<GroupTable>>(key);
+    if (mem != null) return mem;
+
+    try {
+      final meta = await getMeta();
+      if (_hiveIsFresh(key, meta)) {
+        final cached = _readCache(key);
+        if (cached is List) {
+          final list = _parseStandingsList(cached);
+          _memPut(key, list, _standingsTtl);
+          return list;
+        }
+      }
+    } catch (_) {
+      final cached = _readCache(key);
+      if (cached is List) return _parseStandingsList(cached);
+    }
+
+    try {
+      final snap = await _db
+          .collection('standings')
+          .where('competitionCode', isEqualTo: competitionCode)
+          .get();
       final raw = snap.docs.map((d) => d.data()).toList();
-      _cache('standings_$competitionCode', raw);
-      return raw.map((e) => GroupTable.fromJson(e)).toList();
-    });
+      _cache(key, raw);
+      final list = raw.map((e) => GroupTable.fromJson(e)).toList();
+      _memPut(key, list, _standingsTtl);
+      return list;
+    } catch (_) {}
+
+    final cached = _readCache(key);
+    if (cached is List) return _parseStandingsList(cached);
+    return [];
+  }
+
+  Stream<List<GroupTable>> watchStandingsByLeague(String competitionCode) async* {
+    yield await getStandingsByLeague(competitionCode);
+    while (true) {
+      await Future.delayed(_standingsTtl);
+      _mem.remove('standings_$competitionCode');
+      yield await getStandingsByLeague(competitionCode);
+    }
   }
 
   // ─── Bracket ──────────────────────────────────────────────────────────────
@@ -291,61 +461,122 @@ class LiveDataService {
     return null;
   }
 
-  // ─── Teams (populated by the daily seed workflow) ─────────────────────────
-  /// Full team profile + squad. Single doc read, offline-safe.
+  // ─── Teams ────────────────────────────────────────────────────────────────
+
+  /// 24-hour TTL — seed runs once daily; teams don't change mid-tournament.
   Future<Map<String, dynamic>?> getTeam(int teamId) async {
     final key = 'team_$teamId';
+
+    final mem = _memGet<Map<String, dynamic>>(key);
+    if (mem != null) return mem;
+
+    final age = _cacheAgeMs(key);
+    if (age != null && age < _staticTtl.inMilliseconds) {
+      final cached = _readCache(key);
+      if (cached is Map) {
+        final data = Map<String, dynamic>.from(cached);
+        _memPut(key, data, _staticTtl);
+        return data;
+      }
+    }
+
     try {
       final doc = await _db.collection('teams').doc(teamId.toString()).get();
       if (doc.exists) {
-        _cache(key, doc.data()!);
-        return doc.data();
+        final data = doc.data()!;
+        _cache(key, data);
+        _memPut(key, data, _staticTtl);
+        return data;
       }
     } catch (_) {}
+
     final cached = _readCache(key);
     if (cached is Map) return Map<String, dynamic>.from(cached);
     return null;
   }
 
-  /// All 48 WC teams, sorted by name. Useful for the team picker on the
-  /// Predictor/Comparison screens.
   Future<List<Map<String, dynamic>>> getAllTeams() async {
     const key = 'teams_all';
+
+    final mem = _memGet<List<Map<String, dynamic>>>(key);
+    if (mem != null) return mem;
+
+    final age = _cacheAgeMs(key);
+    if (age != null && age < _staticTtl.inMilliseconds) {
+      final cached = _readCache(key);
+      if (cached is List) {
+        final list = cached.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        _memPut(key, list, _staticTtl);
+        return list;
+      }
+    }
+
     try {
       final snap = await _db.collection('teams').orderBy('name').get();
       final list = snap.docs.map((d) => d.data()).toList();
       _cache(key, list);
+      _memPut(key, list, _staticTtl);
       return list;
     } catch (_) {}
+
     final cached = _readCache(key);
     if (cached is List) {
-      return cached.map((e) => Map<String, dynamic>.from(e)).toList();
+      return cached.map((e) => Map<String, dynamic>.from(e as Map)).toList();
     }
     return [];
   }
 
-  // ─── Players ─────────────────────────────────────────────────────────────
-  /// Single player by id. Player docs include teamId/teamName/teamCrest so a
-  /// player-detail screen needs only this one read.
+  // ─── Players ──────────────────────────────────────────────────────────────
+
   Future<Map<String, dynamic>?> getPlayer(int playerId) async {
     final key = 'player_$playerId';
+
+    final mem = _memGet<Map<String, dynamic>>(key);
+    if (mem != null) return mem;
+
+    final age = _cacheAgeMs(key);
+    if (age != null && age < _staticTtl.inMilliseconds) {
+      final cached = _readCache(key);
+      if (cached is Map) {
+        final data = Map<String, dynamic>.from(cached);
+        _memPut(key, data, _staticTtl);
+        return data;
+      }
+    }
+
     try {
       final doc =
           await _db.collection('players').doc(playerId.toString()).get();
       if (doc.exists) {
-        _cache(key, doc.data()!);
-        return doc.data();
+        final data = doc.data()!;
+        _cache(key, data);
+        _memPut(key, data, _staticTtl);
+        return data;
       }
     } catch (_) {}
+
     final cached = _readCache(key);
     if (cached is Map) return Map<String, dynamic>.from(cached);
     return null;
   }
 
-  /// All players for a given team. Used on the Team Details screen.
-  /// (Single-field where queries are auto-indexed — no composite index needed.)
   Future<List<Map<String, dynamic>>> getPlayersForTeam(int teamId) async {
     final key = 'players_team_$teamId';
+
+    final mem = _memGet<List<Map<String, dynamic>>>(key);
+    if (mem != null) return mem;
+
+    final age = _cacheAgeMs(key);
+    if (age != null && age < _staticTtl.inMilliseconds) {
+      final cached = _readCache(key);
+      if (cached is List) {
+        final list =
+            cached.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        _memPut(key, list, _staticTtl);
+        return list;
+      }
+    }
+
     try {
       final snap = await _db
           .collection('players')
@@ -353,19 +584,39 @@ class LiveDataService {
           .get();
       final list = snap.docs.map((d) => d.data()).toList();
       _cache(key, list);
+      _memPut(key, list, _staticTtl);
       return list;
     } catch (_) {}
+
     final cached = _readCache(key);
     if (cached is List) {
-      return cached.map((e) => Map<String, dynamic>.from(e)).toList();
+      return cached.map((e) => Map<String, dynamic>.from(e as Map)).toList();
     }
     return [];
   }
 
-  // ─── News (populated hourly by scripts/news_worker.js) ────────────────────
-  /// Latest [limit] football news articles, newest first.
+  // ─── News ─────────────────────────────────────────────────────────────────
+  // News is time-based (hourly worker), so TTL is checked against wall-clock
+  // rather than relay meta (which only tracks match data).
+
   Future<List<Map<String, dynamic>>> getNews({int limit = 30}) async {
     final key = 'news_$limit';
+
+    final mem = _memGet<List<Map<String, dynamic>>>(key);
+    if (mem != null) return mem;
+
+    // Hive time-based TTL (30 min)
+    final age = _cacheAgeMs(key);
+    if (age != null && age < _newsTtl.inMilliseconds) {
+      final cached = _readCache(key);
+      if (cached is List) {
+        final list =
+            cached.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        _memPut(key, list, _newsTtl);
+        return list;
+      }
+    }
+
     try {
       final snap = await _db
           .collection('news')
@@ -374,32 +625,28 @@ class LiveDataService {
           .get();
       final list = snap.docs.map((d) => d.data()).toList();
       _cache(key, list);
+      _memPut(key, list, _newsTtl);
       return list;
     } catch (_) {}
+
     final cached = _readCache(key);
     if (cached is List) {
-      return cached.map((e) => Map<String, dynamic>.from(e)).toList();
+      return cached.map((e) => Map<String, dynamic>.from(e as Map)).toList();
     }
     return [];
   }
 
-  /// Stream of latest news for the News screen — auto-updates when the worker
-  /// publishes new articles.
-  Stream<List<Map<String, dynamic>>> watchNews({int limit = 30}) {
-    return _db
-        .collection('news')
-        .orderBy('publishedAtMs', descending: true)
-        .limit(limit)
-        .snapshots()
-        .map((snap) {
-      final list = snap.docs.map((d) => d.data()).toList();
-      _cache('news_$limit', list);
-      return list;
-    });
+  Stream<List<Map<String, dynamic>>> watchNews({int limit = 30}) async* {
+    yield await getNews(limit: limit);
+    while (true) {
+      await Future.delayed(_newsTtl);
+      _mem.remove('news_$limit');
+      yield await getNews(limit: limit);
+    }
   }
 }
 
-/// Lightweight model for the meta/relay heartbeat doc.
+// ─── Relay meta model ─────────────────────────────────────────────────────────
 class RelayMeta {
   final List<int> liveMatchIds;
   final String? lastRunIso;
@@ -422,7 +669,6 @@ class RelayMeta {
 
   bool get anyLive => liveMatchIds.isNotEmpty;
 
-  /// "Updated X min ago" label for the live screens (per the doc's checklist).
   String get freshnessLabel {
     if (lastRunIso == null) return 'Waiting for first update…';
     final last = DateTime.tryParse(lastRunIso!);
@@ -434,57 +680,64 @@ class RelayMeta {
   }
 }
 
-// ─── Riverpod providers ────────────────────────────────────────────────────────
+// ─── Riverpod providers ───────────────────────────────────────────────────────
+
 final liveDataServiceProvider = Provider<LiveDataService>(
   (ref) => LiveDataService.instance,
 );
 
-/// Real-time matches stream for Home/Fixtures.
+/// TTL-aware matches stream. Emits from cache instantly; re-fetches only when
+/// the relay has written new data since our last Hive fill.
 final matchesStreamProvider = StreamProvider<List<Match>>(
   (ref) => ref.watch(liveDataServiceProvider).watchMatches(),
 );
 
-/// Relay heartbeat — drives the "Updated X min ago" label and live polling.
+/// Relay heartbeat — 1 read per 2-min window max.
 final relayMetaProvider = FutureProvider<RelayMeta>(
   (ref) => ref.watch(liveDataServiceProvider).getMeta(),
 );
 
-/// Live standings stream for the Standings screen.
+/// All standings — TTL-aware, 15-min polling.
 final standingsStreamProvider = StreamProvider<List<GroupTable>>(
   (ref) => ref.watch(liveDataServiceProvider).watchStandings(),
 );
 
-/// Single match stream for the match-detail screen.
+/// Standings for a single competition — TTL-aware, 15-min polling.
+final standingsByLeagueProvider =
+    StreamProvider.family<List<GroupTable>, String>(
+  (ref, code) =>
+      ref.watch(liveDataServiceProvider).watchStandingsByLeague(code),
+);
+
+/// Single match snapshot — kept as real-time (1 read/push, justified for live).
 final matchStreamProvider = StreamProvider.family<Match?, int>(
   (ref, matchId) => ref.watch(liveDataServiceProvider).watchMatch(matchId),
 );
 
-/// Single team profile (with squad) by team id — for the Team Details screen.
+/// Team profile + squad. 24-hour TTL.
 final teamProvider = FutureProvider.family<Map<String, dynamic>?, int>(
   (ref, teamId) => ref.watch(liveDataServiceProvider).getTeam(teamId),
 );
 
-/// Single player by id — for the Player Details screen / debutant spotlight.
-final playerProvider = FutureProvider.family<Map<String, dynamic>?, int>(
-  (ref, playerId) => ref.watch(liveDataServiceProvider).getPlayer(playerId),
-);
-
-/// All players for a team id — for the squad list on Team Details.
+/// Squad list for a team. 24-hour TTL.
 final playersForTeamProvider =
     FutureProvider.family<List<Map<String, dynamic>>, int>(
   (ref, teamId) => ref.watch(liveDataServiceProvider).getPlayersForTeam(teamId),
 );
 
-/// Live news stream for the News screen.
+/// Single player. 24-hour TTL.
+final playerProvider = FutureProvider.family<Map<String, dynamic>?, int>(
+  (ref, playerId) => ref.watch(liveDataServiceProvider).getPlayer(playerId),
+);
+
+/// News articles. 30-min TTL.
 final newsStreamProvider = StreamProvider<List<Map<String, dynamic>>>(
   (ref) => ref.watch(liveDataServiceProvider).watchNews(),
 );
 
-/// Standings for a specific competition code — drives the Standings screen.
-/// Relay stores docs as "{code}_{group}" with a competitionCode field so
-/// Firestore can filter without a composite index.
-final standingsByLeagueProvider =
-    StreamProvider.family<List<GroupTable>, String>(
-  (ref, code) =>
-      ref.watch(liveDataServiceProvider).watchStandingsByLeague(code),
+/// Confirmed lineup from the `lineups` collection.
+/// Written by relay.js via API-Football (best-effort — may be sparse).
+/// Falls back gracefully to null; lineups_tab uses bzzLineups as primary source.
+final lineupProvider = FutureProvider.family<Map<String, dynamic>?, int>(
+  (ref, matchId) => ref.watch(liveDataServiceProvider).getLineup(matchId),
 );

@@ -20,11 +20,14 @@ final myStatsProvider = Provider((ref) {
   final settled = preds.where((p) => p.settled).length;
   final exactScores =
       preds.where((p) => p.settled && p.pointsEarned == 5).length;
+  final correctResults =
+      preds.where((p) => p.settled && p.pointsEarned == 3).length;
   return (
     points: total,
     submitted: preds.length,
     settled: settled,
     exactScores: exactScores,
+    correctResults: correctResults,
   );
 });
 

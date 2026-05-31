@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive/hive.dart';
 import 'package:intl/intl.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../core/services/ad_service.dart';
 import '../../core/theme/app_theme.dart';
 
@@ -425,6 +427,11 @@ class _TriviaScreenState extends ConsumerState<TriviaScreen> {
     _ticker?.cancel();
     final correct = _questions[_qIndex].correct;
     final bonus = _timer > 10 ? 5 : 0;
+    if (i == correct) {
+      HapticFeedback.mediumImpact();
+    } else {
+      HapticFeedback.heavyImpact();
+    }
     setState(() {
       _selected = i;
       _showAnswer = true;
@@ -642,8 +649,31 @@ class _TriviaScreenState extends ConsumerState<TriviaScreen> {
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: LinearProgressIndicator(
-              value: (_qIndex + 1) / _questions.length, minHeight: 6),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: (_qIndex + 1) / _questions.length,
+              minHeight: 6,
+              backgroundColor: AppTheme.of(context).surfaceHi,
+              valueColor: const AlwaysStoppedAnimation(AppTheme.brand),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: AppTheme.accent.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(
+            q.category.replaceAll('_', ' ').toUpperCase(),
+            style: const TextStyle(
+                fontSize: 9,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1,
+                color: AppTheme.accent),
+          ),
         ),
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 18),
@@ -842,6 +872,19 @@ class _TriviaScreenState extends ConsumerState<TriviaScreen> {
             ),
           ),
           const SizedBox(height: 28),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              icon: const Icon(Icons.share_rounded, size: 18),
+              label: const Text('Share my score'),
+              onPressed: () => Share.share(
+                '🧠 I scored $_score pts on Football Fan Hub Daily Trivia!\n'
+                '✅ $_correctCount/${_questions.length} correct · 🔥 $streak day streak\n'
+                'Can you beat me?',
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
