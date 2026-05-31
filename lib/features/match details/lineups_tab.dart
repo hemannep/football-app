@@ -208,7 +208,7 @@ class _LineupsTabState extends ConsumerState<_LineupsTab> {
     }
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 30),
       child: Column(
         children: [
           if (isPredicted)
@@ -355,7 +355,7 @@ class _LineupsTabState extends ConsumerState<_LineupsTab> {
     final awayLabels = _posLabels(formation, false);
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 30),
       child: Column(
         children: [
           Container(
@@ -491,7 +491,7 @@ class _LineupsTabState extends ConsumerState<_LineupsTab> {
           message: 'Substitutes not available yet.');
     }
     return ListView(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 30),
       children: [
         _SectionLabel('${widget.match.homeTeam.tla} — Substitutes'),
         if (homeSubs.isEmpty)
@@ -529,7 +529,7 @@ class _LineupsTabState extends ConsumerState<_LineupsTab> {
       return _Unavailable(icon: icon, message: 'No $title reported.');
     }
     return ListView(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 30),
       children: [
         _SectionLabel('${widget.match.homeTeam.tla} — $title'),
         if (home.isEmpty)

@@ -780,7 +780,7 @@ class _MyCard extends StatelessWidget {
             label: Text(hasName ? 'Edit' : 'Set name'),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppTheme.brand,
-              foregroundColor: p.isDark ? Colors.black : Colors.white,
+              foregroundColor: Colors.black,
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               textStyle:
                   const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
