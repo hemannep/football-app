@@ -87,7 +87,7 @@ class _StandingsScreenState extends ConsumerState<StandingsScreen> {
                     // ── Live standings ──────────────────────────────────
                     return ListView(
                       padding:
-                          const EdgeInsets.only(bottom: 24, top: 4),
+                          const EdgeInsets.only(bottom: 30, top: 4),
                       children: [
                         if (league.code == Leagues.wc.code)
                           _ThirdPlaceCard(groups: groups),
@@ -113,7 +113,7 @@ class _StandingsScreenState extends ConsumerState<StandingsScreen> {
                       if (preview.isEmpty) return _empty(p);
                       return ListView(
                         padding:
-                            const EdgeInsets.only(bottom: 24, top: 4),
+                            const EdgeInsets.only(bottom: 30, top: 4),
                         children: [
                           // Caption banner
                           Container(

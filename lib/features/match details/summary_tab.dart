@@ -703,13 +703,17 @@ class _Last5Grid extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(result,
-                    style: const TextStyle(
-                        color: Colors.white,
+                    style: TextStyle(
+                        color: bg.computeLuminance() > 0.3
+                            ? Colors.black
+                            : Colors.white,
                         fontSize: 11,
                         fontWeight: FontWeight.w900)),
                 Text('$teamGoals-$oppGoals',
-                    style: const TextStyle(
-                        color: Colors.white,
+                    style: TextStyle(
+                        color: bg.computeLuminance() > 0.3
+                            ? Colors.black
+                            : Colors.white,
                         fontSize: 7,
                         fontWeight: FontWeight.w700)),
               ],

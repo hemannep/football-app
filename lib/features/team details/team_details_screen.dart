@@ -333,14 +333,18 @@ class TeamDetailScreen extends ConsumerWidget {
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
                                     Text(res,
-                                        style: const TextStyle(
-                                            color: Colors.white,
+                                        style: TextStyle(
+                                            color: c.computeLuminance() > 0.3
+                                                ? Colors.black
+                                                : Colors.white,
                                             fontSize: 14,
                                             fontWeight: FontWeight.w900,
                                             height: 1)),
                                     Text('$us-$them',
-                                        style: const TextStyle(
-                                            color: Colors.white,
+                                        style: TextStyle(
+                                            color: c.computeLuminance() > 0.3
+                                                ? Colors.black
+                                                : Colors.white,
                                             fontSize: 8,
                                             fontWeight: FontWeight.w700)),
                                   ],
@@ -991,19 +995,16 @@ class _MiniStandingsCard extends StatelessWidget {
               ),
             );
           }),
-          // "View full table" hint if there are more teams
+          // Footer hint when more teams exist beyond the 5 shown.
           if (teams.length > 5)
-            InkWell(
-              onTap: () {},
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Text(
-                  '${teams.length} teams in table',
-                  style: TextStyle(
-                      fontSize: 11,
-                      color: p.textLow,
-                      fontWeight: FontWeight.w600),
-                ),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                '${teams.length} teams in table',
+                style: TextStyle(
+                    fontSize: 11,
+                    color: p.textLow,
+                    fontWeight: FontWeight.w600),
               ),
             ),
         ],

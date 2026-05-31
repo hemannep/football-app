@@ -655,7 +655,7 @@ class _HalfTimeChip extends StatelessWidget {
       child: const Text(
         'HALF TIME',
         style: TextStyle(
-            color: Colors.white,
+            color: Colors.black,
             fontSize: 11,
             fontWeight: FontWeight.w800,
             letterSpacing: 0.5),
