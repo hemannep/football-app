@@ -62,13 +62,19 @@ class NewsScreen extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
             tooltip: 'Refresh',
-            onPressed: () => ref.invalidate(newsStreamProvider),
+            onPressed: () {
+              LiveDataService.instance.evict('news_30');
+              ref.invalidate(newsStreamProvider);
+            },
           ),
         ],
       ),
       body: RefreshIndicator(
         color: AppTheme.brand,
-        onRefresh: () async => ref.invalidate(newsStreamProvider),
+        onRefresh: () async {
+          LiveDataService.instance.evict('news_30');
+          ref.invalidate(newsStreamProvider);
+        },
         child: async.when(
           loading: () => const _NewsSkeleton(),
           error: (e, _) => _errorState(p, ref),
@@ -118,7 +124,10 @@ class NewsScreen extends ConsumerWidget {
           const SizedBox(height: 16),
           Center(
             child: TextButton.icon(
-              onPressed: () => ref.invalidate(newsStreamProvider),
+              onPressed: () {
+                LiveDataService.instance.evict('news_30');
+                ref.invalidate(newsStreamProvider);
+              },
               icon: const Icon(Icons.refresh_rounded),
               label: const Text('Retry'),
             ),

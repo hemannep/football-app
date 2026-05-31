@@ -94,6 +94,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         .toList()
       ..sort((a, b) => a.utcDate.compareTo(b.utcDate));
 
+    // Build tla→crest map for the favorites strip (uses all matches, not just today).
+    final crestByTla = <String, String?>{};
+    for (final m in s.matches) {
+      crestByTla[m.homeTeam.tla] ??= m.homeTeam.crest;
+      crestByTla[m.awayTeam.tla] ??= m.awayTeam.crest;
+    }
+
     final comingSoon = s.matches
         .where((m) =>
             !m.isLive &&
@@ -225,21 +232,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                           scrollDirection: Axis.horizontal,
                           child: Row(
                             children: favorites
-                                .take(6)
+                                .take(8)
                                 .map((tla) => Container(
-                                      margin: const EdgeInsets.only(right: 4),
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 7, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: AppTheme.brand
-                                            .withValues(alpha: 0.12),
-                                        borderRadius: BorderRadius.circular(6),
+                                      margin: const EdgeInsets.only(right: 8),
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          TeamCrestWidget(
+                                            crestUrl: crestByTla[tla],
+                                            tla: tla,
+                                            size: 26,
+                                          ),
+                                          const SizedBox(height: 3),
+                                          Text(tla,
+                                              style: TextStyle(
+                                                  fontSize: 9,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: p.textMid)),
+                                        ],
                                       ),
-                                      child: Text(tla,
-                                          style: TextStyle(
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.w800,
-                                              color: p.textMid)),
                                     ))
                                 .toList(),
                           ),

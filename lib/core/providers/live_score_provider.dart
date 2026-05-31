@@ -89,8 +89,9 @@ class LiveScoreNotifier extends StateNotifier<LiveScoreState> {
   }
 
   Future<void> forceRefresh() async {
-    // Firestore streams push updates automatically; re-subscribing forces a
-    // fresh read from the server rather than the SDK cache.
+    // Evict the in-memory + Hive match cache so the next getMatches() call
+    // goes straight to Firestore instead of serving stale cached data.
+    LiveDataService.instance.evict('matches_all');
     _subscribe();
   }
 

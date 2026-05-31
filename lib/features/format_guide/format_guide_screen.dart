@@ -355,7 +355,7 @@ class _FormatGuideScreenState extends ConsumerState<FormatGuideScreen> {
                       ? null
                       : () async {
                           await IapService.buyRemoveAds();
-                          setState(() {});
+                          if (mounted) setState(() {});
                         },
                   child: Text(removed ? 'Already removed ✓' : 'Remove Ads'),
                 ),
@@ -364,7 +364,7 @@ class _FormatGuideScreenState extends ConsumerState<FormatGuideScreen> {
               OutlinedButton(
                 onPressed: () async {
                   await IapService.restore();
-                  setState(() {});
+                  if (mounted) setState(() {});
                 },
                 child: const Text('Restore'),
               ),

@@ -57,6 +57,8 @@ class _StandingsScreenState extends ConsumerState<StandingsScreen> {
                   IconButton(
                     icon: const Icon(Icons.refresh_rounded),
                     onPressed: () {
+                      LiveDataService.instance.evict('standings_${league.code}');
+                      LiveDataService.instance.evict('matches_all');
                       ref.invalidate(standingsByLeagueProvider(league.code));
                       ref.invalidate(matchesStreamProvider);
                     },
@@ -240,8 +242,10 @@ class _StandingsScreenState extends ConsumerState<StandingsScreen> {
                       fontWeight: FontWeight.w700, color: p.textMid)),
               const SizedBox(height: 12),
               OutlinedButton.icon(
-                onPressed: () =>
-                    ref.invalidate(standingsStreamProvider),
+                onPressed: () {
+                  LiveDataService.instance.evict('standings_all');
+                  ref.invalidate(standingsStreamProvider);
+                },
                 icon: const Icon(Icons.refresh_rounded, size: 16),
                 label: const Text('Retry'),
               ),

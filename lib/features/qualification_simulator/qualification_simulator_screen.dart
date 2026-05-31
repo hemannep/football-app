@@ -717,7 +717,11 @@ class _OutcomeButton extends StatelessWidget {
             style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w800,
-                color: isSelected ? Colors.black : p.textMid)),
+                color: isSelected
+                    ? (color.computeLuminance() > 0.3
+                        ? Colors.black
+                        : Colors.white)
+                    : p.textMid)),
       ),
     );
   }
