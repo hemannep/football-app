@@ -234,8 +234,16 @@ class _SummaryTab extends ConsumerWidget {
               children: h2hMatches.take(5).map<Widget>((raw) {
                 if (raw is! Map) return const SizedBox.shrink();
                 final rm = raw.cast<String, dynamic>();
-                final ht = (rm['homeTeam'] as Map?)?['name'] as String? ?? '—';
-                final at = (rm['awayTeam'] as Map?)?['name'] as String? ?? '—';
+                final htMap = rm['homeTeam'] as Map?;
+                final atMap = rm['awayTeam'] as Map?;
+                final ht = htMap?['name'] as String? ?? '—';
+                final at = atMap?['name'] as String? ?? '—';
+                final htTla = htMap?['tla'] as String? ??
+                    ht.substring(0, ht.length.clamp(0, 3)).toUpperCase();
+                final atTla = atMap?['tla'] as String? ??
+                    at.substring(0, at.length.clamp(0, 3)).toUpperCase();
+                final htCrest = htMap?['crest'] as String?;
+                final atCrest = atMap?['crest'] as String?;
                 final sc = rm['score'] as Map?;
                 final ft = sc?['fullTime'] as Map?;
                 final hg = ft?['home'];
@@ -258,6 +266,9 @@ class _SummaryTab extends ConsumerWidget {
                                 color: p.textLow,
                                 fontWeight: FontWeight.w600)),
                       const Spacer(),
+                      TeamCrestWidget(
+                          crestUrl: htCrest, tla: htTla, size: 18),
+                      const SizedBox(width: 5),
                       Text(ht,
                           style: TextStyle(
                               fontSize: 12,
@@ -283,6 +294,9 @@ class _SummaryTab extends ConsumerWidget {
                               fontSize: 12,
                               fontWeight: FontWeight.w700,
                               color: p.textHi)),
+                      const SizedBox(width: 5),
+                      TeamCrestWidget(
+                          crestUrl: atCrest, tla: atTla, size: 18),
                     ],
                   ),
                 );
@@ -366,7 +380,7 @@ class _PossessionBar extends StatelessWidget {
                 ),
                 Expanded(
                   flex: ((1 - hRatio) * 100).round().clamp(1, 99),
-                  child: ColoredBox(color: p.textMid),
+                  child: const ColoredBox(color: AppTheme.live),
                 ),
               ],
             ),
