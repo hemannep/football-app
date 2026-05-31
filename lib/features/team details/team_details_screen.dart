@@ -1082,12 +1082,24 @@ class _Hero extends StatelessWidget {
                     color: Colors.black.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  child: Text(
-                    '👤 $coach',
-                    style: const TextStyle(
-                        color: Colors.black87,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.person_rounded,
+                          size: 12, color: Colors.black87),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text(
+                          coach!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              color: Colors.black87,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],

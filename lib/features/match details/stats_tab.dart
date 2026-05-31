@@ -89,7 +89,7 @@ class _StatsTab extends ConsumerWidget {
     List<MomentumPoint>? momentumPoints,
     bool fromFirestore = false,
   }) {
-    final allEmpty = stats.isEmpty && !showXg && possHome == null;
+    final allEmpty = stats.isEmpty && !showXg && possHome == null && possAway == null;
 
     if (allEmpty) {
       return _Unavailable(

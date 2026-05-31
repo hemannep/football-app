@@ -224,7 +224,7 @@ class _H2HTab extends ConsumerWidget {
                                 fontWeight: FontWeight.w600)),
                       ),
                     const SizedBox(width: 6),
-                    TeamCrestWidget(crestUrl: homeCrest, tla: htMap?['tla'] as String? ?? '', size: 18),
+                    TeamCrestWidget(crestUrl: homeCrest, tla: htMap?['tla'] as String? ?? '?', size: 18),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(homeTeamName,
@@ -259,7 +259,7 @@ class _H2HTab extends ConsumerWidget {
                               color: p.textHi)),
                     ),
                     const SizedBox(width: 6),
-                    TeamCrestWidget(crestUrl: awayCrest, tla: atMap?['tla'] as String? ?? '', size: 18),
+                    TeamCrestWidget(crestUrl: awayCrest, tla: atMap?['tla'] as String? ?? '?', size: 18),
                   ]),
                 ],
               ),

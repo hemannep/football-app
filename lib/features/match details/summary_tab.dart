@@ -206,7 +206,7 @@ class _SummaryTab extends ConsumerWidget {
         ],
 
         // ── Match info (Referee and Stadium) ────────────────────────────
-        const _SectionLabel('Referee and Stadium'),
+        const _SectionLabel('Match Info'),
         _InfoRow(p: p, icon: Icons.calendar_today_rounded, label: 'Date',
             value: DateFormat('EEEE, d MMM yyyy').format(match.utcDate)),
         _InfoRow(p: p, icon: Icons.schedule_rounded,
@@ -592,7 +592,7 @@ class _NextMatchList extends StatelessWidget {
     return Column(
       children: matches.map((m) {
         final dateStr = DateFormat('dd/MM').format(m.utcDate.toLocal());
-        final timeStr = DateFormat('h:mm a').format(m.utcDate.toLocal());
+        final timeStr = DateFormat('HH:mm').format(m.utcDate.toLocal());
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 6),
           child: Row(
@@ -1100,7 +1100,7 @@ class _PulsingDotState extends State<_PulsingDot>
             width: 7,
             height: 7,
             decoration: const BoxDecoration(
-                color: Colors.red, shape: BoxShape.circle)),
+                color: AppTheme.live, shape: BoxShape.circle)),
       );
 }
 
