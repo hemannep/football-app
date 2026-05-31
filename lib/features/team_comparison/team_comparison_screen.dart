@@ -676,8 +676,10 @@ class _FormRow extends StatelessWidget {
                         decoration:
                             BoxDecoration(color: col, shape: BoxShape.circle),
                         child: Text(c,
-                            style: const TextStyle(
-                                color: Colors.white,
+                            style: TextStyle(
+                                color: col.computeLuminance() > 0.3
+                                    ? Colors.black
+                                    : Colors.white,
                                 fontSize: 11,
                                 fontWeight: FontWeight.w900)),
                       );

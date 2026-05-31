@@ -14,8 +14,11 @@
 // Works for every team on football-data.org — Premier League clubs, La Liga
 // clubs, national sides, Bundesliga, Serie A, MLS, Brazil Série A.
 
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:http/http.dart' as http;
 import 'flag_widget.dart';
 
 /// Same TLA → ISO2 keys that FlagWidget knows. Used to decide whether a TLA
@@ -112,6 +115,22 @@ class TeamCrestWidget extends StatefulWidget {
 class _TeamCrestWidgetState extends State<TeamCrestWidget> {
   bool _failed = false;
 
+  // SVG loading: we fetch bytes ourselves so we can catch network errors.
+  // SvgPicture.network has no errorBuilder — if the request fails it just
+  // shows the placeholder forever. Caching the Future prevents re-fetching
+  // on every rebuild.
+  Future<Uint8List>? _svgFuture;
+  String? _svgUrl;
+
+  void _loadSvg(String url) {
+    if (url == _svgUrl) return;
+    _svgUrl = url;
+    _svgFuture = http.get(Uri.parse(url)).then((r) {
+      if (r.statusCode == 200) return r.bodyBytes;
+      throw Exception('HTTP ${r.statusCode}');
+    });
+  }
+
   bool get _hasUrl =>
       widget.crestUrl != null && widget.crestUrl!.trim().isNotEmpty;
   bool get _isSvg => _hasUrl && widget.crestUrl!.toLowerCase().endsWith('.svg');
@@ -119,18 +138,46 @@ class _TeamCrestWidgetState extends State<TeamCrestWidget> {
   bool get _isNation => _nationalTlas.contains(widget.tla.toUpperCase());
 
   @override
+  void initState() {
+    super.initState();
+    if (_hasUrl && _isSvg) _loadSvg(widget.crestUrl!);
+  }
+
+  @override
+  void didUpdateWidget(TeamCrestWidget old) {
+    super.didUpdateWidget(old);
+    if (widget.crestUrl != old.crestUrl) {
+      _failed = false;
+      _svgFuture = null;
+      _svgUrl = null;
+      if (_hasUrl && _isSvg) _loadSvg(widget.crestUrl!);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final s = widget.size;
     Widget child;
-    if (_canTryCrest && _isSvg) {
-      child = SvgPicture.network(
-        widget.crestUrl!,
-        width: s,
-        height: s,
-        fit: BoxFit.contain,
-        placeholderBuilder: (_) => _placeholderBox(s),
+    if (_canTryCrest && _isSvg && _svgFuture != null) {
+      child = FutureBuilder<Uint8List>(
+        future: _svgFuture,
+        builder: (context, snap) {
+          if (snap.hasError) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) setState(() => _failed = true);
+            });
+            return _fallback(s);
+          }
+          if (!snap.hasData) return _placeholderBox(s);
+          return SvgPicture.memory(
+            snap.data!,
+            width: s,
+            height: s,
+            fit: BoxFit.contain,
+          );
+        },
       );
-    } else if (_canTryCrest) {
+    } else if (_canTryCrest && !_isSvg) {
       child = Image.network(
         widget.crestUrl!,
         width: s,

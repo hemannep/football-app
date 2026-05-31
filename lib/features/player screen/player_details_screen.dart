@@ -53,8 +53,10 @@ class PlayerDetailScreen extends ConsumerWidget {
     final fsPlayer = fsAsync?.value;
     final sdbPlayer = sdbAsync.value;
 
-    final bool isLoading =
-        (fsAsync?.isLoading ?? false) || (fsAsync == null && sdbAsync.isLoading);
+    // Both providers must have settled before we can declare "no data".
+    // The original check missed sdbAsync.isLoading when fsAsync is non-null,
+    // causing a brief "Limited info" flash before SportsDB data arrives.
+    final bool isLoading = (fsAsync?.isLoading ?? false) || sdbAsync.isLoading;
 
     // Merge: Firestore fields take precedence, SportsDB fills anything missing.
     final displayPhoto = (fsPlayer?['photoUrl'] as String?) ??

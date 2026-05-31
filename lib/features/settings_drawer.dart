@@ -114,10 +114,10 @@ class SettingsDrawer extends ConsumerWidget {
                     },
                   ),
                   _Tile(
-                    icon: Icons.notifications_active_rounded,
+                    icon: Icons.notifications_outlined,
                     label: t.settingsNotifications,
-                    trailing: 'On',
-                    onTap: () => _toast(context, 'Notifications coming soon'),
+                    trailing: 'Soon',
+                    onTap: () => _toast(context, 'Push notifications coming soon'),
                   ),
 
                   // ── Bonus features ──────────────────────────────────────

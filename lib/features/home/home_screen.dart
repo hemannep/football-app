@@ -22,6 +22,7 @@ import '../../shared/widgets/match_card.dart';
 import '../../shared/widgets/team_crest_widget.dart';
 import '../league picker/league_picker.dart';
 import '../match details/match_details_screen.dart' hide SectionLabel;
+import '../team details/team_details_screen.dart';
 import 'home_extras_widgets.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -94,11 +95,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         .toList()
       ..sort((a, b) => a.utcDate.compareTo(b.utcDate));
 
-    // Build tla→crest map for the favorites strip (uses all matches, not just today).
+    // Build tla→crest and tla→teamId maps for the favorites strip.
     final crestByTla = <String, String?>{};
+    final idByTla = <String, int>{};
     for (final m in s.matches) {
       crestByTla[m.homeTeam.tla] ??= m.homeTeam.crest;
       crestByTla[m.awayTeam.tla] ??= m.awayTeam.crest;
+      if (m.homeTeam.id != null) idByTla[m.homeTeam.tla] ??= m.homeTeam.id!;
+      if (m.awayTeam.id != null) idByTla[m.awayTeam.tla] ??= m.awayTeam.id!;
     }
 
     final comingSoon = s.matches
@@ -233,7 +237,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                           child: Row(
                             children: favorites
                                 .take(8)
-                                .map((tla) => Container(
+                                .map((tla) {
+                                  final teamId = idByTla[tla];
+                                  return GestureDetector(
+                                    onTap: teamId != null
+                                        ? () => Navigator.of(context).push(
+                                              MaterialPageRoute(
+                                                builder: (_) => TeamDetailScreen(
+                                                  teamId: teamId,
+                                                  fallbackName: tla,
+                                                  fallbackTla: tla,
+                                                ),
+                                              ),
+                                            )
+                                        : null,
+                                    child: Container(
                                       margin: const EdgeInsets.only(right: 8),
                                       child: Column(
                                         mainAxisSize: MainAxisSize.min,
@@ -241,7 +259,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                           TeamCrestWidget(
                                             crestUrl: crestByTla[tla],
                                             tla: tla,
-                                            size: 26,
+                                            size: 28,
                                           ),
                                           const SizedBox(height: 3),
                                           Text(tla,
@@ -251,7 +269,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                                   color: p.textMid)),
                                         ],
                                       ),
-                                    ))
+                                    ),
+                                  );
+                                })
                                 .toList(),
                           ),
                         ),
