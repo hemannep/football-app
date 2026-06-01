@@ -15,7 +15,7 @@ class ApiKeys {
   // Register at https://sports.bzzoiro.com/register/ to get your token.
   static const String bsdToken = String.fromEnvironment(
     'BSD_TOKEN',
-    defaultValue: 'PASTE_YOUR_BSD_TOKEN_HERE',
+    defaultValue: 'f6e98c734b0d8843bc9ab8fa8b758d52c36ba6ba',
   );
   static const String bsdBase = 'https://sports.bzzoiro.com/api/v2';
 

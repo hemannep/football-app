@@ -25,20 +25,36 @@ import 'package:http/http.dart' as http;
 import 'package:hive/hive.dart';
 import '../constants/api_keys.dart';
 import 'extras_service.dart';
+import 'firebase_service.dart';
 
 void _log(String m) {
   if (kDebugMode) debugPrint('[BSD] $m');
 }
 
 class BsdService {
+  /// Runtime token: Remote Config takes precedence over the compile-time
+  /// --dart-define fallback so the token can be rotated without a rebuild.
+  static String get _token {
+    final rc = FirebaseService.instance.bsdToken;
+    if (rc.isNotEmpty) return rc;
+    return ApiKeys.bsdToken; // --dart-define=BSD_TOKEN=... fallback
+  }
+
   static Map<String, String> get _headers => {
-        'Authorization': 'Token ${ApiKeys.bsdToken}',
+        'Authorization': 'Token $_token',
         'Accept': 'application/json',
       };
 
-  static bool get _hasToken =>
-      ApiKeys.bsdToken.isNotEmpty &&
-      ApiKeys.bsdToken != 'PASTE_YOUR_BSD_TOKEN_HERE';
+  static bool get _hasToken {
+    final t = _token;
+    final ok = t.isNotEmpty && t != 'PASTE_YOUR_BSD_TOKEN_HERE';
+    if (!ok) {
+      _log('Token missing — RC="${FirebaseService.instance.bsdToken.isEmpty ? "empty" : "set"}" '
+          'dart-define="${ApiKeys.bsdToken == "PASTE_YOUR_BSD_TOKEN_HERE" ? "placeholder" : "set"}". '
+          'Set bsd_token in Firebase Remote Config.');
+    }
+    return ok;
+  }
 
   // ─── Resolve fd.org match → BSD event id ───────────────────────────────────
   //

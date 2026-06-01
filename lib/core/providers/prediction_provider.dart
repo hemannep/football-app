@@ -62,6 +62,10 @@ class PredictionNotifier extends AsyncNotifier<void> {
               homeGoals: homeGoals,
               awayGoals: awayGoals,
             ));
+    // Bust the cache so the next watch() re-reads the updated list.
+    await PredictionService.instance.invalidateMyPredictions();
+    ref.invalidate(myPredictionsProvider);
+    ref.invalidate(leaderboardProvider);
   }
 }
 

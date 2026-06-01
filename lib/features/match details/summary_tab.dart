@@ -16,7 +16,7 @@ class _SummaryTab extends ConsumerWidget {
 
     // Raw doc gives us scorers with names, xG, referee, H2H.
     final rawAsync = (match.isFinished || match.isLive)
-        ? ref.watch(_rawMatchProvider(match.id))
+        ? ref.watch(_rawMatchProvider(match))
         : null;
     final rawDoc = rawAsync?.value;
 

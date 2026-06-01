@@ -6,6 +6,8 @@
 //   • Fetch community prediction stats for a match (% home/draw/away)
 //   • Leaderboard stream (top 50 users by points)
 
+import 'dart:convert';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
@@ -153,6 +155,18 @@ class CommunityStats {
 }
 
 // ─── Service ─────────────────────────────────────────────────────────────────
+
+// Hive TTL keys for cached Firestore reads (avoids persistent snapshots()).
+const _kMyPredsAt  = 'ps_my_preds_at';
+const _kCommStatsPrefix = 'ps_comm_';
+const _kLbKey  = 'ps_leaderboard';
+const _kLbAt   = 'ps_leaderboard_at';
+const _kMyPredsListKey = 'ps_my_preds_list';
+
+// TTLs (ms)
+const _kMyPredsTtl   = 10 * 60 * 1000; // 10 min
+const _kCommStatsTtl =  5 * 60 * 1000; //  5 min
+const _kLbTtl        = 15 * 60 * 1000; // 15 min
 
 class PredictionService {
   PredictionService._();
@@ -306,32 +320,117 @@ class PredictionService {
   }
 
   // ── Stream all my predictions (for stats card) ───────────────────────────
+  // One-shot get() with 10-min Hive cache. Re-fetches after submission via
+  // ref.invalidate(myPredictionsProvider) in the notifier.
 
-  Stream<List<UserPrediction>> myPredictionsStream() {
-    return _myPreds.orderBy('submittedAt', descending: true).snapshots().map(
-        (snap) =>
-            snap.docs.map((d) => UserPrediction.fromMap(d.data())).toList());
+  Stream<List<UserPrediction>> myPredictionsStream() async* {
+    final box = Hive.box('predictions');
+
+    // Serve Hive cache immediately so the UI is never blank.
+    final hiveRaw = box.get(_kMyPredsListKey);
+    if (hiveRaw != null) {
+      try {
+        final list = (jsonDecode(hiveRaw as String) as List)
+            .map((e) => UserPrediction.fromMap(
+                Map<String, dynamic>.from(e as Map)))
+            .toList();
+        yield list;
+      } catch (_) {}
+    }
+
+    // Respect TTL — skip Firestore if cache is fresh.
+    final at = box.get(_kMyPredsAt) as int?;
+    final age = at == null ? null
+        : DateTime.now().millisecondsSinceEpoch - at;
+    if (age != null && age < _kMyPredsTtl) return;
+
+    try {
+      final snap =
+          await _myPreds.orderBy('submittedAt', descending: true).get();
+      final preds =
+          snap.docs.map((d) => UserPrediction.fromMap(d.data())).toList();
+      await box.put(
+          _kMyPredsListKey,
+          jsonEncode(preds.map((p) => p.toMap()).toList()));
+      await box.put(_kMyPredsAt, DateTime.now().millisecondsSinceEpoch);
+      yield preds;
+    } catch (_) {}
+  }
+
+  // Invalidate the my-predictions cache so the next watch() re-fetches.
+  Future<void> invalidateMyPredictions() async {
+    await Hive.box('predictions').delete(_kMyPredsAt);
   }
 
   // ── Community stats for a match ──────────────────────────────────────────
+  // One-shot get() with 5-min Hive cache — no persistent collection listener.
 
-  Stream<CommunityStats> communityStatsStream(String matchKey) {
-    return _communityDoc(matchKey).snapshots().map((snap) {
-      if (!snap.exists || snap.data() == null) return CommunityStats.empty;
-      return CommunityStats.fromMap(snap.data()!);
-    });
+  Stream<CommunityStats> communityStatsStream(String matchKey) async* {
+    final box = Hive.box('predictions');
+    final cacheKey = '$_kCommStatsPrefix$matchKey';
+    final cacheAt  = '${cacheKey}_at';
+
+    final hiveRaw = box.get(cacheKey);
+    if (hiveRaw != null) {
+      try {
+        yield CommunityStats.fromMap(
+            jsonDecode(hiveRaw as String) as Map<String, dynamic>);
+      } catch (_) {}
+    }
+
+    final at = box.get(cacheAt) as int?;
+    final age = at == null ? null
+        : DateTime.now().millisecondsSinceEpoch - at;
+    if (age != null && age < _kCommStatsTtl) return;
+
+    try {
+      final snap = await _communityDoc(matchKey).get();
+      if (snap.exists && snap.data() != null) {
+        final stats = CommunityStats.fromMap(snap.data()!);
+        await box.put(cacheKey, jsonEncode(snap.data()));
+        await box.put(cacheAt, DateTime.now().millisecondsSinceEpoch);
+        yield stats;
+      } else {
+        yield CommunityStats.empty;
+      }
+    } catch (_) {}
   }
 
   // ── Leaderboard (top 50) ─────────────────────────────────────────────────
+  // One-shot get() with 15-min Hive cache — was a persistent 50-doc listener.
 
-  Stream<List<LeaderboardEntry>> leaderboardStream() {
-    return _db
-        .collection('leaderboard')
-        .orderBy('totalPoints', descending: true)
-        .limit(50)
-        .snapshots()
-        .map((snap) =>
-            snap.docs.map((d) => LeaderboardEntry.fromMap(d.data())).toList());
+  Stream<List<LeaderboardEntry>> leaderboardStream() async* {
+    final box = Hive.box('predictions');
+
+    final hiveRaw = box.get(_kLbKey);
+    if (hiveRaw != null) {
+      try {
+        final list = (jsonDecode(hiveRaw as String) as List)
+            .map((e) => LeaderboardEntry.fromMap(
+                Map<String, dynamic>.from(e as Map)))
+            .toList();
+        yield list;
+      } catch (_) {}
+    }
+
+    final at = box.get(_kLbAt) as int?;
+    final age = at == null ? null
+        : DateTime.now().millisecondsSinceEpoch - at;
+    if (age != null && age < _kLbTtl) return;
+
+    try {
+      final snap = await _db
+          .collection('leaderboard')
+          .orderBy('totalPoints', descending: true)
+          .limit(50)
+          .get();
+      final entries =
+          snap.docs.map((d) => LeaderboardEntry.fromMap(d.data())).toList();
+      await box.put(
+          _kLbKey, jsonEncode(snap.docs.map((d) => d.data()).toList()));
+      await box.put(_kLbAt, DateTime.now().millisecondsSinceEpoch);
+      yield entries;
+    } catch (_) {}
   }
 
   // ── Set a display name (optional, users can personalise) ─────────────────

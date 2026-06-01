@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:hive/hive.dart';
 import 'firebase_service.dart';
 
 class FirestoreService {
@@ -85,13 +88,36 @@ class FirestoreService {
     }, SetOptions(merge: true));
   }
 
-  /// Top 20 leaderboard — call this on the Trivia screen
-  Stream<List<Map<String, dynamic>>> leaderboardStream() {
-    return _db
-        .collection('leaderboard')
-        .orderBy('bestScore', descending: true)
-        .limit(20)
-        .snapshots()
-        .map((snap) => snap.docs.map((d) => d.data()).toList());
+  /// Top 20 leaderboard — TTL-cached get(), not a persistent snapshots() listener.
+  Stream<List<Map<String, dynamic>>> leaderboardStream() async* {
+    const key   = 'fs_trivia_lb';
+    const keyAt = 'fs_trivia_lb_at';
+    const ttl   = 15 * 60 * 1000; // 15 min
+    final box   = Hive.box('live_cache');
+
+    final hiveRaw = box.get(key);
+    if (hiveRaw != null) {
+      try {
+        yield (jsonDecode(hiveRaw as String) as List)
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
+      } catch (_) {}
+    }
+
+    final at  = box.get(keyAt) as int?;
+    final age = at == null ? null : DateTime.now().millisecondsSinceEpoch - at;
+    if (age != null && age < ttl) return;
+
+    try {
+      final snap = await _db
+          .collection('leaderboard')
+          .orderBy('bestScore', descending: true)
+          .limit(20)
+          .get();
+      final list = snap.docs.map((d) => d.data()).toList();
+      await box.put(key, jsonEncode(list));
+      await box.put(keyAt, DateTime.now().millisecondsSinceEpoch);
+      yield list;
+    } catch (_) {}
   }
 }

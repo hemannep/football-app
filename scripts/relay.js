@@ -26,6 +26,7 @@ const fetchFn = global.fetch
 // ─── Config ───────────────────────────────────────────────────────────────────
 const FD_BASE          = 'https://api.football-data.org/v4';
 const APIFOOTBALL_BASE = 'https://v3.football.api-sports.io';
+const BSD_BASE         = 'https://sports.bzzoiro.com/api/v2';
 
 const COMPETITIONS = ['WC', 'CL', 'EC', 'PL', 'PD', 'BL1', 'SA', 'FL1', 'DED', 'PPL', 'ELC', 'BSA'];
 
@@ -102,6 +103,92 @@ async function apiFootballGet(path) {
     console.warn(`API-Football error on ${path}: ${err.message}`);
     return null;
   }
+}
+
+// ─── BSD v2 helper (lineup fallback when API-Football has no WC26 data) ───────
+async function bsdGet(path) {
+  if (!process.env.BZZOIRO_TOKEN) return null;
+  const ctrl  = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), HTTP_TIMEOUT_MS);
+  try {
+    const res = await fetchFn(`${BSD_BASE}${path}`, {
+      headers: {
+        Authorization: `Token ${process.env.BZZOIRO_TOKEN}`,
+        Accept: 'application/json',
+      },
+      signal: ctrl.signal,
+    });
+    clearTimeout(timer);
+    if (!res.ok) { console.warn(`BSD ${res.status} on ${path}`); return null; }
+    return res.json();
+  } catch (err) {
+    clearTimeout(timer);
+    console.warn(`BSD error on ${path}: ${err.message}`);
+    return null;
+  }
+}
+
+// Resolve BSD event id by (date, home, away) — same logic as Flutter BsdService.
+async function resolveBsdEventId(utcDate, homeName, awayName) {
+  const dateStr = new Date(utcDate).toISOString().slice(0, 10);
+  const d = new Date(dateStr);
+  const dates = [
+    dateStr,
+    new Date(d.getTime() + 86400000).toISOString().slice(0, 10),
+    new Date(d.getTime() - 86400000).toISOString().slice(0, 10),
+  ];
+  function loose(s) { return (s || '').toLowerCase().replace(/[^a-z0-9]/g, ''); }
+  function similar(a, b) {
+    if (!a || !b) return false;
+    if (a === b) return true;
+    if (a.includes(b) || b.includes(a)) return true;
+    const shorter = a.length < b.length ? a : b;
+    const longer  = a.length < b.length ? b : a;
+    for (let len = shorter.length; len >= 4; len--) {
+      for (let i = 0; i + len <= shorter.length; i++) {
+        if (longer.includes(shorter.substring(i, i + len))) return true;
+      }
+    }
+    return false;
+  }
+  for (const probe of [homeName, awayName]) {
+    for (const d of dates) {
+      const data = await bsdGet(
+        `/events/?team_name=${encodeURIComponent(probe)}&date_from=${d}&date_to=${d}&limit=50`
+      );
+      const results = data?.results ?? [];
+      const lh = loose(homeName), la = loose(awayName);
+      for (const e of results) {
+        const h = loose(e.home_team || ''), a = loose(e.away_team || '');
+        if ((similar(h, lh) && similar(a, la)) || (similar(h, la) && similar(a, lh))) {
+          return e.id;
+        }
+      }
+    }
+  }
+  return null;
+}
+
+// Convert BSD v2 lineup response to flat list the Flutter app expects.
+function bsdLineupsToFlat(lineupsData) {
+  if (!lineupsData) return null;
+  const out = [];
+  function addSide(side, isHome) {
+    if (!side) return;
+    for (const p of (side.starters || [])) {
+      out.push({ player_name: p.name || '', name: p.name || '',
+        jersey_number: p.shirt_number ?? null, position: p.position || null,
+        is_home: isHome, is_starter: true });
+    }
+    for (const p of (side.bench || [])) {
+      out.push({ player_name: p.name || '', name: p.name || '',
+        jersey_number: p.shirt_number ?? null, position: p.position || null,
+        is_home: isHome, is_starter: false });
+    }
+  }
+  addSide(lineupsData.home, true);
+  addSide(lineupsData.away, false);
+  return out.length > 0 ? out : null;
 }
 
 // ─── Normalizers ──────────────────────────────────────────────────────────────
@@ -212,11 +299,10 @@ async function fetchMatchDetail(matchId) {
   }, { merge: true });
 }
 
-// ─── Phase 4: lineup (API-Football, best-effort) ─────────────────────────────
-// Used for both live matches (pre-match lineups) and newly-finished matches.
-// Rate-limited: skips if lineup was already stored within the last 20 minutes
-// to avoid burning the API-Football daily quota during long live-match windows.
-async function fetchAndStoreLineup(matchId, { force = false } = {}) {
+// ─── Phase 4: lineup (API-Football primary, BSD v2 fallback) ─────────────────
+// Rate-limited: skips if lineup was already stored within the last 20 minutes.
+// Falls back to BSD v2 when API-Football free tier returns no WC26 data.
+async function fetchAndStoreLineup(matchId, matchDoc, { force = false } = {}) {
   if (!force) {
     try {
       const existing = await db.collection('lineups').doc(String(matchId)).get();
@@ -228,20 +314,60 @@ async function fetchAndStoreLineup(matchId, { force = false } = {}) {
     } catch (_) {}
   }
 
+  // ── Primary: API-Football ──────────────────────────────────────────────────
   const data    = await apiFootballGet(`/fixtures?id=${matchId}`);
   const fixture = data?.response?.[0];
-  if (!fixture) return;
-
-  await db.collection('lineups').doc(String(matchId)).set(
-    { home: fixture.lineups?.[0] ?? null, away: fixture.lineups?.[1] ?? null, events: fixture.events ?? [], fetchedAt: NOW() }
-  );
-  if (fixture.lineups?.length) {
-    await db.collection('matches').doc(String(matchId)).set(
-      { confirmedLineup: { home: fixture.lineups[0] ?? null, away: fixture.lineups[1] ?? null }, confirmedLineupAt: NOW() },
-      { merge: true }
-    );
+  if (fixture?.lineups?.length) {
+    await db.collection('lineups').doc(String(matchId)).set({
+      home: fixture.lineups[0] ?? null,
+      away: fixture.lineups[1] ?? null,
+      events: fixture.events ?? [],
+      fetchedAt: NOW(),
+    });
+    await db.collection('matches').doc(String(matchId)).set({
+      confirmedLineup: { home: fixture.lineups[0], away: fixture.lineups[1] },
+      confirmedLineupAt: NOW(),
+    }, { merge: true });
+    console.log(`  Lineup (API-Football) stored for match ${matchId}`);
+    return;
   }
-  console.log(`  Lineup stored for match ${matchId}`);
+
+  // ── Fallback: BSD v2 (covers WC26 when API-Football free tier can't) ───────
+  if (!process.env.BZZOIRO_TOKEN) return;
+  const utcDate  = matchDoc?.utcDate;
+  const homeName = matchDoc?.homeTeam?.name;
+  const awayName = matchDoc?.awayTeam?.name;
+  if (!utcDate || !homeName || !awayName) return;
+
+  const bsdId = await resolveBsdEventId(utcDate, homeName, awayName);
+  if (!bsdId) { console.log(`  BSD: could not resolve event for match ${matchId}`); return; }
+
+  const lineupsRaw = await bsdGet(`/events/${bsdId}/lineups/`);
+  if (!lineupsRaw) return;
+
+  const flatLineups = bsdLineupsToFlat(lineupsRaw);
+  if (!flatLineups || flatLineups.length === 0) return;
+
+  await db.collection('lineups').doc(String(matchId)).set({
+    home: lineupsRaw.home ?? null,
+    away: lineupsRaw.away ?? null,
+    flatLineups,
+    fetchedAt: NOW(),
+    source: 'bsd_v2',
+  });
+  await db.collection('matches').doc(String(matchId)).set({
+    bzzLineups: flatLineups,
+    bzzCoach: {
+      home: lineupsRaw.home?.coach?.name ?? null,
+      away: lineupsRaw.away?.coach?.name ?? null,
+    },
+    bzzPredictedFormation: {
+      home: lineupsRaw.home?.formation ?? null,
+      away: lineupsRaw.away?.formation ?? null,
+    },
+    confirmedLineupAt: NOW(),
+  }, { merge: true });
+  console.log(`  Lineup (BSD v2) stored for match ${matchId} — ${flatLineups.length} players`);
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
@@ -279,20 +405,12 @@ async function main() {
   });
 
   // ── Phase 3: standings ─────────────────────────────────────────────────────
-  // Top of hour → refresh all competitions (full snapshot, once per hour).
-  // During a match window → only update competitions that have live matches.
-  // This avoids writing all 12 standings docs every 5 min during busy periods.
-  const topOfHour = now.getUTCMinutes() < 5;
-  const compsForStandings = topOfHour
-    ? COMPETITIONS
-    : liveCompCodes.size > 0 ? [...liveCompCodes] : [];
-
-  if (compsForStandings.length > 0) {
-    console.log(`Phase 3: standings for ${compsForStandings.length} comp(s)…`);
-    for (const comp of compsForStandings) {
-      await fetchAndStoreStandingsForComp(comp);
-      await sleep(RATE_LIMIT_MS);
-    }
+  // Always refresh all competitions every run (Blaze plan, writes are cheap).
+  // Previously only ran at top-of-hour which left Firestore empty for hours.
+  console.log(`Phase 3: standings for all ${COMPETITIONS.length} comp(s)…`);
+  for (const comp of COMPETITIONS) {
+    await fetchAndStoreStandingsForComp(comp);
+    await sleep(RATE_LIMIT_MS);
   }
 
   // ── Phase 4: per-match detail + lineups for live matches ──────────────────
@@ -301,11 +419,10 @@ async function main() {
     for (const id of allLiveIds) {
       await fetchMatchDetail(id);
       await sleep(RATE_LIMIT_MS);
-      // Also try to grab lineups from API-Football (rate-limited internally).
-      if (process.env.APIFOOTBALL_KEY) {
-        await fetchAndStoreLineup(id);
-        await sleep(RATE_LIMIT_MS);
-      }
+      // Grab lineups — API-Football primary, BSD v2 fallback for WC26.
+      const liveMatch = allMatches.find((x) => x.id === id);
+      await fetchAndStoreLineup(id, liveMatch);
+      await sleep(RATE_LIMIT_MS);
     }
   }
 
@@ -321,7 +438,7 @@ async function main() {
     console.log(`Phase 5: ${newlyFinished.length} newly finished match(es)…`);
     for (const m of newlyFinished) {
       await fetchMatchDetail(m.id);
-      await fetchAndStoreLineup(m.id);
+      await fetchAndStoreLineup(m.id, m);
       await sleep(RATE_LIMIT_MS);
     }
   }

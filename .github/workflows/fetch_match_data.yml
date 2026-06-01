@@ -36,6 +36,9 @@ jobs:
           FD_TOKEN: ${{ secrets.FD_TOKEN }}
           APIFOOTBALL_KEY: ${{ secrets.APIFOOTBALL_KEY }}
           FIREBASE_SA: ${{ secrets.FIREBASE_SA }}
+          # BSD v2 token — used as lineup fallback when API-Football free tier
+          # has no data for the current season (e.g. WC26).
+          BZZOIRO_TOKEN: ${{ secrets.BZZOIRO_TOKEN }}
 
       - name: Enrich with Bzzoiro (lineups, incidents, xG)
         # Runs AFTER the relay so it can match against the matches that the

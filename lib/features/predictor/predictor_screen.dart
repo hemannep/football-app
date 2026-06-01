@@ -556,6 +556,32 @@ class _LeaderboardTab extends ConsumerWidget {
         final myRank = myRankIdx == -1 ? null : myRankIdx + 1;
         final myEntry = myRankIdx == -1 ? null : entries[myRankIdx];
 
+        // Empty state — WC26 just started, no one has predictions settled yet.
+        if (entries.isEmpty) {
+          return ListView(
+            padding: const EdgeInsets.only(bottom: 24),
+            children: [
+              _MyCard(myUid: myUid, myName: myName, myRank: null, myEntry: null, ref: ref),
+              const SizedBox(height: 32),
+              Center(
+                child: Column(
+                  children: [
+                    Icon(Icons.leaderboard_outlined, size: 48,
+                        color: p.textLow.withValues(alpha: 0.4)),
+                    const SizedBox(height: 12),
+                    Text('No rankings yet',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: p.textHi)),
+                    const SizedBox(height: 6),
+                    Text('Submit predictions on finished matches\nto earn points and appear here.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 13, color: p.textMid)),
+                  ],
+                ),
+              ),
+            ],
+          );
+        }
+
         return ListView.builder(
           padding: const EdgeInsets.only(bottom: 24),
           // +1 for the "You" header card, +1 for section label

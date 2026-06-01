@@ -38,6 +38,7 @@ import 'package:hive/hive.dart';
 
 import '../../shared/models/match.dart';
 import '../../shared/models/standing.dart';
+import 'api_service.dart';
 
 class LiveDataService {
   LiveDataService._();
@@ -312,6 +313,31 @@ class LiveDataService {
             : null);
   }
 
+  /// Smart stream that avoids a persistent Firestore listener for non-live
+  /// matches.  Only live/paused matches keep the real-time snapshots() open;
+  /// finished and upcoming matches get a single cached get() instead.
+  Stream<Map<String, dynamic>?> watchMatchRawSmart(
+      int matchId, bool isLiveOrPaused) async* {
+    if (isLiveOrPaused) {
+      // Real-time updates justified — relay pushes every ~5 min.
+      yield* watchMatchRaw(matchId);
+    } else {
+      // One-shot fetch + 30-min Hive cache.  0 persistent listeners.
+      final key = 'match_raw_$matchId';
+      final age = _cacheAgeMs(key);
+      if (age != null && age < const Duration(minutes: 30).inMilliseconds) {
+        final cached = _readCache(key);
+        if (cached is Map) {
+          yield Map<String, dynamic>.from(cached);
+          return;
+        }
+      }
+      final data = await getMatchRaw(matchId);
+      FirestoreReadCounter.increment();
+      yield data;
+    }
+  }
+
   // ─── Lineups ──────────────────────────────────────────────────────────────
 
   /// lineups/{matchId} — written by relay.js after API-Football fetch.
@@ -378,10 +404,21 @@ class LiveDataService {
     try {
       final snap = await _db.collection('standings').get();
       final raw = snap.docs.map((d) => d.data()).toList();
-      _cache(key, raw);
-      final list = raw.map((e) => GroupTable.fromJson(e)).toList();
-      _memPut(key, list, _standingsTtl);
-      return list;
+      if (raw.isNotEmpty) {
+        _cache(key, raw);
+        final list = raw.map((e) => GroupTable.fromJson(e)).toList();
+        _memPut(key, list, _standingsTtl);
+        return list;
+      }
+      // Firestore empty → relay hasn't written standings yet (only writes
+      // at top-of-hour). Fall through to direct API fetch below.
+    } catch (_) {}
+
+    // ── Direct API fallback (relay not run yet / top-of-hour not hit) ─────────
+    // Returns data immediately; relay will populate Firestore on next top-of-hour.
+    try {
+      final list = await ApiService.fetchStandings('WC');
+      if (list.isNotEmpty) return list;
     } catch (_) {}
 
     final cached = _readCache(key);
@@ -426,10 +463,18 @@ class LiveDataService {
           .where('competitionCode', isEqualTo: competitionCode)
           .get();
       final raw = snap.docs.map((d) => d.data()).toList();
-      _cache(key, raw);
-      final list = raw.map((e) => GroupTable.fromJson(e)).toList();
-      _memPut(key, list, _standingsTtl);
-      return list;
+      if (raw.isNotEmpty) {
+        _cache(key, raw);
+        final list = raw.map((e) => GroupTable.fromJson(e)).toList();
+        _memPut(key, list, _standingsTtl);
+        return list;
+      }
+    } catch (_) {}
+
+    // Direct API fallback when Firestore standings are empty.
+    try {
+      final list = await ApiService.fetchStandings(competitionCode);
+      if (list.isNotEmpty) return list;
     } catch (_) {}
 
     final cached = _readCache(key);
@@ -709,9 +754,18 @@ final standingsByLeagueProvider =
       ref.watch(liveDataServiceProvider).watchStandingsByLeague(code),
 );
 
-/// Single match snapshot — kept as real-time (1 read/push, justified for live).
-final matchStreamProvider = StreamProvider.family<Match?, int>(
-  (ref, matchId) => ref.watch(liveDataServiceProvider).watchMatch(matchId),
+/// Single match snapshot — autoDispose so the Firestore listener closes when
+/// the screen is no longer visible.  Uses watchMatchRawSmart internally so
+/// non-live matches do a cached get() instead of keeping a persistent listener.
+final matchStreamProvider = StreamProvider.family.autoDispose<Match?, Match>(
+  (ref, m) {
+    final svc  = ref.watch(liveDataServiceProvider);
+    final live = m.isLive || m.status == 'PAUSED';
+    return svc.watchMatchRawSmart(m.id, live).map((raw) {
+      if (raw == null) return null;
+      return LiveDataService._safeParseMatch(raw);
+    });
+  },
 );
 
 /// Team profile + squad. 24-hour TTL.
@@ -741,3 +795,44 @@ final newsStreamProvider = StreamProvider<List<Map<String, dynamic>>>(
 final lineupProvider = FutureProvider.family<Map<String, dynamic>?, int>(
   (ref, matchId) => ref.watch(liveDataServiceProvider).getLineup(matchId),
 );
+
+// ─── Firestore daily read counter ────────────────────────────────────────────
+//
+// Call FirestoreReadCounter.increment() on every Firestore get() or
+// snapshots() trigger that goes to the server.  The counter resets at
+// midnight local time.  When todayCount ≥ 40 000 the app warns; at 48 000
+// non-critical reads are suppressed.  All values live in the Hive
+// 'live_cache' box so they survive process restarts within the same day.
+
+class FirestoreReadCounter {
+  static const _kCount = 'frc_count';
+  static const _kDate  = 'frc_date';
+  static const _warnAt = 40000;
+  static const _stopAt = 48000;
+
+  static Box get _box => Hive.box('live_cache');
+
+  static String get _today =>
+      DateTime.now().toIso8601String().substring(0, 10);
+
+  static void _resetIfNewDay() {
+    if (_box.get(_kDate) != _today) {
+      _box.put(_kDate, _today);
+      _box.put(_kCount, 0);
+    }
+  }
+
+  static void increment([int n = 1]) {
+    _resetIfNewDay();
+    final current = (_box.get(_kCount) as int?) ?? 0;
+    _box.put(_kCount, current + n);
+  }
+
+  static int get todayCount {
+    _resetIfNewDay();
+    return (_box.get(_kCount) as int?) ?? 0;
+  }
+
+  static bool get isApproachingLimit => todayCount >= _warnAt;
+  static bool get isCritical         => todayCount >= _stopAt;
+}

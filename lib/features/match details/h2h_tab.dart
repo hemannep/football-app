@@ -17,7 +17,7 @@ class _H2HTab extends ConsumerWidget {
     final p = AppTheme.of(context);
 
     // Historical H2H records from the Firestore relay (if available).
-    final rawDoc = ref.watch(_rawMatchProvider(match.id)).value;
+    final rawDoc = ref.watch(_rawMatchProvider(match)).value;
     final relayH2H = rawDoc?['head_to_head'];
     final relayMeetings = relayH2H is Map
         ? (relayH2H['matches'] as List?)?.cast<Map>() ?? const []

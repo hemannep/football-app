@@ -33,6 +33,7 @@ import '../../core/services/ad_service.dart';
 import '../../core/services/extras_service.dart';
 import '../../core/services/live_data_service.dart';
 import '../../core/services/match_details_resolver.dart';
+import '../../core/services/sportsdb_match_service.dart';
 import '../../shared/widgets/pitch_painter.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/models/match.dart';
@@ -74,13 +75,35 @@ final _matchStandingsProvider = FutureProvider.family
   return LiveDataService.instance.getStandings();
 });
 
-/// Real-time Firestore match document stream — includes all Bzzoiro-enriched
-/// fields: incidents, bzzLineups, liveStats, xg, head_to_head, etc.
-/// Using StreamProvider means the ticker, stats, and lineup tabs all update
-/// automatically as the relay writes new data during live matches (~5 min cadence).
+/// Smart match-document stream.
+/// • Live/paused → real-time snapshots() (1 read per relay push, justified).
+/// • Finished/upcoming → one-shot get() with 30-min Hive cache (0 persistent
+///   listeners, eliminates the biggest source of excess Firestore reads).
 final _rawMatchProvider = StreamProvider.family
-    .autoDispose<Map<String, dynamic>?, int>((ref, matchId) {
-  return LiveDataService.instance.watchMatchRaw(matchId);
+    .autoDispose<Map<String, dynamic>?, Match>((ref, m) {
+  final live = m.isLive || m.status == 'PAUSED';
+  return LiveDataService.instance.watchMatchRawSmart(m.id, live);
+});
+
+/// BSD lineup via MatchDetailsResolver — primary external fallback when
+/// Firestore has no bzzLineups / confirmedLineup for this match.
+final _bsdLineupsProvider =
+    FutureProvider.family.autoDispose<MatchLineups?, Match>((ref, m) {
+  return MatchDetailsResolver.lineups(m);
+});
+
+/// TheSportsDB lineup — secondary fallback if BSD also returns null.
+final _sdbLineupsProvider =
+    FutureProvider.family.autoDispose<SdbMatchLineups?, Match>((ref, m) async {
+  final svc = SportsDbMatchService();
+  final id = await svc.resolveEventId(
+    dateUtc: m.utcDate.toUtc(),
+    homeTeam: m.homeTeam.name,
+    awayTeam: m.awayTeam.name,
+  );
+  if (id == null) return null;
+  return svc.fetchLineups(id,
+      homeName: m.homeTeam.name, awayName: m.awayTeam.name);
 });
 
 // ─── Screen ─────────────────────────────────────────────────────────────────
@@ -127,7 +150,7 @@ class _MatchDetailsScreenState extends ConsumerState<MatchDetailsScreen>
     // Use the live Firestore stream for real-time score/status updates;
     // fall back to the passed-in match when the stream hasn't emitted yet.
     final liveMatch =
-        ref.watch(matchStreamProvider(widget.match.id)).value;
+        ref.watch(matchStreamProvider(widget.match)).value;
     final m = liveMatch ?? widget.match;
     final favorites = ref.watch(favoritesProvider).teamTlas;
     final isFav = favorites.contains(m.homeTeam.tla) ||

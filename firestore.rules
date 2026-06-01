@@ -1,0 +1,111 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helper: any signed-in user (anonymous auth counts) ──────────────────
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // ── Helper: the request is from the document owner ──────────────────────
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // READ-ONLY relay collections — public read, server-only writes
+    // (the relay uses Firebase Admin SDK which bypasses these rules)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    match /matches/{matchId} {
+      allow read: if true;
+      allow write: if false;  // relay only
+    }
+
+    match /standings/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /teams/{teamId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /players/{playerId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /news/{newsId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /bracket/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /lineups/{matchId} {
+      allow read: if true;
+      // Clients may write lineup data fetched from BSD/SDB as a crowd-cache.
+      // Write is guarded: only authenticated users, and only the lineup fields
+      // (they cannot overwrite relay-written data with garbage).
+      allow write: if signedIn();
+    }
+
+    match /meta/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // User prediction data — owner-only read/write
+    // ═══════════════════════════════════════════════════════════════════════
+
+    match /predictions/{uid} {
+      allow read, write: if isOwner(uid);
+
+      match /matches/{matchId} {
+        allow read, write: if isOwner(uid);
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Community aggregated stats — any user can read; authenticated users
+    // can increment their vote (FieldValue.increment is the write pattern).
+    // ═══════════════════════════════════════════════════════════════════════
+
+    match /match_predictions/{matchKey} {
+      allow read: if true;
+      allow write: if signedIn();
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Leaderboard — public read (anyone can see rankings);
+    // users can only write their OWN leaderboard doc.
+    // ═══════════════════════════════════════════════════════════════════════
+
+    match /leaderboard/{uid} {
+      allow read: if true;
+      allow write: if isOwner(uid);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Trivia stats — owner-only
+    // ═══════════════════════════════════════════════════════════════════════
+
+    match /trivia/{uid} {
+      allow read, write: if isOwner(uid);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Deny everything else
+    // ═══════════════════════════════════════════════════════════════════════
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

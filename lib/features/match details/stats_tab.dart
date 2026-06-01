@@ -45,7 +45,7 @@ class _StatsTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final p = AppTheme.of(context);
-    final rawAsync = ref.watch(_rawMatchProvider(match.id));
+    final rawAsync = ref.watch(_rawMatchProvider(match));
     final rawDoc = rawAsync.value;
 
     final liveStats = rawDoc?['liveStats'];

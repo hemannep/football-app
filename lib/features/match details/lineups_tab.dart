@@ -22,39 +22,61 @@ class _LineupsTabState extends ConsumerState<_LineupsTab> {
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
-    final rawAsync = ref.watch(_rawMatchProvider(widget.match.id));
 
-    if (rawAsync.isLoading) {
+    // ── Data sources (in priority order) ───────────────────────────────────
+    final rawAsync        = ref.watch(_rawMatchProvider(widget.match));
+    final lineupCollAsync = ref.watch(lineupProvider(widget.match.id));
+    final bsdAsync        = ref.watch(_bsdLineupsProvider(widget.match));
+    final sdbAsync        = ref.watch(_sdbLineupsProvider(widget.match));
+
+    // Show spinner only when ALL sources are still loading (no data yet).
+    final anyLoading = rawAsync.isLoading &&
+        lineupCollAsync.isLoading &&
+        bsdAsync.isLoading &&
+        sdbAsync.isLoading;
+    if (anyLoading) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    final raw = rawAsync.value;
-
-    // lineups/{matchId} collection — best-effort fallback from relay/API-Football.
-    // Watched here so the tab auto-updates if relay writes the lineup while open.
-    final lineupCollAsync = ref.watch(lineupProvider(widget.match.id));
+    final raw        = rawAsync.value;
     final lineupColl = lineupCollAsync.value;
 
     // ── Determine which lineup to use ───────────────────────────────────────
     // Priority:
-    //   1. bzzLineups  (Bzzoiro enricher — flat player list, most complete)
-    //   2. confirmedLineup in match doc (relay → API-Football merge, same doc)
-    //   3. lineups/{matchId} collection (relay writes this separately; may have
-    //      data when the match-doc field wasn't merged in time)
-    //   4. bzzPredictedLineup (Bzzoiro pre-match prediction)
-    //   5. null → empty pitch / not-available state
+    //   1. bzzLineups  (relay → Bzzoiro enricher, most complete)
+    //   2. confirmedLineup in match doc (relay → API-Football merge)
+    //   3. lineups/{matchId} collection (relay fallback)
+    //   4. BSD via MatchDetailsResolver (direct API call)
+    //   5. TheSportsDB (secondary API fallback)
+    //   6. bzzPredictedLineup (pre-match prediction)
+    //   7. null → empty pitch / not-available state
     final bzzLineupsList = raw?['bzzLineups'];
-    final hasBzzLineups = bzzLineupsList is List && bzzLineupsList.isNotEmpty;
+    final hasBzzLineups  = bzzLineupsList is List && bzzLineupsList.isNotEmpty;
 
     final confirmedLineupMap = raw?['confirmedLineup'];
     final hasConfirmedLineup = confirmedLineupMap is Map &&
-        (confirmedLineupMap['home'] != null || confirmedLineupMap['away'] != null);
+        (confirmedLineupMap['home'] != null ||
+            confirmedLineupMap['away'] != null);
 
-    // lineups collection fallback: has useful data when home/away are non-null.
+    // lineups collection supports two formats:
+    //  • relay format: {home: {startXI:[...], substitutes:[...]}, away:{...}}
+    //  • client crowd-cache: {flatLineups: [{is_home, is_starter, name,...}]}
     final hasLineupColl = lineupColl != null &&
-        (lineupColl['home'] != null || lineupColl['away'] != null);
+        (lineupColl['home'] != null || lineupColl['away'] != null ||
+         (lineupColl['flatLineups'] is List &&
+          (lineupColl['flatLineups'] as List).isNotEmpty));
 
-    final isActual = (hasBzzLineups || hasConfirmedLineup || hasLineupColl) &&
+    final bsdLineups = bsdAsync.value;
+    final hasBsd     = bsdLineups != null &&
+        (bsdLineups.home != null || bsdLineups.away != null);
+
+    final sdbLineups = sdbAsync.value;
+    final hasSdb     = sdbLineups != null &&
+        (sdbLineups.home != null || sdbLineups.away != null);
+
+    final hasAnyActual = hasBzzLineups || hasConfirmedLineup ||
+        hasLineupColl || hasBsd || hasSdb;
+    final isActual = hasAnyActual &&
         (widget.match.isLive ||
             widget.match.isFinished ||
             widget.match.status == 'PAUSED');
@@ -63,25 +85,44 @@ class _LineupsTabState extends ConsumerState<_LineupsTab> {
     final bool isPredicted;
 
     if (hasBzzLineups) {
-      lineupList = bzzLineupsList;
-      isPredicted = !isActual;
+      lineupList   = bzzLineupsList;
+      isPredicted  = !isActual;
     } else if (hasConfirmedLineup) {
-      lineupList = _convertConfirmedLineup(
+      lineupList  = _convertConfirmedLineup(
           Map<String, dynamic>.from(confirmedLineupMap));
       isPredicted = false;
     } else if (hasLineupColl) {
-      // Convert the lineups-collection format {home: {players:[...]}, away:{...}}
-      // into the same flat bzzLineups structure the pitch view expects.
-      lineupList = _convertConfirmedLineup(
-          Map<String, dynamic>.from(lineupColl));
+      // Prefer the flat list written by client crowd-cache; fall back to
+      // the relay's startXI/substitutes format if flat isn't present.
+      if (lineupColl['flatLineups'] is List &&
+          (lineupColl['flatLineups'] as List).isNotEmpty) {
+        lineupList = (lineupColl['flatLineups'] as List)
+            .whereType<Map>()
+            .map((m) => Map<String, dynamic>.from(m))
+            .toList();
+      } else {
+        lineupList = _convertConfirmedLineup(
+            Map<String, dynamic>.from(lineupColl));
+      }
+      isPredicted = false;
+    } else if (hasBsd) {
+      lineupList  = _convertBsdLineups(bsdLineups);
+      isPredicted = false;
+    } else if (hasSdb) {
+      lineupList  = _convertSdbLineups(sdbLineups);
       isPredicted = false;
     } else if (raw?['bzzPredictedLineup'] is List) {
-      lineupList = raw!['bzzPredictedLineup'] as List;
+      lineupList  = raw!['bzzPredictedLineup'] as List;
       isPredicted = !isActual;
     } else {
-      lineupList = null;
+      lineupList  = null;
       isPredicted = false;
     }
+
+    // Show a subtle loading pill while secondary sources are still resolving
+    // but we already have something to display.
+    final stillResolving = lineupList == null &&
+        (bsdAsync.isLoading || sdbAsync.isLoading);
 
     // Formation: Bzzoiro predicted → confirmedLineup actual → default.
     String homeFormation =
@@ -157,6 +198,7 @@ class _LineupsTabState extends ConsumerState<_LineupsTab> {
         awayCoach: awayCoach,
         isPredicted: isPredicted,
         lineupList: lineupList,
+        stillResolving: stillResolving,
       );
     }
 
@@ -195,13 +237,27 @@ class _LineupsTabState extends ConsumerState<_LineupsTab> {
     String? awayCoach,
     required bool isPredicted,
     required List? lineupList,
+    bool stillResolving = false,
   }) {
     if (lineupList == null) {
+      if (stillResolving) {
+        return const Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 12),
+              Text('Fetching lineup data…',
+                  style: TextStyle(fontSize: 13, color: Colors.grey)),
+            ],
+          ),
+        );
+      }
       if (widget.match.isFinished || widget.match.isLive) {
         return const _Unavailable(
           icon: Icons.groups_outlined,
           message: 'Lineups not available for this match.',
-          hint: 'Detailed lineup data isn\'t available for every competition.',
+          hint: 'No lineup data found from any source for this competition.',
         );
       }
       return _buildEmptyPitch(context);
@@ -477,6 +533,64 @@ class _LineupsTabState extends ConsumerState<_LineupsTab> {
 
     processTeam(confirmedLineup['home'], true);
     processTeam(confirmedLineup['away'], false);
+    return out.isEmpty ? null : out;
+  }
+
+  // ── BSD MatchLineups → flat bzzLineups-compatible list ─────────────────────
+
+  static List<Map<String, dynamic>>? _convertBsdLineups(MatchLineups? ml) {
+    if (ml == null) return null;
+    final out = <Map<String, dynamic>>[];
+    void addSide(TeamLineup? side, bool isHome) {
+      if (side == null) return;
+      for (final p in side.starters) {
+        out.add({
+          'name': p.name, 'player_name': p.name,
+          'jersey_number': p.shirtNumber,
+          'position': p.position,
+          'is_home': isHome, 'is_starter': true,
+        });
+      }
+      for (final p in side.bench) {
+        out.add({
+          'name': p.name, 'player_name': p.name,
+          'jersey_number': p.shirtNumber,
+          'position': p.position,
+          'is_home': isHome, 'is_starter': false,
+        });
+      }
+    }
+    addSide(ml.home, true);
+    addSide(ml.away, false);
+    return out.isEmpty ? null : out;
+  }
+
+  // ── TheSportsDB SdbMatchLineups → flat bzzLineups-compatible list ───────────
+
+  static List<Map<String, dynamic>>? _convertSdbLineups(SdbMatchLineups? ml) {
+    if (ml == null) return null;
+    final out = <Map<String, dynamic>>[];
+    void addSide(SdbTeamLineup? side, bool isHome) {
+      if (side == null) return;
+      for (final p in side.starters) {
+        out.add({
+          'name': p.name, 'player_name': p.name,
+          'jersey_number': p.shirtNumber,
+          'position': p.position,
+          'is_home': isHome, 'is_starter': true,
+        });
+      }
+      for (final p in side.bench) {
+        out.add({
+          'name': p.name, 'player_name': p.name,
+          'jersey_number': p.shirtNumber,
+          'position': p.position,
+          'is_home': isHome, 'is_starter': false,
+        });
+      }
+    }
+    addSide(ml.home, true);
+    addSide(ml.away, false);
     return out.isEmpty ? null : out;
   }
 

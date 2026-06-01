@@ -102,21 +102,28 @@ class FirebaseService {
   // ─── Remote Config ────────────────────────────────────────────────────────
 
   Future<void> _initRemoteConfig() async {
+    // In debug mode use Duration.zero so the token is always fetched fresh
+    // on every launch — critical for getting bsd_token on first run.
     await _remoteConfig.setConfigSettings(RemoteConfigSettings(
-      fetchTimeout: const Duration(seconds: 10),
-      minimumFetchInterval: const Duration(hours: 1),
+      fetchTimeout: const Duration(seconds: 15),
+      minimumFetchInterval:
+          kDebugMode ? Duration.zero : const Duration(hours: 1),
     ));
     await _remoteConfig.setDefaults({
       'ads_enabled': true,
       'predictor_enabled': true,
       'trivia_enabled': true,
       'api_base_url': 'https://api.football-data.org/v4',
-      'interstitial_frequency': 3, // show every N predictions
+      'interstitial_frequency': 3,
+      'bsd_token': '',
     });
     try {
-      await _remoteConfig.fetchAndActivate();
+      final updated = await _remoteConfig.fetchAndActivate();
+      final token = _remoteConfig.getString('bsd_token');
+      debugPrint('RemoteConfig fetched (updated=$updated) '
+          'bsd_token=${token.isEmpty ? "EMPTY ⚠" : "${token.substring(0, 6)}…"}');
     } catch (e) {
-      debugPrint('RemoteConfig fetch failed, using defaults: $e');
+      debugPrint('RemoteConfig fetch failed: $e');
     }
   }
 
@@ -125,6 +132,10 @@ class FirebaseService {
   bool get triviaEnabled => _remoteConfig.getBool('trivia_enabled');
   int get interstitialFrequency =>
       _remoteConfig.getInt('interstitial_frequency');
+
+  /// BSD token from Firebase Remote Config.
+  /// Set key 'bsd_token' in the Firebase Console → Remote Config.
+  String get bsdToken => _remoteConfig.getString('bsd_token');
 
   // ─── Analytics helpers ────────────────────────────────────────────────────
 

@@ -5,6 +5,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hive/hive.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -12,6 +13,7 @@ import '../core/providers/locale_provider.dart';
 import '../core/providers/theme_provider.dart';
 import '../core/services/ad_service.dart';
 import '../core/services/iap_service.dart';
+import '../core/services/live_data_service.dart';
 import '../core/theme/app_theme.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../shared/widgets/iap_status_widget.dart';
@@ -175,6 +177,34 @@ class SettingsDrawer extends ConsumerWidget {
                       Navigator.of(context).pop();
                       Navigator.of(context).push(MaterialPageRoute(
                           builder: (_) => const OfflinePackScreen()));
+                    },
+                  ),
+
+                  // ── Data & Cache ────────────────────────────────────────
+                  const _SectionLabel('DATA & CACHE'),
+                  _ReadCounterTile(),
+                  _Tile(
+                    icon: Icons.cleaning_services_outlined,
+                    label: 'Clear App Cache',
+                    trailing: 'Refresh data',
+                    onTap: () async {
+                      // Wipe all Hive caches so next launch re-fetches from
+                      // Firestore. Useful after quota reset or data changes.
+                      await Hive.box('live_cache').clear();
+                      await Hive.box('matches_cache').clear();
+                      LiveDataService.instance.evict('matches_all');
+                      LiveDataService.instance.evict('standings_all');
+                      LiveDataService.instance.evict('news_30');
+                      if (context.mounted) {
+                        Navigator.of(context).pop();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                                'Cache cleared — restart the app for fresh data'),
+                            duration: Duration(seconds: 3),
+                          ),
+                        );
+                      }
                     },
                   ),
 
@@ -436,6 +466,68 @@ class _Tile extends StatelessWidget {
             Icon(Icons.chevron_right_rounded, size: 18, color: p.textLow),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ── Firestore daily read counter tile ─────────────────────────────────────────
+class _ReadCounterTile extends StatefulWidget {
+  @override
+  State<_ReadCounterTile> createState() => _ReadCounterTileState();
+}
+
+class _ReadCounterTileState extends State<_ReadCounterTile> {
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    final count = FirestoreReadCounter.todayCount;
+    final pct   = (count / 50000).clamp(0.0, 1.0);
+    final Color barColor = count < 30000
+        ? AppTheme.brand
+        : count < 45000
+            ? Colors.orange
+            : Colors.red;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.data_usage_rounded, size: 18, color: p.textMid),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text('Firestore reads today',
+                    style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: p.textHi)),
+              ),
+              Text('$count / 50 000',
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: barColor)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(3),
+            child: LinearProgressIndicator(
+              value: pct,
+              backgroundColor: p.stroke,
+              valueColor: AlwaysStoppedAnimation(barColor),
+              minHeight: 4,
+            ),
+          ),
+          if (count >= 45000) ...[
+            const SizedBox(height: 4),
+            const Text('⚠ Approaching daily limit — non-critical reads are throttled.',
+                style: TextStyle(fontSize: 11, color: Colors.orange)),
+          ],
+        ],
       ),
     );
   }

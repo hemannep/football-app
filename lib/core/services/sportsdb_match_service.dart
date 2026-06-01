@@ -93,6 +93,11 @@ class SportsDbMatchService {
   static bool debug = kDebugMode;
   static const String _box = 'matches_cache';
 
+  // In-flight dedup cache — prevents 3 simultaneous providers hammering SDB
+  // for the same match at the same time.  The Future is shared so the HTTP
+  // call is only made once; all callers await the same result.
+  final Map<String, Future<String?>> _resolving = {};
+
   // Cache TTLs (ms)
   static const int _ttlEventId = 30 * 24 * 60 * 60 * 1000; // 30 d
   static const int _ttlLineup = 24 * 60 * 60 * 1000; // 24 h
@@ -227,17 +232,32 @@ class SportsDbMatchService {
     required DateTime dateUtc,
     required String homeTeam,
     required String awayTeam,
-  }) async {
+  }) {
     final dateStr = dateUtc.toUtc().toIso8601String().substring(0, 10);
     final cacheKey =
         'sdb_evt_${dateStr}_${_normalize(homeTeam)}_${_normalize(awayTeam)}';
 
-    final cached = _cached(cacheKey, _ttlEventId);
-    if (cached != null) {
-      _log('cached eventId "$homeTeam vs $awayTeam" = $cached');
-      return cached as String;
+    // Check Hive first (survives app restarts).
+    final hived = _cached(cacheKey, _ttlEventId);
+    if (hived != null) {
+      _log('cached eventId "$homeTeam vs $awayTeam" = $hived');
+      return Future.value(hived as String);
     }
 
+    // Dedup: if another caller is already resolving this exact match, share
+    // the same Future instead of issuing parallel API calls.
+    if (_resolving.containsKey(cacheKey)) {
+      return _resolving[cacheKey]!;
+    }
+
+    final future = _doResolve(cacheKey, dateStr, homeTeam, awayTeam);
+    _resolving[cacheKey] = future;
+    future.whenComplete(() => _resolving.remove(cacheKey));
+    return future;
+  }
+
+  Future<String?> _doResolve(
+      String cacheKey, String dateStr, String homeTeam, String awayTeam) async {
     _log('resolving "$homeTeam" vs "$awayTeam" on $dateStr');
 
     // Try the kickoff date first, then ±1 day for timezone safety.
@@ -265,19 +285,40 @@ class SportsDbMatchService {
 
   Future<String?> _searchOnDate(
       String dateStr, String homeTeam, String awayTeam) async {
+    // Always try the generic Soccer bucket first (covers all domestic leagues).
+    // Only fall back to competition-specific buckets if Soccer returns nothing,
+    // because each extra call burns from the 30 req/min free limit.
+    final primaryUrl = '$_base/eventsday.php?d=$dateStr&s=Soccer';
+    final result = await _searchUrl(primaryUrl, homeTeam, awayTeam, dateStr);
+    if (result != null) return result;
+
+    // Secondary: competition-specific buckets for UCL / WC / Euro which
+    // SportsDB doesn't include in the generic Soccer feed.
+    for (final league in [
+      'UEFA+Champions+League',
+      'FIFA+World+Cup',
+      'UEFA+European+Championship',
+    ]) {
+      final url = '$_base/eventsday.php?d=$dateStr&l=$league';
+      final r = await _searchUrl(url, homeTeam, awayTeam, dateStr);
+      if (r != null) return r;
+    }
+    return null;
+  }
+
+  Future<String?> _searchUrl(
+      String endpoint, String homeTeam, String awayTeam, String dateStr) async {
     try {
-      final url = Uri.parse('$_base/eventsday.php?d=$dateStr&s=Soccer');
+      final url = Uri.parse(endpoint);
       _log('GET $url');
       final res = await http.get(url).timeout(const Duration(seconds: 12));
       _log('  → status ${res.statusCode}');
+      if (res.statusCode == 429) return null; // rate-limited; stop early
       if (res.statusCode != 200) return null;
 
       final body = jsonDecode(res.body) as Map<String, dynamic>;
       final events = body['events'];
-      if (events == null || events is! List) {
-        _log('  → no events array');
-        return null;
-      }
+      if (events == null || events is! List || events.isEmpty) return null;
       _log('  → ${events.length} events on $dateStr');
 
       for (final raw in events) {
