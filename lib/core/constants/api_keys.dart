@@ -1,51 +1,50 @@
 // lib/core/constants/api_keys.dart
 //
-// Central place for ALL third-party API keys.
+// Central place for ALL third-party API routing config.
 //
-// ⚠️ For production, move these to --dart-define build flags so they are
-//    not shipped in the APK source. Example:
-//       flutter build apk --dart-define=NEWSAPI_KEY=xxxx --dart-define=RAPIDAPI_KEY=xxxx
+// PRODUCTION ARCHITECTURE
+// ────────────────────────
+// All provider secrets live in the Cloudflare Worker
+// (https://football-fan-hub-proxy.footballapp.workers.dev).
+// The Flutter app never holds real tokens — it just calls the Worker.
+// Remote Config can override any base URL at runtime without a rebuild.
+//
+// LOCAL / CI DEVELOPMENT
+// ───────────────────────
+// Pass --dart-define=API_PROXY_BASE_URL=direct to bypass the Worker and hit
+// providers directly (requires real tokens via --dart-define=FD_TOKEN=xxx etc).
 //
 class ApiKeys {
-  // ─── Bzzoiro Sports Data (BSD) — match details on the free tier ────────
-  // Free, no rate limits, no credit card. Provides what football-data.org's
-  // free tier locks: lineups, formations, bench, incidents (goals/cards/subs),
-  // and match statistics. Used ONLY for the match-details screen. We resolve
-  // an fd.org match → BSD event by (date, team names) in BsdService.
-  // Register at https://sports.bzzoiro.com/register/ to get your token.
+  // ─── Bzzoiro Sports Data (BSD) ─────────────────────────────────────────
+  // Worker base — no token needed from Flutter; Worker injects BSD_TOKEN.
+  // Falls back to direct BSD if Remote Config returns an empty URL.
   static const String bsdToken = String.fromEnvironment(
     'BSD_TOKEN',
-    defaultValue: 'f6e98c734b0d8843bc9ab8fa8b758d52c36ba6ba',
+    defaultValue: '', // empty in production; Worker holds the real token
   );
-  static const String bsdBase = 'https://sports.bzzoiro.com/api/v2';
+  static const String bsdBase = String.fromEnvironment(
+    'BSD_BASE_URL',
+    defaultValue:
+        'https://football-fan-hub-proxy.footballapp.workers.dev/api/bsd',
+  );
 
-  // ─── football-data.org (already used by ApiService) ────────────────────
-  // Keep this as the authoritative source for fixtures / scores / standings.
+  // ─── football-data.org ─────────────────────────────────────────────────
+  // Token only used when hitting FD directly (local dev with API_PROXY_BASE_URL=direct).
   static const String footballData = String.fromEnvironment(
     'FD_TOKEN',
-    defaultValue: 'b6fa0db6e10b4f7ea64ca5e52cc806a4',
+    defaultValue: '',
   );
 
   // ─── NewsAPI.org (football news) ───────────────────────────────────────
-  // Free tier: 100 req/day, developer-only. We always fall back to BBC RSS
-  // when this fails / 429s / is blocked from a production device.
+  // Free tier: 100 req/day. App always falls back to BBC RSS on failure.
   static const String newsApi = String.fromEnvironment(
     'NEWSAPI_KEY',
-    defaultValue: 'acfe84cf39964c8abb98f003c609b507',
+    defaultValue: '',
   );
 
-  // ─── RapidAPI — sportapi7 (SofaScore wrapper) ──────────────────────────
-  // Used ONLY for match-detail enrichment: lineups, incidents, statistics.
-  // The host echoes SofaScore IDs, so we resolve fd.org match → SofaScore
-  // event-id by (date, home, away) inside MatchExtrasService.
-  static const String rapidApiKey = String.fromEnvironment(
-    'RAPIDAPI_KEY',
-    defaultValue: '19c6cc6445msh0b3d88bdd13ce06p143949jsna58f033979cd',
-  );
-  static const String rapidApiHost = 'sportapi7.p.rapidapi.com';
-
-  // ─── TheSportsDB (team badge, anthem, players, photos) ─────────────────
-  // Key "123" is the official public test key — fine for free-tier endpoints.
+  // ─── TheSportsDB ───────────────────────────────────────────────────────
+  // Public test key "123" is fine for free-tier endpoints.
+  // In production the Worker proxies SDB at /api/sdb/* — no key exposed.
   static const String sportsDbKey = String.fromEnvironment(
     'SPORTSDB_KEY',
     defaultValue: '123',

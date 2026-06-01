@@ -6,6 +6,7 @@
 .pub-cache/
 .pub/
 build/
+functions/node_modules/
 .idea/
 .vscode/
 
@@ -20,7 +21,11 @@ android/app/release/
 # Secrets — DO NOT COMMIT
 android/app/google-services.json
 lib/core/constants/admob_ids.dart
-lib/core/constants/api_constants.dart
+# api_constants.dart no longer holds real tokens — it points at the Cloudflare
+# Worker proxy, so it is safe to commit. Removed from gitignore.
+remoteconfig.template.json
+# Worker local secrets (never commit .dev.vars)
+worker/.dev.vars
 
 # OS
 .DS_Store

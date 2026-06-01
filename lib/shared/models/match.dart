@@ -13,6 +13,12 @@ class Match {
   final List<MatchGoal> goals;
   // Actual live match minute stored by the relay (null until relay updates).
   final int? minute;
+  // Enrichment fields written by bzzoiro_enricher.js into the Firestore doc.
+  final String? referee;
+  final int? attendance;
+  // BSD event ID cached in Firestore by the enricher so the Flutter client
+  // doesn't need to re-resolve it from BSD on every match-detail open.
+  final int? bzzoiroId;
 
   const Match({
     required this.id,
@@ -28,6 +34,9 @@ class Match {
     this.venue,
     this.goals = const [],
     this.minute,
+    this.referee,
+    this.attendance,
+    this.bzzoiroId,
   });
 
   factory Match.fromJson(Map<String, dynamic> j) {
@@ -46,6 +55,9 @@ class Match {
       venue: j['venue'],
       goals: goalsList.map((e) => MatchGoal.fromJson(e)).toList(),
       minute: j['minute'] as int?,
+      referee: j['referee'] as String?,
+      attendance: j['attendance'] as int?,
+      bzzoiroId: j['bzzoiroId'] as int?,
     );
   }
 
@@ -62,6 +74,9 @@ class Match {
         'venue': venue,
         'goals': goals.map((g) => g.toJson()).toList(),
         if (minute != null) 'minute': minute,
+        if (referee != null) 'referee': referee,
+        if (attendance != null) 'attendance': attendance,
+        if (bzzoiroId != null) 'bzzoiroId': bzzoiroId,
       };
 
   bool get isLive => status == 'IN_PLAY' || status == 'PAUSED';

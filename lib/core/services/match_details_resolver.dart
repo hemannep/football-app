@@ -15,9 +15,11 @@ import '../../shared/models/match.dart';
 import 'api_service.dart';
 import 'bsd_service.dart';
 import 'extras_service.dart';
+import 'sportsdb_match_service.dart';
 
 void _log(String m) {
-  if (kDebugMode) debugPrint('[Resolver] $m');
+  const enabled = bool.fromEnvironment('DEBUG_SPORTS_API');
+  if (kDebugMode && enabled) debugPrint('[Resolver] $m');
 }
 
 class MatchDetailsResolver {
@@ -25,6 +27,10 @@ class MatchDetailsResolver {
   static final Map<int, Future<int?>> _bsdIdCache = {};
 
   static Future<int?> _bsdId(Match m) {
+    // Short-circuit: enricher already resolved and wrote bzzoiroId to Firestore.
+    if (m.bzzoiroId != null) {
+      return _bsdIdCache.putIfAbsent(m.id, () => Future.value(m.bzzoiroId));
+    }
     return _bsdIdCache.putIfAbsent(
       m.id,
       () => BsdService.resolveEventId(
@@ -47,19 +53,26 @@ class MatchDetailsResolver {
       if (side == null) return;
       for (final p in side.starters) {
         out.add({
-          'name': p.name, 'player_name': p.name,
-          'jersey_number': p.shirtNumber, 'position': p.position,
-          'is_home': isHome, 'is_starter': true,
+          'name': p.name,
+          'player_name': p.name,
+          'jersey_number': p.shirtNumber,
+          'position': p.position,
+          'is_home': isHome,
+          'is_starter': true,
         });
       }
       for (final p in side.bench) {
         out.add({
-          'name': p.name, 'player_name': p.name,
-          'jersey_number': p.shirtNumber, 'position': p.position,
-          'is_home': isHome, 'is_starter': false,
+          'name': p.name,
+          'player_name': p.name,
+          'jersey_number': p.shirtNumber,
+          'position': p.position,
+          'is_home': isHome,
+          'is_starter': false,
         });
       }
     }
+
     add(ml.home, true);
     add(ml.away, false);
     return out.isEmpty ? null : out;
@@ -82,10 +95,10 @@ class MatchDetailsResolver {
 
     // Hive crowd-cache (so same device doesn't re-fetch for 12 h).
     try {
-      final key   = 'crowd_lineup_${m.id}';
+      final key = 'crowd_lineup_${m.id}';
       final keyAt = '${key}_at';
-      final box   = Hive.box('matches_cache');
-      await box.put(key,   jsonEncode(flat));
+      final box = Hive.box('matches_cache');
+      await box.put(key, jsonEncode(flat));
       await box.put(keyAt, DateTime.now().millisecondsSinceEpoch);
     } catch (e) {
       _log('Hive persist error: $e');
@@ -101,8 +114,8 @@ class MatchDetailsResolver {
         'flatLineups': flat,
         if (homeFormation != null) 'homeFormation': homeFormation,
         if (awayFormation != null) 'awayFormation': awayFormation,
-        if (homeCoach != null)     'homeCoach': homeCoach,
-        if (awayCoach != null)     'awayCoach': awayCoach,
+        if (homeCoach != null) 'homeCoach': homeCoach,
+        if (awayCoach != null) 'awayCoach': awayCoach,
         'fetchedAt': FieldValue.serverTimestamp(),
         'source': source,
       }, SetOptions(merge: true));
@@ -124,7 +137,8 @@ class MatchDetailsResolver {
         final flat = _bsdToFlat(ml);
         if (flat != null && flat.isNotEmpty) {
           unawaited(_persistLineup(
-            m, flat,
+            m,
+            flat,
             homeFormation: ml.home?.formation,
             awayFormation: ml.away?.formation,
             source: 'bsd_v2',
@@ -141,13 +155,74 @@ class MatchDetailsResolver {
   }
 
   // ── INCIDENTS ─────────────────────────────────────────────────────────────
+  // BSD → SDB timeline → FD goals (each tried in parallel where possible).
   static Future<List<MatchIncident>> incidents(Match m) async {
-    final id = await _bsdId(m);
-    if (id != null) {
-      final bsd = await BsdService.fetchIncidents(id, isLive: m.isLive);
-      if (bsd.isNotEmpty) return bsd;
-    }
+    final svc = SportsDbMatchService();
+
+    // Kick off both event-ID lookups at the same time.
+    final bsdIdFuture = _bsdId(m);
+    final sdbIdFuture = svc.resolveEventId(
+      dateUtc: m.utcDate.toUtc(),
+      homeTeam: m.homeTeam.name,
+      awayTeam: m.awayTeam.name,
+    );
+
+    final bsdId = await bsdIdFuture;
+    final sdbId = await sdbIdFuture;
+
+    // Kick off both fetches at the same time.
+    final bsdFuture = bsdId != null
+        ? BsdService.fetchIncidents(bsdId, isLive: m.isLive)
+        : Future.value(<MatchIncident>[]);
+    final sdbFuture = sdbId != null
+        ? svc
+            .fetchTimeline(sdbId,
+                homeName: m.homeTeam.name, isFinished: m.isFinished)
+            .then(_sdbEventsToIncidents)
+        : Future.value(<MatchIncident>[]);
+
+    final bsdIncs = await bsdFuture;
+    final sdbIncs = await sdbFuture;
+
+    if (bsdIncs.isNotEmpty) return bsdIncs;
+    if (sdbIncs.isNotEmpty) return sdbIncs;
     return _fdGoalsAsIncidents(m);
+  }
+
+  static List<MatchIncident> _sdbEventsToIncidents(
+      List<SdbTimelineEvent> events) {
+    final out = <MatchIncident>[];
+    for (final e in events) {
+      final t = e.type.toLowerCase();
+      String type;
+      String? subtype;
+      if (t.contains('goal')) {
+        type = 'goal';
+        final d = (e.detail ?? '').toLowerCase();
+        if (d.contains('own')) {
+          subtype = 'ownGoal';
+        } else if (d.contains('pen')) {
+          subtype = 'penalty';
+        }
+      } else if (t.contains('red')) {
+        type = 'redCard';
+      } else if (t.contains('yellow')) {
+        type = 'yellowCard';
+      } else if (t.contains('sub')) {
+        type = 'substitution';
+      } else {
+        continue;
+      }
+      out.add(MatchIncident(
+        minute: e.minute,
+        type: type,
+        player: e.player,
+        assistOrOff: e.assistOrOff,
+        isHome: e.isHome,
+        subtype: subtype,
+      ));
+    }
+    return out;
   }
 
   static Future<List<MatchIncident>> _fdGoalsAsIncidents(Match m) async {
@@ -174,13 +249,52 @@ class MatchDetailsResolver {
     return out;
   }
 
+  // ── PLAYER STATS ─────────────────────────────────────────────────────────────
+  // BSD /events/{id}/player-stats/ — ratings, goals, assists, passes, etc.
+  // 60s TTL live / 12h finished. Returns empty list if BSD event not resolved.
+  static Future<List<PlayerMatchStat>> playerStats(Match m) async {
+    final bsdId = await _bsdId(m);
+    if (bsdId == null) return const [];
+    return BsdService.fetchPlayerStats(bsdId, isLive: m.isLive);
+  }
+
+  // ── MATCH METADATA ────────────────────────────────────────────────────────────
+  // BSD /events/{id}/metadata/ — fun facts, jersey colours, AI preview text.
+  // 6h TTL (pre-match editorial content; null if BSD event not resolved).
+  static Future<MatchMetadata?> metadata(Match m) async {
+    final bsdId = await _bsdId(m);
+    if (bsdId == null) return null;
+    return BsdService.fetchMetadata(bsdId);
+  }
+
   // ── STATS ─────────────────────────────────────────────────────────────────
-  // BSD only — SDB stats are rarely populated for domestic leagues and the
-  // extra API calls were causing 429 rate-limit errors.
+  // BSD → SDB (parallel lookups, BSD wins if both have data).
   static Future<List<MatchStat>> stats(Match m) async {
-    final id = await _bsdId(m);
-    if (id == null) return const [];
-    return BsdService.fetchStats(id, isLive: m.isLive);
+    final svc = SportsDbMatchService();
+
+    final bsdIdFuture = _bsdId(m);
+    final sdbIdFuture = svc.resolveEventId(
+      dateUtc: m.utcDate.toUtc(),
+      homeTeam: m.homeTeam.name,
+      awayTeam: m.awayTeam.name,
+    );
+
+    final bsdId = await bsdIdFuture;
+    final sdbId = await sdbIdFuture;
+
+    final bsdFuture = bsdId != null
+        ? BsdService.fetchStats(bsdId, isLive: m.isLive)
+        : Future.value(<MatchStat>[]);
+    final sdbFuture = sdbId != null
+        ? svc.fetchStats(sdbId, isFinished: m.isFinished).then((ss) => ss
+            .map((s) =>
+                MatchStat(name: s.name, homeValue: s.home, awayValue: s.away))
+            .toList())
+        : Future.value(<MatchStat>[]);
+
+    final bsdStats = await bsdFuture;
+    if (bsdStats.isNotEmpty) return bsdStats;
+    return await sdbFuture;
   }
 }
 

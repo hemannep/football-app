@@ -1,0 +1,26 @@
+name               = "football-fan-hub-proxy"
+main               = "index.ts"
+compatibility_date = "2024-01-01"
+account_id         = "5f16984a81f32fc0a8c0625b39118750"
+
+# ── Secrets (set with: npx wrangler secret put <NAME>) ───────────────────────
+# FD_TOKEN   — football-data.org API token
+# BSD_TOKEN  — Bzzoiro Sports Data API token
+# Do NOT put real values here; this file is committed to source control.
+
+# ── Environment variables (non-secret config) ─────────────────────────────────
+[vars]
+# ALLOWED_ORIGIN: restrict CORS to your app's domain in production.
+# During development use "*"; for a published app use your domain or "null"
+# (Flutter WebView doesn't send an Origin header so "*" is fine for mobile apps).
+ALLOWED_ORIGIN = "*"
+
+# ── Routes ────────────────────────────────────────────────────────────────────
+# Uncomment and set your custom domain after deployment if needed.
+# [[routes]]
+# pattern   = "api.yourapp.com/*"
+# zone_name = "yourapp.com"
+
+# ── KV / Cache ────────────────────────────────────────────────────────────────
+# The Worker uses the standard Cache API (caches.default) which is available
+# on the free Workers plan — no KV namespace binding is required.

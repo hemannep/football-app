@@ -36,20 +36,20 @@ class FirebaseService {
       return true;
     };
 
-    // 2. Sync user profile (restores display name after reinstall)
-    await UserProfileService.instance.syncFromFirestore();
-
-    // ... rest of your initialize() method
-    // 2. Anonymous auth — gives every device a stable UID
+    // 2. Anonymous auth — gives every device a stable UID.
     await instance._signInAnonymously();
 
-    // 3. FCM
+    // 3. Sync user profile after auth so we read leaderboard/{realUid}, not
+    // leaderboard/anon.
+    await UserProfileService.instance.syncFromFirestore();
+
+    // 4. FCM
     await instance._initFCM();
 
-    // 4. Remote Config — defaults so app works offline
+    // 5. Remote Config — defaults so app works offline
     await instance._initRemoteConfig();
 
-    // 5. Analytics — set user ID so events are tied to the device
+    // 6. Analytics — set user ID so events are tied to the device
     if (instance.userId != null) {
       await instance._analytics.setUserId(id: instance.userId);
     }
@@ -89,7 +89,7 @@ class FirebaseService {
     });
 
     final token = await _fcm.getToken();
-    debugPrint('FCM token: $token');
+    debugPrint('FCM token available: ${token != null && token.isNotEmpty}');
     // Optionally store token in Firestore for per-user targeting
   }
 
@@ -109,19 +109,25 @@ class FirebaseService {
       minimumFetchInterval:
           kDebugMode ? Duration.zero : const Duration(hours: 1),
     ));
+    // Worker URL is the default for both providers — keys live in the Worker,
+    // never in the app binary.  Remote Config can override these at runtime
+    // (e.g. to point at a different Worker deployment) without a rebuild.
     await _remoteConfig.setDefaults({
       'ads_enabled': true,
       'predictor_enabled': true,
       'trivia_enabled': true,
-      'api_base_url': 'https://api.football-data.org/v4',
+      'api_base_url':
+          'https://football-fan-hub-proxy.footballapp.workers.dev/api/fd/v4',
+      'bsd_base_url':
+          'https://football-fan-hub-proxy.footballapp.workers.dev/api/bsd',
       'interstitial_frequency': 3,
-      'bsd_token': '',
+      'bsd_token': '', // Worker holds the real token; this stays empty
     });
     try {
       final updated = await _remoteConfig.fetchAndActivate();
       final token = _remoteConfig.getString('bsd_token');
       debugPrint('RemoteConfig fetched (updated=$updated) '
-          'bsd_token=${token.isEmpty ? "EMPTY ⚠" : "${token.substring(0, 6)}…"}');
+          'bsd_token_set=${token.isNotEmpty}');
     } catch (e) {
       debugPrint('RemoteConfig fetch failed: $e');
     }
@@ -136,6 +142,14 @@ class FirebaseService {
   /// BSD token from Firebase Remote Config.
   /// Set key 'bsd_token' in the Firebase Console → Remote Config.
   String get bsdToken => _remoteConfig.getString('bsd_token');
+
+  /// Optional Firebase Functions / proxy base URL for football-data.org.
+  /// Example: https://us-central1-football-fan-hub-2026.cloudfunctions.net/api/fd
+  String get apiBaseUrl => _remoteConfig.getString('api_base_url');
+
+  /// Optional Firebase Functions / proxy base URL for BSD.
+  /// Example: https://us-central1-football-fan-hub-2026.cloudfunctions.net/api/bsd
+  String get bsdBaseUrl => _remoteConfig.getString('bsd_base_url');
 
   // ─── Analytics helpers ────────────────────────────────────────────────────
 

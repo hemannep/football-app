@@ -1,0 +1,39 @@
+name: Deploy Cloudflare Worker
+
+# Triggers automatically when worker/index.ts or wrangler.toml changes.
+# Also has a manual "Run workflow" button for forcing a redeploy.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'worker/**'
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: worker
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: worker/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Deploy Worker
+        run: npx wrangler deploy
+        env:
+          # account_id is already set in wrangler.toml — only the API token is needed.
+          # Create one at: Cloudflare Dashboard → My Profile → API Tokens
+          # Template: "Edit Cloudflare Workers"
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}

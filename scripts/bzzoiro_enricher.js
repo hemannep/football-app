@@ -189,9 +189,11 @@ async function fetchBzzLive() {
 }
 
 // ─── Step 3: fetch sub-resources for a specific BSD event id ─────────────────
-async function fetchLineups(bsdId)   { return bzzGet(`/events/${bsdId}/lineups/`); }
-async function fetchIncidents(bsdId) { return bzzGet(`/events/${bsdId}/incidents/`); }
-async function fetchStats(bsdId)     { return bzzGet(`/events/${bsdId}/stats/`); }
+async function fetchLineups(bsdId)     { return bzzGet(`/events/${bsdId}/lineups/`); }
+async function fetchIncidents(bsdId)   { return bzzGet(`/events/${bsdId}/incidents/`); }
+async function fetchStats(bsdId)       { return bzzGet(`/events/${bsdId}/stats/`); }
+async function fetchPlayerStats(bsdId) { return bzzGet(`/events/${bsdId}/player-stats/`); }
+async function fetchMetadata(bsdId)    { return bzzGet(`/events/${bsdId}/metadata/`); }
 
 // ─── Step 4: match Bzzoiro event → Firestore candidate ───────────────────────
 function findCandidate(bzzEv, candidates) {
@@ -219,11 +221,16 @@ async function enrichOne(candidate, bzzEv) {
 
   // Fetch sub-resources in parallel (rate-limit: relay already serialises calls
   // at the match level, so parallel sub-calls for ONE match is fine).
-  const [lineupsRaw, incidentsRaw, statsRaw] = await Promise.all([
-    fetchLineups(bsdId),
-    fetchIncidents(bsdId),
-    fetchStats(bsdId),
-  ]);
+  const [lineupsRaw, incidentsRaw, statsRaw, playerStatsRaw, metadataRaw] =
+    await Promise.all([
+      fetchLineups(bsdId),
+      fetchIncidents(bsdId),
+      fetchStats(bsdId),
+      fetchPlayerStats(bsdId),
+      // Metadata (funfacts, jerseys, AI preview): skip for live matches to save
+      // quota — it's editorial content that doesn't change during play.
+      isLive ? Promise.resolve(null) : fetchMetadata(bsdId),
+    ]);
 
   // ── Build flat bzzLineups list ──────────────────────────────────────────────
   const flatLineups = buildFlatLineups(lineupsRaw);
@@ -262,6 +269,19 @@ async function enrichOne(candidate, bzzEv) {
   const xgHomeActual = statsRaw?.home?.actual_xg  ?? bzzEv.actual_home_xg  ?? null;
   const xgAwayActual = statsRaw?.away?.actual_xg  ?? bzzEv.actual_away_xg  ?? null;
 
+  // ── Player stats (ratings, goals, assists, passes, etc.) ───────────────────
+  const playerStatsList = Array.isArray(playerStatsRaw)
+    ? playerStatsRaw
+    : (playerStatsRaw?.player_stats ?? playerStatsRaw?.results ?? []);
+
+  // ── Metadata (funfacts, jerseys, AI preview) ────────────────────────────────
+  const funfacts  = metadataRaw?.funfacts   ?? null;
+  const aiPreview = metadataRaw?.ai_preview ?? null;
+  const jerseys   = metadataRaw?.jerseys    ?? null;
+
+  // ── Attendance: BSD event top-level field ───────────────────────────────────
+  const attendance = bzzEv.attendance ?? bzzEv.spectators ?? null;
+
   const update = {
     bzzoiroId: bsdId,
 
@@ -273,8 +293,11 @@ async function enrichOne(candidate, bzzEv) {
     // Incidents (goals, cards, subs)
     incidents: incidentsList,
 
-    // Live stats — possesion, shots, corners, etc.
+    // Live stats — possession, shots, corners, etc.
     liveStats: statsMap,
+
+    // Per-player ratings and match statistics
+    playerStats: playerStatsList.length > 0 ? playerStatsList : null,
 
     // Expected goals
     xg: {
@@ -290,9 +313,15 @@ async function enrichOne(candidate, bzzEv) {
     xgPerMinute:      bzzEv.xg_per_minute    ?? null,
     averagePositions: bzzEv.average_positions ?? null,
 
-    // Officials
+    // Officials and venue
     referee:             bzzEv.referee              ?? null,
+    attendance:          attendance,
     unavailablePlayers:  bzzEv.unavailable_players   ?? null,
+
+    // Pre-match editorial content (written once, not on live updates)
+    ...(funfacts  !== null && { funfacts }),
+    ...(aiPreview !== null && { aiPreview }),
+    ...(jerseys   !== null && { jerseys }),
 
     // Knockout extras
     penaltyShootout: bzzEv.penalty_shootout ?? null,
@@ -316,7 +345,9 @@ async function enrichOne(candidate, bzzEv) {
   console.log(`  ✓ Enriched match ${candidate.fdId} (bsdId=${bsdId})`
     + ` lineups=${flatLineups?.length ?? 0}`
     + ` incidents=${incidentsList.length}`
-    + ` stats=${statsMap ? 'yes' : 'no'}`);
+    + ` stats=${statsMap ? 'yes' : 'no'}`
+    + ` playerStats=${playerStatsList.length}`
+    + ` metadata=${metadataRaw ? 'yes' : 'no'}`);
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────

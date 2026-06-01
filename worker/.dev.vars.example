@@ -1,0 +1,5 @@
+# Copy this file to .dev.vars for local `wrangler dev` testing.
+# .dev.vars is gitignored — never commit real tokens.
+FD_TOKEN=paste_your_football_data_org_token_here
+BSD_TOKEN=paste_your_bzzoiro_token_here
+ALLOWED_ORIGIN=*
