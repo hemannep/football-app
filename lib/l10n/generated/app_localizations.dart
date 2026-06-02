@@ -1506,13 +1506,13 @@ abstract class AppL10n {
   /// No description provided for @debutantSpotlightDesc.
   ///
   /// In en, this message translates to:
-  /// **'First-ever World Cup appearances in 2026'**
+  /// **'First-ever global tournament appearances in 2026'**
   String get debutantSpotlightDesc;
 
   /// No description provided for @debutantBadge.
   ///
   /// In en, this message translates to:
-  /// **'WORLD CUP DEBUTANT'**
+  /// **'2026 DEBUTANT'**
   String get debutantBadge;
 
   /// No description provided for @journeyTitle.

@@ -9,7 +9,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/theme/app_theme.dart';
 
-// All 48 WC26 qualifying nations + key non-WC nations league teams represent.
+// All 48 international-2026 qualifying nations + key league nations.
 const Map<String, String> _tlaToIso2 = {
   // ── WC26 qualified / likely ──────────────────────────────────────────────
   'BRA': 'br', 'ARG': 'ar', 'FRA': 'fr', 'GER': 'de', 'ENG': 'gb-eng',
@@ -27,7 +27,7 @@ const Map<String, String> _tlaToIso2 = {
   'NOR': 'no', 'FIN': 'fi', 'GRE': 'gr', 'RUS': 'ru', 'UKR': 'ua',
   'RSA': 'za', 'ALG': 'dz', 'NMA': 'mk',
 
-  // ── Additional FIFA member nations (clubs sometimes use these codes) ────
+  // ── Additional international member nations (clubs sometimes use these codes)
   'ROU': 'ro', 'BUL': 'bg', 'SVK': 'sk', 'SVN': 'si', 'ALB': 'al',
   'BIH': 'ba', 'MNE': 'me', 'KOS': 'xk', 'LUX': 'lu', 'ISL': 'is',
   'ISR': 'il', 'CYP': 'cy', 'MLT': 'mt', 'EST': 'ee', 'LVA': 'lv',
@@ -51,7 +51,7 @@ const Map<String, String> _tlaToIso2 = {
   'ZAM': 'zm', 'ZIM': 'zw', 'SEY': 'sc',
 };
 
-/// Maps a player's nationality string (as returned by APIs) to a WC TLA so
+/// Maps a player's nationality string (as returned by APIs) to a team TLA so
 /// [FlagWidget] can render the correct country flag.  Returns null for unknown
 /// or club-only nationality strings.
 String? nationalityToTla(String? nationality) {

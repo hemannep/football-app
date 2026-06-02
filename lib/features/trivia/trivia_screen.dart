@@ -269,7 +269,7 @@ const List<_Q> _bank = [
       "The Bernabéu is Real Madrid's home.",
       'stadiums'),
   _Q(
-      'Which World Cup 2026 host city is in Canada?',
+      'Which 2026 host city is in Canada?',
       ['Vancouver', 'Toronto', 'Both', 'Neither'],
       2,
       'Both Vancouver and Toronto host games.',

@@ -43,7 +43,7 @@ class CountryProfileWidget extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('WORLD CUP DEBUTANT',
+                      const Text('2026 DEBUTANT',
                           style: TextStyle(
                               fontSize: 10,
                               letterSpacing: 1.2,
@@ -51,7 +51,7 @@ class CountryProfileWidget extends StatelessWidget {
                               color: Colors.black87)),
                       const SizedBox(height: 2),
                       Text(
-                          '${profile.name} is making their first-ever World Cup appearance in 2026.',
+                          '${profile.name} is making their first-ever global tournament appearance in 2026.',
                           style: const TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w800,

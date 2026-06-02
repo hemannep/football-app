@@ -672,7 +672,7 @@ class _LeaderboardTab extends ConsumerWidget {
                             Flexible(
                               child: Text(
                                 e.displayName.isEmpty
-                                    ? 'Fan #${e.uid.substring(0, 6)}'
+                                    ? fanLabel(e.uid)
                                     : e.displayName,
                                 style: TextStyle(
                                     fontWeight: FontWeight.w700,

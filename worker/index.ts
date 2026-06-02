@@ -114,8 +114,8 @@ async function handleFd(
   ctx: ExecutionContext,
   origin: string,
 ): Promise<Response> {
-  // Strip /api/fd prefix → forward remaining path to FD v4
-  const fdPath    = url.pathname.replace(/^\/api\/fd/, '');
+  // Strip /api/fd/v4 prefix (or /api/fd) → forward remaining path to FD v4
+  const fdPath    = url.pathname.replace(/^\/api\/fd(?:\/v\d+)?/, '');
   const upstream  = new URL(`https://api.football-data.org/v4${fdPath}`);
 
   // Choose allowlist based on path shape

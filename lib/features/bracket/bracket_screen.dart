@@ -115,7 +115,7 @@ class _BracketScreenState extends ConsumerState<BracketScreen> {
                           fontWeight: FontWeight.w800, color: p.textMid)),
                   const SizedBox(height: 6),
                   Text(
-                      'Switch to World Cup, Champions League, or Euros to use the bracket.',
+                      'Switch to International Football 2026, Champions League, or Euros to use the bracket.',
                       textAlign: TextAlign.center,
                       style: TextStyle(color: p.textLow, fontSize: 12)),
                   const SizedBox(height: 16),

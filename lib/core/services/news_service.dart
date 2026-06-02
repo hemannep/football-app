@@ -107,6 +107,7 @@ class NewsService {
   // ─── NewsAPI ────────────────────────────────────────────────────────────
 
   static Future<List<NewsArticle>> _fetchNewsApi() async {
+    if (ApiKeys.newsApi.isEmpty) return [];
     final uri = Uri.https('newsapi.org', '/v2/everything', {
       'q': 'football OR soccer',
       'language': 'en',

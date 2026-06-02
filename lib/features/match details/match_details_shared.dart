@@ -49,6 +49,72 @@ class _DetailCard extends StatelessWidget {
   }
 }
 
+class _PlayerPhotoAvatar extends ConsumerWidget {
+  final String name;
+  final String? teamHint;
+  final String? photoUrl;
+  final double size;
+  final Color fallbackColor;
+  final dynamic jersey;
+  const _PlayerPhotoAvatar({
+    required this.name,
+    this.teamHint,
+    this.photoUrl,
+    this.size = 36,
+    this.fallbackColor = AppTheme.brand,
+    this.jersey,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final direct = photoUrl?.trim();
+    final async = (direct == null || direct.isEmpty)
+        ? ref.watch(_playerPhotoProvider('$name\u001f${teamHint ?? ''}'))
+        : null;
+    final resolved = (direct != null && direct.isNotEmpty)
+        ? direct
+        : async?.maybeWhen(data: (v) => v, orElse: () => null);
+
+    return ClipOval(
+      child: Container(
+        width: size,
+        height: size,
+        color: fallbackColor.withValues(alpha: 0.9),
+        child: resolved != null && resolved.isNotEmpty
+            ? Image.network(
+                resolved,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => _fallback(),
+              )
+            : _fallback(),
+      ),
+    );
+  }
+
+  Widget _fallback() {
+    final trimmed = name.trim();
+    final initials = trimmed.isEmpty
+        ? '?'
+        : trimmed
+            .split(RegExp(r'\s+'))
+            .where((p) => p.isNotEmpty)
+            .map((p) => p[0])
+            .take(2)
+            .join()
+            .toUpperCase();
+    return Center(
+      child: Text(
+        jersey?.toString() ?? initials,
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: size * 0.34,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    );
+  }
+}
+
 /// Centred "no data" placeholder with icon, message and optional hint.
 class _Unavailable extends StatelessWidget {
   final IconData icon;

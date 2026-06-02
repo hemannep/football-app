@@ -27,5 +27,8 @@ remoteconfig.template.json
 # Worker local secrets (never commit .dev.vars)
 worker/.dev.vars
 
+# Firebase Functions proxy (replaced by Cloudflare Worker)
+functions/
+
 # OS
 .DS_Store

@@ -12,6 +12,14 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == uid;
     }
 
+    function hasOnlyKeys(keys) {
+      return request.resource.data.keys().hasOnly(keys);
+    }
+
+    function isNonNegativeInt(value) {
+      return value is int && value >= 0;
+    }
+
     // ═══════════════════════════════════════════════════════════════════════
     // READ-ONLY relay collections — public read, server-only writes
     // (the relay uses Firebase Admin SDK which bypasses these rules)
@@ -49,10 +57,25 @@ service cloud.firestore {
 
     match /lineups/{matchId} {
       allow read: if true;
-      // Clients may write lineup data fetched from BSD/SDB as a crowd-cache.
-      // Write is guarded: only authenticated users, and only the lineup fields
-      // (they cannot overwrite relay-written data with garbage).
-      allow write: if signedIn();
+      // Clients may write compact lineup data fetched from BSD/SDB as a
+      // crowd-cache, but only to the expected fields and bounded list sizes.
+      allow create, update: if signedIn()
+        && hasOnlyKeys([
+          'flatLineups',
+          'homeFormation',
+          'awayFormation',
+          'homeCoach',
+          'awayCoach',
+          'fetchedAt',
+          'source'
+        ])
+        && request.resource.data.flatLineups is list
+        && request.resource.data.flatLineups.size() <= 60
+        && (!('source' in request.resource.data) ||
+            request.resource.data.source in ['client', 'bsd_v2', 'sportsdb'])
+        && (!('fetchedAt' in request.resource.data) ||
+            request.resource.data.fetchedAt == request.time);
+      allow delete: if false;
     }
 
     match /meta/{docId} {
@@ -79,7 +102,49 @@ service cloud.firestore {
 
     match /match_predictions/{matchKey} {
       allow read: if true;
-      allow write: if signedIn();
+      allow create: if signedIn()
+        && hasOnlyKeys([
+          'total',
+          'home',
+          'draw',
+          'away',
+          'matchKey',
+          'homeTla',
+          'awayTla'
+        ])
+        && request.resource.data.matchKey == matchKey
+        && isNonNegativeInt(request.resource.data.total)
+        && isNonNegativeInt(request.resource.data.home)
+        && isNonNegativeInt(request.resource.data.draw)
+        && isNonNegativeInt(request.resource.data.away)
+        && request.resource.data.total ==
+            request.resource.data.home +
+            request.resource.data.draw +
+            request.resource.data.away;
+      allow update: if signedIn()
+        && hasOnlyKeys([
+          'total',
+          'home',
+          'draw',
+          'away',
+          'matchKey',
+          'homeTla',
+          'awayTla'
+        ])
+        && request.resource.data.matchKey == matchKey
+        && request.resource.data.matchKey == resource.data.matchKey
+        && request.resource.data.homeTla == resource.data.homeTla
+        && request.resource.data.awayTla == resource.data.awayTla
+        && isNonNegativeInt(request.resource.data.total)
+        && isNonNegativeInt(request.resource.data.home)
+        && isNonNegativeInt(request.resource.data.draw)
+        && isNonNegativeInt(request.resource.data.away)
+        && request.resource.data.total ==
+            request.resource.data.home +
+            request.resource.data.draw +
+            request.resource.data.away
+        && request.resource.data.total == resource.data.total + 1;
+      allow delete: if false;
     }
 
     // ═══════════════════════════════════════════════════════════════════════

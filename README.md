@@ -1,6 +1,6 @@
 # Football Fan Hub 2026
 
-Zero-budget Flutter Android companion app for World Cup 2026 — built solo from Nepal.
+Zero-budget Flutter Android companion app for International Football 2026 — built solo from Nepal.
 
 ## What's inside
 
@@ -48,7 +48,7 @@ All 5 ad units are wired in `lib/core/constants/admob_ids.dart`. Banner sits at 
 
 ## Play Store safety
 
-The app name says **Football Fan Hub 2026** — never "FIFA" or "World Cup 2026". App description in the docs uses "International Football / WC26 / 48-team tournament" wording only. Use country names + flagcdn.com flags only — no team crests, no FIFA logo.
+The app name says **Football Fan Hub 2026** — never use official tournament branding. App description in the docs uses "International Football / WC26 / 48-team tournament" wording only. Use country names + flagcdn.com flags only — no team crests, no official logos.
 
 ## What still needs hand-data
 

@@ -105,18 +105,26 @@ class LeaderboardEntry {
     required this.lastUpdated,
   });
 
-  factory LeaderboardEntry.fromMap(Map<String, dynamic> m) => LeaderboardEntry(
-        countryCode: m['countryCode'] ?? '',
-        uid: m['uid'] ?? '',
-        displayName: m['displayName'] ??
-            'Fan #${(m['uid'] ?? '').toString().substring(0, 6)}',
-        totalPoints: m['totalPoints'] ?? 0,
-        predictionsCount: m['predictionsCount'] ?? 0,
-        correctScores: m['correctScores'] ?? 0,
-        lastUpdated: m['lastUpdated'] is Timestamp
-            ? (m['lastUpdated'] as Timestamp).toDate()
-            : DateTime.now(),
-      );
+  factory LeaderboardEntry.fromMap(Map<String, dynamic> m) {
+    final uid = (m['uid'] ?? '').toString();
+    return LeaderboardEntry(
+      countryCode: m['countryCode'] ?? '',
+      uid: uid,
+      displayName: m['displayName'] ?? fanLabel(uid),
+      totalPoints: m['totalPoints'] ?? 0,
+      predictionsCount: m['predictionsCount'] ?? 0,
+      correctScores: m['correctScores'] ?? 0,
+      lastUpdated: m['lastUpdated'] is Timestamp
+          ? (m['lastUpdated'] as Timestamp).toDate()
+          : DateTime.now(),
+    );
+  }
+}
+
+String fanLabel(String uid) {
+  if (uid.isEmpty) return 'Fan';
+  final suffix = uid.length <= 6 ? uid : uid.substring(0, 6);
+  return 'Fan #$suffix';
 }
 
 class CommunityStats {
@@ -175,6 +183,9 @@ class PredictionService {
   final _db = FirebaseFirestore.instance;
 
   String get _uid => FirebaseAuth.instance.currentUser?.uid ?? 'anon';
+  String get _fallbackDisplayName {
+    return fanLabel(_uid);
+  }
 
   // ── Collection references ────────────────────────────────────────────────
 
@@ -281,8 +292,7 @@ class PredictionService {
           _leaderboardDoc(),
           {
             'uid': _uid,
-            'displayName':
-                current['displayName'] ?? 'Fan #${_uid.substring(0, 6)}',
+            'displayName': current['displayName'] ?? _fallbackDisplayName,
             'totalPoints': (current['totalPoints'] ?? 0) + pts,
             'predictionsCount': (current['predictionsCount'] ?? 0) + 1,
             'correctScores':

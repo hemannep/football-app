@@ -5,7 +5,7 @@
 // CRITICAL CONTEXT:
 //   The API-Football free tier is locked to seasons 2021–2023 — it returns
 //   `{plan: Free plans do not have access to this season}` for anything
-//   newer. That makes it unusable for WC26 or any 2025/26 match.
+//   newer. That makes it unusable for international 2026 or any 2025/26 match.
 //
 //   TheSportsDB free tier ("123" key) DOES cover current matches via the
 //   lookup-by-id endpoints. The flow:
@@ -90,8 +90,10 @@ class SportsDbMatchService {
   factory SportsDbMatchService() => _instance;
   SportsDbMatchService._internal();
 
-  static bool debug = kDebugMode;
+  static const bool debug =
+      kDebugMode && bool.fromEnvironment('DEBUG_SPORTS_API');
   static const String _box = 'matches_cache';
+  static const String _miss = '__MISS__';
 
   // In-flight dedup cache — prevents 3 simultaneous providers hammering SDB
   // for the same match at the same time.  The Future is shared so the HTTP
@@ -240,6 +242,7 @@ class SportsDbMatchService {
     // Check Hive first (survives app restarts).
     final hived = _cached(cacheKey, _ttlEventId);
     if (hived != null) {
+      if (hived == _miss) return Future.value(null);
       _log('cached eventId "$homeTeam vs $awayTeam" = $hived');
       return Future.value(hived as String);
     }
@@ -275,6 +278,7 @@ class SportsDbMatchService {
       }
     }
     _log('FAILED to resolve "$homeTeam" vs "$awayTeam"');
+    await _cache(cacheKey, _miss);
     return null;
   }
 
@@ -292,11 +296,11 @@ class SportsDbMatchService {
     final result = await _searchUrl(primaryUrl, homeTeam, awayTeam, dateStr);
     if (result != null) return result;
 
-    // Secondary: competition-specific buckets for UCL / WC / Euro which
+    // Secondary: competition-specific buckets for UCL / global tournament / Euro which
     // SportsDB doesn't include in the generic Soccer feed.
     for (final league in [
       'UEFA+Champions+League',
-      'FIFA+World+Cup',
+      'World+Cup',
       'UEFA+European+Championship',
     ]) {
       final url = '$_base/eventsday.php?d=$dateStr&l=$league';

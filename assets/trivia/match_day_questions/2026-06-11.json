@@ -55,7 +55,7 @@
       "q": "What is the maximum squad size allowed at the 2026 World Cup?",
       "options": ["23", "26", "28", "30"],
       "correct": 1,
-      "explanation": "FIFA expanded squads to 26 players from the 2022 tournament onwards."
+      "explanation": "Senior international squads expanded to 26 players from the 2022 tournament onwards."
     },
     {
       "id": "d007",

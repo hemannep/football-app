@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 /// All competitions available on the football-data.org FREE tier.
-/// World Cup is intentionally first — top priority for this app.
+/// International Football 2026 is intentionally first — top priority here.
 class League {
   final String code; // football-data.org competition code
   final String name;
@@ -23,7 +23,7 @@ class League {
 class Leagues {
   static const wc = League(
     code: 'WC',
-    name: 'World Cup 2026',
+    name: 'International Football 2026',
     country: 'World',
     icon: Icons.emoji_events_rounded,
     isKnockout: true,

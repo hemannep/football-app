@@ -20,7 +20,13 @@ const _liveMatchCacheMs = 30 * 1000; // 30 s for live matches
 const _finishedMatchCacheMs = 24 * 60 * 60 * 1000; // 24 h for finished matches
 
 class ApiService {
-  static const _headers = {'X-Auth-Token': ApiConstants.token};
+  static bool get _usingProxy =>
+      !ApiConstants.baseUrl.contains('api.football-data.org');
+
+  static Map<String, String> get _headers =>
+      _usingProxy || ApiConstants.token.isEmpty
+          ? const {}
+          : const {'X-Auth-Token': ApiConstants.token};
 
   // ─── Matches per competition ─────────────────────────────────────────────
   static Future<List<Match>> fetchMatches(String competitionCode,

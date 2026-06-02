@@ -744,10 +744,10 @@ class AppL10nKo extends AppL10n {
 
   @override
   String get debutantSpotlightDesc =>
-      'First-ever World Cup appearances in 2026';
+      'First-ever global tournament appearances in 2026';
 
   @override
-  String get debutantBadge => 'WORLD CUP DEBUTANT';
+  String get debutantBadge => '2026 DEBUTANT';
 
   @override
   String get journeyTitle => 'TOURNAMENT JOURNEY';

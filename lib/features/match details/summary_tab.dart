@@ -55,8 +55,7 @@ class _SummaryTab extends ConsumerWidget {
     final refNat = referee?['nationality'] as String?;
 
     // Incidents for the live ticker
-    final fsIncidents =
-        rawDoc != null ? _incidentsFromRaw(rawDoc) : null;
+    final fsIncidents = rawDoc != null ? _incidentsFromRaw(rawDoc) : null;
 
     // H2H from raw doc
     final h2hDoc = rawDoc?['head_to_head'] as Map?;
@@ -71,9 +70,8 @@ class _SummaryTab extends ConsumerWidget {
             .where((pl) => pl['rating'] != null && pl['is_starter'] != false)
             .toList()
         : <Map<String, dynamic>>[];
-    allRatedPlayers
-        .sort((a, b) => ((b['rating'] as num?) ?? 0)
-            .compareTo((a['rating'] as num?) ?? 0));
+    allRatedPlayers.sort((a, b) =>
+        ((b['rating'] as num?) ?? 0).compareTo((a['rating'] as num?) ?? 0));
     final motm = allRatedPlayers.isNotEmpty ? allRatedPlayers.first : null;
     final highestRated = allRatedPlayers.take(6).toList();
 
@@ -81,14 +79,12 @@ class _SummaryTab extends ConsumerWidget {
     final allMatches = ref.watch(liveScoreProvider).matches;
     List<Match> teamLast5(String tla) => allMatches
         .where((m) =>
-            m.isFinished &&
-            (m.homeTeam.tla == tla || m.awayTeam.tla == tla))
+            m.isFinished && (m.homeTeam.tla == tla || m.awayTeam.tla == tla))
         .toList()
       ..sort((a, b) => b.utcDate.compareTo(a.utcDate));
     List<Match> teamNext(String tla) => allMatches
         .where((m) =>
-            m.isScheduled &&
-            (m.homeTeam.tla == tla || m.awayTeam.tla == tla))
+            m.isScheduled && (m.homeTeam.tla == tla || m.awayTeam.tla == tla))
         .toList()
       ..sort((a, b) => a.utcDate.compareTo(b.utcDate));
     final homeLast5 = teamLast5(match.homeTeam.tla).take(5).toList();
@@ -102,7 +98,8 @@ class _SummaryTab extends ConsumerWidget {
       padding: const EdgeInsets.fromLTRB(12, 14, 12, 30),
       children: [
         // ── Ball Possession ──────────────────────────────────────────────
-        if (possHome != null && possAway != null &&
+        if (possHome != null &&
+            possAway != null &&
             (match.isFinished || match.isLive)) ...[
           const _SectionLabel('Ball Possession'),
           _DetailCard(
@@ -134,11 +131,19 @@ class _SummaryTab extends ConsumerWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(child: _GoalColumn(p: p, team: match.homeTeam,
-                      goals: homeGoals, isRight: false)),
+                  Expanded(
+                      child: _GoalColumn(
+                          p: p,
+                          team: match.homeTeam,
+                          goals: homeGoals,
+                          isRight: false)),
                   Container(width: 1, color: p.stroke),
-                  Expanded(child: _GoalColumn(p: p, team: match.awayTeam,
-                      goals: awayGoals, isRight: true)),
+                  Expanded(
+                      child: _GoalColumn(
+                          p: p,
+                          team: match.awayTeam,
+                          goals: awayGoals,
+                          isRight: true)),
                 ],
               ),
             ),
@@ -207,23 +212,43 @@ class _SummaryTab extends ConsumerWidget {
 
         // ── Match info (Referee and Stadium) ────────────────────────────
         const _SectionLabel('Match Info'),
-        _InfoRow(p: p, icon: Icons.calendar_today_rounded, label: 'Date',
+        _InfoRow(
+            p: p,
+            icon: Icons.calendar_today_rounded,
+            label: 'Date',
             value: DateFormat('EEEE, d MMM yyyy').format(match.utcDate)),
-        _InfoRow(p: p, icon: Icons.schedule_rounded,
+        _InfoRow(
+            p: p,
+            icon: Icons.schedule_rounded,
             label: match.isFinished ? 'Kicked off' : 'Kick-off',
             value: '${DateFormat('HH:mm').format(match.utcDate)} local'),
         if (match.venue != null)
-          _InfoRow(p: p, icon: Icons.stadium_rounded, label: 'Stadium',
+          _InfoRow(
+              p: p,
+              icon: Icons.stadium_rounded,
+              label: 'Stadium',
               value: match.venue!),
         if (refName != null && refName.isNotEmpty)
-          _InfoRow(p: p, icon: Icons.sports_rounded, label: 'Referee',
+          _InfoRow(
+              p: p,
+              icon: Icons.sports_rounded,
+              label: 'Referee',
               value: refNat != null ? '$refName · $refNat' : refName),
-        _InfoRow(p: p, icon: Icons.emoji_events_rounded, label: 'Competition',
+        _InfoRow(
+            p: p,
+            icon: Icons.emoji_events_rounded,
+            label: 'Competition',
             value: match.competitionName ?? '—'),
-        _InfoRow(p: p, icon: Icons.flag_rounded, label: 'Stage',
+        _InfoRow(
+            p: p,
+            icon: Icons.flag_rounded,
+            label: 'Stage',
             value: _stageLabel(match.stage)),
         if (match.group != null)
-          _InfoRow(p: p, icon: Icons.groups_2_rounded, label: 'Group',
+          _InfoRow(
+              p: p,
+              icon: Icons.groups_2_rounded,
+              label: 'Group',
               value: match.group!.replaceAll('GROUP_', 'Group ')),
 
         // ── H2H snippet ─────────────────────────────────────────────────
@@ -248,8 +273,7 @@ class _SummaryTab extends ConsumerWidget {
                 final ft = sc?['fullTime'] as Map?;
                 final hg = ft?['home'];
                 final ag = ft?['away'];
-                final scoreStr =
-                    hg != null && ag != null ? '$hg – $ag' : 'vs';
+                final scoreStr = hg != null && ag != null ? '$hg – $ag' : 'vs';
                 final dateStr = rm['utcDate'] as String?;
                 DateTime? dt;
                 if (dateStr != null) {
@@ -266,8 +290,7 @@ class _SummaryTab extends ConsumerWidget {
                                 color: p.textLow,
                                 fontWeight: FontWeight.w600)),
                       const Spacer(),
-                      TeamCrestWidget(
-                          crestUrl: htCrest, tla: htTla, size: 18),
+                      TeamCrestWidget(crestUrl: htCrest, tla: htTla, size: 18),
                       const SizedBox(width: 5),
                       Text(ht,
                           style: TextStyle(
@@ -295,8 +318,7 @@ class _SummaryTab extends ConsumerWidget {
                               fontWeight: FontWeight.w700,
                               color: p.textHi)),
                       const SizedBox(width: 5),
-                      TeamCrestWidget(
-                          crestUrl: atCrest, tla: atTla, size: 18),
+                      TeamCrestWidget(crestUrl: atCrest, tla: atTla, size: 18),
                     ],
                   ),
                 );
@@ -318,7 +340,6 @@ class _SummaryTab extends ConsumerWidget {
       .split('_')
       .map((w) => w.isEmpty ? w : w[0] + w.substring(1).toLowerCase())
       .join(' ');
-
 }
 
 // ─── Ball possession bar ──────────────────────────────────────────────────────
@@ -431,9 +452,12 @@ class _MotmCard extends StatelessWidget {
             height: 56,
             color: AppTheme.brand.withValues(alpha: 0.15),
             child: (photoUrl != null && photoUrl.isNotEmpty)
-                ? Image.network(photoUrl, fit: BoxFit.cover,
+                ? Image.network(photoUrl,
+                    fit: BoxFit.cover,
                     errorBuilder: (_, __, ___) => const Icon(
-                        Icons.person_rounded, size: 30, color: AppTheme.brand))
+                        Icons.person_rounded,
+                        size: 30,
+                        color: AppTheme.brand))
                 : const Icon(Icons.person_rounded,
                     size: 30, color: AppTheme.brand),
           ),
@@ -530,7 +554,8 @@ class _HighestRatedGrid extends StatelessWidget {
                   height: 38,
                   color: AppTheme.brand.withValues(alpha: 0.12),
                   child: (photoUrl != null && photoUrl.isNotEmpty)
-                      ? Image.network(photoUrl, fit: BoxFit.cover,
+                      ? Image.network(photoUrl,
+                          fit: BoxFit.cover,
                           errorBuilder: (_, __, ___) => const Icon(
                               Icons.person_rounded,
                               size: 20,
@@ -558,15 +583,13 @@ class _HighestRatedGrid extends StatelessWidget {
                           const Icon(Icons.sports_soccer_rounded,
                               size: 10, color: AppTheme.brand),
                           Text(' $goals ',
-                              style: TextStyle(
-                                  fontSize: 10, color: p.textLow)),
+                              style: TextStyle(fontSize: 10, color: p.textLow)),
                         ],
                         if (assists != null && assists > 0) ...[
                           const Icon(Icons.assistant_rounded,
                               size: 10, color: AppTheme.accent),
                           Text(' $assists',
-                              style: TextStyle(
-                                  fontSize: 10, color: p.textLow)),
+                              style: TextStyle(fontSize: 10, color: p.textLow)),
                         ],
                       ]),
                   ],
@@ -681,8 +704,7 @@ class _Last5Grid extends StatelessWidget {
     );
   }
 
-  Widget _teamRow(
-      BuildContext context, TeamRef team, List<Match> matches) {
+  Widget _teamRow(BuildContext context, TeamRef team, List<Match> matches) {
     return Row(
       children: [
         TeamCrestWidget(crestUrl: team.crest, tla: team.tla, size: 22),
@@ -807,12 +829,14 @@ class _XgBar extends StatelessWidget {
           children: [
             Text(homeTeam,
                 style: TextStyle(
-                    fontSize: 11, fontWeight: FontWeight.w700,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
                     color: p.textMid)),
             const Spacer(),
             Text(awayTeam,
                 style: TextStyle(
-                    fontSize: 11, fontWeight: FontWeight.w700,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
                     color: p.textMid)),
           ],
         ),
@@ -837,8 +861,7 @@ class _GoalColumn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(
-          left: isRight ? 12 : 0, right: isRight ? 0 : 12),
+      padding: EdgeInsets.only(left: isRight ? 12 : 0, right: isRight ? 0 : 12),
       child: Column(
         crossAxisAlignment:
             isRight ? CrossAxisAlignment.end : CrossAxisAlignment.start,
@@ -880,11 +903,16 @@ class _GoalColumn extends StatelessWidget {
                       : '';
               final text = "${g.minute}' ${g.scorerName ?? '—'}$extra";
               final iconColor = g.isOwnGoal ? Colors.grey : AppTheme.brand;
-              final hasAssist = g.assistName != null && g.assistName!.isNotEmpty && !g.isPenalty && !g.isOwnGoal;
+              final hasAssist = g.assistName != null &&
+                  g.assistName!.isNotEmpty &&
+                  !g.isPenalty &&
+                  !g.isOwnGoal;
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 2),
                 child: Column(
-                  crossAxisAlignment: isRight ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                  crossAxisAlignment: isRight
+                      ? CrossAxisAlignment.end
+                      : CrossAxisAlignment.start,
                   children: [
                     Row(
                       mainAxisAlignment: isRight
@@ -897,13 +925,15 @@ class _GoalColumn extends StatelessWidget {
                           const SizedBox(width: 4),
                           Flexible(
                             child: Text(text,
-                                style: TextStyle(fontSize: 12, color: p.textHi)),
+                                style:
+                                    TextStyle(fontSize: 12, color: p.textHi)),
                           ),
                         ] else ...[
                           Flexible(
                             child: Text(text,
                                 textAlign: TextAlign.right,
-                                style: TextStyle(fontSize: 12, color: p.textHi)),
+                                style:
+                                    TextStyle(fontSize: 12, color: p.textHi)),
                           ),
                           const SizedBox(width: 4),
                           Icon(Icons.sports_soccer_rounded,
@@ -915,7 +945,10 @@ class _GoalColumn extends StatelessWidget {
                       Text(
                         'Assist: ${g.assistName}',
                         textAlign: isRight ? TextAlign.right : TextAlign.left,
-                        style: TextStyle(fontSize: 10, color: p.textLow, fontStyle: FontStyle.italic),
+                        style: TextStyle(
+                            fontSize: 10,
+                            color: p.textLow,
+                            fontStyle: FontStyle.italic),
                       ),
                   ],
                 ),
@@ -964,9 +997,7 @@ class _InfoRow extends StatelessWidget {
           const SizedBox(width: 12),
           Text(label,
               style: TextStyle(
-                  fontSize: 12,
-                  color: p.textLow,
-                  fontWeight: FontWeight.w600)),
+                  fontSize: 12, color: p.textLow, fontWeight: FontWeight.w600)),
           const SizedBox(width: 8),
           Expanded(
             child: Text(value,
@@ -1009,14 +1040,14 @@ class _LiveTicker extends ConsumerWidget {
 
     final async = ref.watch(_incidentsProvider(match));
     return async.when(
-      loading: () => const SizedBox.shrink(),
-      error: (_, __) => const SizedBox.shrink(),
+      loading: () => _eventsLoadingCard(p),
+      error: (_, __) => _eventsEmptyCard(p),
       data: (list) => _buildTicker(p, list),
     );
   }
 
   Widget _buildTicker(Palette p, List<MatchIncident> list) {
-    if (list.isEmpty) return const SizedBox.shrink();
+    if (list.isEmpty) return _eventsEmptyCard(p);
 
     // Half-time and full-time scores from the raw Firestore score map.
     final htMap = rawScore?['halfTime'] as Map?;
@@ -1049,7 +1080,7 @@ class _LiveTicker extends ConsumerWidget {
         }
         htInserted = true;
       }
-      rows.add(_IncidentRow(incident: inc, p: p));
+      rows.add(_IncidentRow(incident: inc, match: match, p: p));
     }
     // If all events were > 45 (all 2nd half), place HT below them.
     if (!htInserted && pastHalfTime) {
@@ -1082,6 +1113,64 @@ class _LiveTicker extends ConsumerWidget {
           ),
           const SizedBox(height: 10),
           ...rows,
+        ],
+      ),
+    );
+  }
+
+  Widget _eventsLoadingCard(Palette p) {
+    return _DetailCard(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          const SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          const SizedBox(width: 10),
+          Text('Loading match events...',
+              style: TextStyle(
+                  fontSize: 12, fontWeight: FontWeight.w700, color: p.textMid)),
+        ],
+      ),
+    );
+  }
+
+  Widget _eventsEmptyCard(Palette p) {
+    return _DetailCard(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: p.surfaceHi,
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: Icon(Icons.event_note_rounded, color: p.textLow, size: 18),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('No detailed events returned',
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: p.textHi)),
+                const SizedBox(height: 3),
+                Text(
+                  'Scoreline and match info are still shown; cards, subs and assists appear when the data provider includes them.',
+                  style:
+                      TextStyle(fontSize: 11, height: 1.35, color: p.textLow),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -1142,7 +1231,8 @@ class _FtMarker extends StatelessWidget {
   final Palette p;
   final int ftHome;
   final int ftAway;
-  const _FtMarker({required this.p, required this.ftHome, required this.ftAway});
+  const _FtMarker(
+      {required this.p, required this.ftHome, required this.ftAway});
 
   @override
   Widget build(BuildContext context) =>
@@ -1186,8 +1276,13 @@ class _MatchMarker extends StatelessWidget {
 
 class _IncidentRow extends StatelessWidget {
   final MatchIncident incident;
+  final Match match;
   final Palette p;
-  const _IncidentRow({required this.incident, required this.p});
+  const _IncidentRow({
+    required this.incident,
+    required this.match,
+    required this.p,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1205,7 +1300,11 @@ class _IncidentRow extends StatelessWidget {
             : Icons.square_rounded;
 
     final Color iconColor = isGoal
-        ? (isOG ? Colors.grey : isPen ? const Color(0xFFF5A623) : AppTheme.brand)
+        ? (isOG
+            ? Colors.grey
+            : isPen
+                ? const Color(0xFFF5A623)
+                : AppTheme.brand)
         : isYellow
             ? const Color(0xFFF5A623)
             : isRed
@@ -1227,19 +1326,24 @@ class _IncidentRow extends StatelessWidget {
     final String playerLabel;
     final String? subLabel;
     if (isSub) {
-      // Show "PlayerIn / PlayerOut" on one line — matches reference app style.
       final inName = incident.player;
       final outName = incident.assistOrOff;
       if (inName != null && outName != null) {
-        playerLabel = '$inName  /  $outName';
-        subLabel = null;
+        playerLabel = inName;
+        subLabel = 'Replaced: $outName';
       } else {
         playerLabel = inName ?? outName ?? '—';
         subLabel = null;
       }
     } else if (isGoal) {
       playerLabel = incident.player ?? '—';
-      subLabel = isOG ? 'Own Goal' : isPen ? 'Penalty' : incident.assistOrOff != null ? 'Assist: ${incident.assistOrOff}' : null;
+      subLabel = isOG
+          ? 'Own Goal'
+          : isPen
+              ? 'Penalty'
+              : incident.assistOrOff != null
+                  ? 'Assist: ${incident.assistOrOff}'
+                  : null;
     } else {
       playerLabel = incident.player ?? '—';
       subLabel = null;
@@ -1252,7 +1356,9 @@ class _IncidentRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
         decoration: BoxDecoration(
           color: isGoal
-              ? (isOG ? Colors.grey.withValues(alpha: 0.2) : AppTheme.brand.withValues(alpha: 0.15))
+              ? (isOG
+                  ? Colors.grey.withValues(alpha: 0.2)
+                  : AppTheme.brand.withValues(alpha: 0.15))
               : isRed
                   ? AppTheme.live.withValues(alpha: 0.12)
                   : isYellow
@@ -1286,54 +1392,63 @@ class _IncidentRow extends StatelessWidget {
       child: Icon(icon, size: 13, color: iconColor),
     );
 
-    Widget nameCol(bool alignRight) => Expanded(
+    final team = incident.isHome ? match.homeTeam : match.awayTeam;
+    final teamHint = team.name;
+
+    Widget nameCol() => Expanded(
           child: Column(
-            crossAxisAlignment: alignRight
-                ? CrossAxisAlignment.end
-                : CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(playerLabel,
-                  maxLines: 1,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  textAlign: alignRight ? TextAlign.right : TextAlign.left,
                   style: TextStyle(
                       fontSize: 12,
-                      fontWeight:
-                          isGoal ? FontWeight.w800 : FontWeight.w600,
+                      fontWeight: isGoal ? FontWeight.w800 : FontWeight.w600,
                       color: isGoal ? p.textHi : p.textHi)),
               if (subLabel != null)
                 Text(subLabel,
-                    maxLines: 1,
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    textAlign:
-                        alignRight ? TextAlign.right : TextAlign.left,
                     style: TextStyle(fontSize: 10, color: p.textLow)),
             ],
           ),
         );
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 5),
       child: Row(
-        children: incident.isHome
-            ? [
-                nameCol(false),
-                const SizedBox(width: 6),
-                eventIcon,
-                const SizedBox(width: 4),
-                minuteBox,
-                const SizedBox(width: 4),
-                const Expanded(child: SizedBox()),
-              ]
-            : [
-                const Expanded(child: SizedBox()),
-                minuteBox,
-                const SizedBox(width: 4),
-                eventIcon,
-                const SizedBox(width: 6),
-                nameCol(true),
-              ],
+        children: [
+          minuteBox,
+          const SizedBox(width: 8),
+          eventIcon,
+          const SizedBox(width: 10),
+          if (isGoal || isSub) ...[
+            _PlayerPhotoAvatar(
+              name: playerLabel,
+              teamHint: teamHint,
+              size: 30,
+              fallbackColor: incident.isHome ? AppTheme.brand : AppTheme.live,
+            ),
+            const SizedBox(width: 10),
+          ],
+          nameCol(),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+            decoration: BoxDecoration(
+              color: (incident.isHome ? AppTheme.brand : AppTheme.live)
+                  .withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(team.tla,
+                style: TextStyle(
+                    color: p.textHi,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900)),
+          ),
+        ],
       ),
     );
   }

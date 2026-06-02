@@ -1,7 +1,7 @@
 // lib/shared/widgets/debutant_spotlight_widget.dart
 //
 // Spec — Debutant Spotlight for Format Guide screen.
-// Shows the 2026 World Cup debutants (first-ever WC appearance) with their
+// Shows the 2026 international tournament debutants with their
 // confederation and a short note. Reads from CountryPagesService.
 
 import 'package:flutter/material.dart';
@@ -52,7 +52,7 @@ class DebutantSpotlightWidget extends StatelessWidget {
                             fontWeight: FontWeight.w900,
                             color: AppTheme.brand)),
                     const SizedBox(height: 2),
-                    Text('First-ever World Cup appearances in 2026',
+                    Text('First-ever global tournament appearances in 2026',
                         style: TextStyle(
                             fontSize: 12,
                             color: p.textMid,

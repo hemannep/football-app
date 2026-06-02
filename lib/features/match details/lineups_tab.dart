@@ -24,10 +24,10 @@ class _LineupsTabState extends ConsumerState<_LineupsTab> {
     final p = AppTheme.of(context);
 
     // ── Data sources (in priority order) ───────────────────────────────────
-    final rawAsync        = ref.watch(_rawMatchProvider(widget.match));
+    final rawAsync = ref.watch(_rawMatchProvider(widget.match));
     final lineupCollAsync = ref.watch(lineupProvider(widget.match.id));
-    final bsdAsync        = ref.watch(_bsdLineupsProvider(widget.match));
-    final sdbAsync        = ref.watch(_sdbLineupsProvider(widget.match));
+    final bsdAsync = ref.watch(_bsdLineupsProvider(widget.match));
+    final sdbAsync = ref.watch(_sdbLineupsProvider(widget.match));
 
     // Show spinner only when ALL sources are still loading (no data yet).
     final anyLoading = rawAsync.isLoading &&
@@ -38,7 +38,7 @@ class _LineupsTabState extends ConsumerState<_LineupsTab> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    final raw        = rawAsync.value;
+    final raw = rawAsync.value;
     final lineupColl = lineupCollAsync.value;
 
     // ── Determine which lineup to use ───────────────────────────────────────
@@ -51,7 +51,7 @@ class _LineupsTabState extends ConsumerState<_LineupsTab> {
     //   6. bzzPredictedLineup (pre-match prediction)
     //   7. null → empty pitch / not-available state
     final bzzLineupsList = raw?['bzzLineups'];
-    final hasBzzLineups  = bzzLineupsList is List && bzzLineupsList.isNotEmpty;
+    final hasBzzLineups = bzzLineupsList is List && bzzLineupsList.isNotEmpty;
 
     final confirmedLineupMap = raw?['confirmedLineup'];
     final hasConfirmedLineup = confirmedLineupMap is Map &&
@@ -62,20 +62,24 @@ class _LineupsTabState extends ConsumerState<_LineupsTab> {
     //  • relay format: {home: {startXI:[...], substitutes:[...]}, away:{...}}
     //  • client crowd-cache: {flatLineups: [{is_home, is_starter, name,...}]}
     final hasLineupColl = lineupColl != null &&
-        (lineupColl['home'] != null || lineupColl['away'] != null ||
-         (lineupColl['flatLineups'] is List &&
-          (lineupColl['flatLineups'] as List).isNotEmpty));
+        (lineupColl['home'] != null ||
+            lineupColl['away'] != null ||
+            (lineupColl['flatLineups'] is List &&
+                (lineupColl['flatLineups'] as List).isNotEmpty));
 
     final bsdLineups = bsdAsync.value;
-    final hasBsd     = bsdLineups != null &&
+    final hasBsd = bsdLineups != null &&
         (bsdLineups.home != null || bsdLineups.away != null);
 
     final sdbLineups = sdbAsync.value;
-    final hasSdb     = sdbLineups != null &&
+    final hasSdb = sdbLineups != null &&
         (sdbLineups.home != null || sdbLineups.away != null);
 
-    final hasAnyActual = hasBzzLineups || hasConfirmedLineup ||
-        hasLineupColl || hasBsd || hasSdb;
+    final hasAnyActual = hasBzzLineups ||
+        hasConfirmedLineup ||
+        hasLineupColl ||
+        hasBsd ||
+        hasSdb;
     final isActual = hasAnyActual &&
         (widget.match.isLive ||
             widget.match.isFinished ||
@@ -85,10 +89,10 @@ class _LineupsTabState extends ConsumerState<_LineupsTab> {
     final bool isPredicted;
 
     if (hasBzzLineups) {
-      lineupList   = bzzLineupsList;
-      isPredicted  = !isActual;
+      lineupList = bzzLineupsList;
+      isPredicted = !isActual;
     } else if (hasConfirmedLineup) {
-      lineupList  = _convertConfirmedLineup(
+      lineupList = _convertConfirmedLineup(
           Map<String, dynamic>.from(confirmedLineupMap));
       isPredicted = false;
     } else if (hasLineupColl) {
@@ -101,28 +105,28 @@ class _LineupsTabState extends ConsumerState<_LineupsTab> {
             .map((m) => Map<String, dynamic>.from(m))
             .toList();
       } else {
-        lineupList = _convertConfirmedLineup(
-            Map<String, dynamic>.from(lineupColl));
+        lineupList =
+            _convertConfirmedLineup(Map<String, dynamic>.from(lineupColl));
       }
       isPredicted = false;
     } else if (hasBsd) {
-      lineupList  = _convertBsdLineups(bsdLineups);
+      lineupList = _convertBsdLineups(bsdLineups);
       isPredicted = false;
     } else if (hasSdb) {
-      lineupList  = _convertSdbLineups(sdbLineups);
+      lineupList = _convertSdbLineups(sdbLineups);
       isPredicted = false;
     } else if (raw?['bzzPredictedLineup'] is List) {
-      lineupList  = raw!['bzzPredictedLineup'] as List;
+      lineupList = raw!['bzzPredictedLineup'] as List;
       isPredicted = !isActual;
     } else {
-      lineupList  = null;
+      lineupList = null;
       isPredicted = false;
     }
 
     // Show a subtle loading pill while secondary sources are still resolving
     // but we already have something to display.
-    final stillResolving = lineupList == null &&
-        (bsdAsync.isLoading || sdbAsync.isLoading);
+    final stillResolving =
+        lineupList == null && (bsdAsync.isLoading || sdbAsync.isLoading);
 
     // Formation: Bzzoiro predicted → confirmedLineup actual → default.
     String homeFormation =
@@ -149,6 +153,20 @@ class _LineupsTabState extends ConsumerState<_LineupsTab> {
           awayCoach = (away['coach'] as Map)['name'] as String?;
         }
       }
+    }
+    if (!hasBzzLineups && hasLineupColl) {
+      homeFormation = lineupColl['homeFormation']?.toString() ?? homeFormation;
+      awayFormation = lineupColl['awayFormation']?.toString() ?? awayFormation;
+      homeCoach ??= lineupColl['homeCoach']?.toString();
+      awayCoach ??= lineupColl['awayCoach']?.toString();
+    }
+    if (!hasBzzLineups && !hasConfirmedLineup && hasBsd) {
+      homeFormation = bsdLineups.home?.formation ?? homeFormation;
+      awayFormation = bsdLineups.away?.formation ?? awayFormation;
+    }
+    if (!hasBzzLineups && !hasConfirmedLineup && !hasBsd && hasSdb) {
+      homeFormation = sdbLineups.home?.formation ?? homeFormation;
+      awayFormation = sdbLineups.away?.formation ?? awayFormation;
     }
 
     final allPlayers = lineupList == null
@@ -192,6 +210,8 @@ class _LineupsTabState extends ConsumerState<_LineupsTab> {
         context,
         homeStarters: homeStarters,
         awayStarters: awayStarters,
+        homeSubs: homeSubs,
+        awaySubs: awaySubs,
         homeFormation: homeFormation,
         awayFormation: awayFormation,
         homeCoach: homeCoach,
@@ -209,13 +229,25 @@ class _LineupsTabState extends ConsumerState<_LineupsTab> {
           color: p.bg,
           child: Row(
             children: [
-              _SubTabBtn(label: 'Lineup', idx: 0, sel: _subTab,
+              _SubTabBtn(
+                  label: 'Lineup',
+                  idx: 0,
+                  sel: _subTab,
                   onTap: () => setState(() => _subTab = 0)),
-              _SubTabBtn(label: 'Subs', idx: 1, sel: _subTab,
+              _SubTabBtn(
+                  label: 'Subs',
+                  idx: 1,
+                  sel: _subTab,
                   onTap: () => setState(() => _subTab = 1)),
-              _SubTabBtn(label: 'Injuries', idx: 2, sel: _subTab,
+              _SubTabBtn(
+                  label: 'Injuries',
+                  idx: 2,
+                  sel: _subTab,
                   onTap: () => setState(() => _subTab = 2)),
-              _SubTabBtn(label: 'Suspensions', idx: 3, sel: _subTab,
+              _SubTabBtn(
+                  label: 'Suspensions',
+                  idx: 3,
+                  sel: _subTab,
                   onTap: () => setState(() => _subTab = 3)),
             ],
           ),
@@ -231,6 +263,8 @@ class _LineupsTabState extends ConsumerState<_LineupsTab> {
     BuildContext context, {
     required List<Map<String, dynamic>> homeStarters,
     required List<Map<String, dynamic>> awayStarters,
+    required List<Map<String, dynamic>> homeSubs,
+    required List<Map<String, dynamic>> awaySubs,
     required String homeFormation,
     required String awayFormation,
     String? homeCoach,
@@ -263,6 +297,19 @@ class _LineupsTabState extends ConsumerState<_LineupsTab> {
       return _buildEmptyPitch(context);
     }
 
+    final hasCompleteXi =
+        homeStarters.length >= 10 && awayStarters.length >= 10;
+    if (!hasCompleteXi) {
+      return _buildPartialLineupView(
+        p: AppTheme.of(context),
+        homeStarters: homeStarters,
+        awayStarters: awayStarters,
+        homeSubs: homeSubs,
+        awaySubs: awaySubs,
+        isPredicted: isPredicted,
+      );
+    }
+
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 30),
       child: Column(
@@ -277,8 +324,8 @@ class _LineupsTabState extends ConsumerState<_LineupsTab> {
                   decoration: BoxDecoration(
                     color: AppTheme.warn.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                        color: AppTheme.warn.withValues(alpha: 0.4)),
+                    border:
+                        Border.all(color: AppTheme.warn.withValues(alpha: 0.4)),
                   ),
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,
@@ -345,6 +392,7 @@ class _LineupsTabState extends ConsumerState<_LineupsTab> {
                         child: _PlayerChip(
                           player: homeStarters[i],
                           teamColor: AppTheme.brand,
+                          teamHint: widget.match.homeTeam.name,
                         ),
                       ),
 
@@ -358,6 +406,7 @@ class _LineupsTabState extends ConsumerState<_LineupsTab> {
                         child: _PlayerChip(
                           player: awayStarters[i],
                           teamColor: AppTheme.live,
+                          teamHint: widget.match.awayTeam.name,
                         ),
                       ),
 
@@ -384,6 +433,47 @@ class _LineupsTabState extends ConsumerState<_LineupsTab> {
     );
   }
 
+  Widget _buildPartialLineupView({
+    required Palette p,
+    required List<Map<String, dynamic>> homeStarters,
+    required List<Map<String, dynamic>> awayStarters,
+    required List<Map<String, dynamic>> homeSubs,
+    required List<Map<String, dynamic>> awaySubs,
+    required bool isPredicted,
+  }) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 30),
+      children: [
+        _LineupNotice(
+          icon: Icons.info_outline_rounded,
+          title: isPredicted ? 'Predicted lineup data' : 'Partial lineup data',
+          message:
+              'The provider only returned ${homeStarters.length} ${widget.match.homeTeam.tla} starter(s) and ${awayStarters.length} ${widget.match.awayTeam.tla} starter(s). Showing verified player rows instead of a misleading full pitch.',
+        ),
+        const SizedBox(height: 12),
+        _LineupTeamList(
+          title: widget.match.homeTeam.name,
+          tla: widget.match.homeTeam.tla,
+          players: homeStarters,
+          subs: homeSubs,
+          teamHint: widget.match.homeTeam.name,
+          color: AppTheme.brand,
+          p: p,
+        ),
+        const SizedBox(height: 12),
+        _LineupTeamList(
+          title: widget.match.awayTeam.name,
+          tla: widget.match.awayTeam.tla,
+          players: awayStarters,
+          subs: awaySubs,
+          teamHint: widget.match.awayTeam.name,
+          color: AppTheme.live,
+          p: p,
+        ),
+      ],
+    );
+  }
+
   // ── Empty pitch (upcoming match, no lineup yet) ─────────────────────────────
 
   String _lineupEtaLabel() {
@@ -403,8 +493,8 @@ class _LineupsTabState extends ConsumerState<_LineupsTab> {
 
   Widget _buildEmptyPitch(BuildContext context) {
     const formation = '4-3-3';
-    final homePos = formationPositions(
-        formation: formation, isHome: true, playerCount: 11);
+    final homePos =
+        formationPositions(formation: formation, isHome: true, playerCount: 11);
     final awayPos = formationPositions(
         formation: formation, isHome: false, playerCount: 11);
     final homeLabels = _posLabels(formation, true);
@@ -424,7 +514,8 @@ class _LineupsTabState extends ConsumerState<_LineupsTab> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.schedule_rounded, size: 13, color: AppTheme.warn),
+                const Icon(Icons.schedule_rounded,
+                    size: 13, color: AppTheme.warn),
                 const SizedBox(width: 5),
                 Text(_lineupEtaLabel(),
                     style: const TextStyle(
@@ -446,14 +537,18 @@ class _LineupsTabState extends ConsumerState<_LineupsTab> {
                   clipBehavior: Clip.none,
                   children: [
                     const PitchBackground(),
-                    for (int i = 0; i < math.min(homePos.length, homeLabels.length); i++)
+                    for (int i = 0;
+                        i < math.min(homePos.length, homeLabels.length);
+                        i++)
                       Positioned(
                         left: homePos[i].dx * pw - 18,
                         top: homePos[i].dy * ph - 18,
                         child: _EmptyPositionChip(
                             label: homeLabels[i], color: AppTheme.brand),
                       ),
-                    for (int i = 0; i < math.min(awayPos.length, awayLabels.length); i++)
+                    for (int i = 0;
+                        i < math.min(awayPos.length, awayLabels.length);
+                        i++)
                       Positioned(
                         left: awayPos[i].dx * pw - 18,
                         top: awayPos[i].dy * ph - 18,
@@ -478,20 +573,35 @@ class _LineupsTabState extends ConsumerState<_LineupsTab> {
       if (ri == 0) {
         labels.add('GK');
       } else if (ri == rows.length - 1) {
-        if (count == 1) { labels.add('ST'); }
-        else if (count == 2) { labels.addAll(['ST', 'ST']); }
-        else if (count == 3) { labels.addAll(['LW', 'ST', 'RW']); }
-        else { labels.addAll(List.generate(count, (_) => 'FW')); }
+        if (count == 1) {
+          labels.add('ST');
+        } else if (count == 2) {
+          labels.addAll(['ST', 'ST']);
+        } else if (count == 3) {
+          labels.addAll(['LW', 'ST', 'RW']);
+        } else {
+          labels.addAll(List.generate(count, (_) => 'FW'));
+        }
       } else if (ri == 1) {
-        if (count == 3) { labels.addAll(['LB', 'CB', 'RB']); }
-        else if (count == 4) { labels.addAll(['LB', 'CB', 'CB', 'RB']); }
-        else if (count == 5) { labels.addAll(['LWB', 'CB', 'CB', 'CB', 'RWB']); }
-        else { labels.addAll(List.generate(count, (_) => 'DEF')); }
+        if (count == 3) {
+          labels.addAll(['LB', 'CB', 'RB']);
+        } else if (count == 4) {
+          labels.addAll(['LB', 'CB', 'CB', 'RB']);
+        } else if (count == 5) {
+          labels.addAll(['LWB', 'CB', 'CB', 'CB', 'RWB']);
+        } else {
+          labels.addAll(List.generate(count, (_) => 'DEF'));
+        }
       } else {
-        if (count == 1) { labels.add('DM'); }
-        else if (count == 2) { labels.addAll(['CM', 'CM']); }
-        else if (count == 3) { labels.addAll(['CM', 'CM', 'CM']); }
-        else { labels.addAll(List.generate(count, (_) => 'MID')); }
+        if (count == 1) {
+          labels.add('DM');
+        } else if (count == 2) {
+          labels.addAll(['CM', 'CM']);
+        } else if (count == 3) {
+          labels.addAll(['CM', 'CM', 'CM']);
+        } else {
+          labels.addAll(List.generate(count, (_) => 'MID'));
+        }
       }
     }
     return labels;
@@ -545,21 +655,26 @@ class _LineupsTabState extends ConsumerState<_LineupsTab> {
       if (side == null) return;
       for (final p in side.starters) {
         out.add({
-          'name': p.name, 'player_name': p.name,
+          'name': p.name,
+          'player_name': p.name,
           'jersey_number': p.shirtNumber,
           'position': p.position,
-          'is_home': isHome, 'is_starter': true,
+          'is_home': isHome,
+          'is_starter': true,
         });
       }
       for (final p in side.bench) {
         out.add({
-          'name': p.name, 'player_name': p.name,
+          'name': p.name,
+          'player_name': p.name,
           'jersey_number': p.shirtNumber,
           'position': p.position,
-          'is_home': isHome, 'is_starter': false,
+          'is_home': isHome,
+          'is_starter': false,
         });
       }
     }
+
     addSide(ml.home, true);
     addSide(ml.away, false);
     return out.isEmpty ? null : out;
@@ -574,21 +689,26 @@ class _LineupsTabState extends ConsumerState<_LineupsTab> {
       if (side == null) return;
       for (final p in side.starters) {
         out.add({
-          'name': p.name, 'player_name': p.name,
+          'name': p.name,
+          'player_name': p.name,
           'jersey_number': p.shirtNumber,
           'position': p.position,
-          'is_home': isHome, 'is_starter': true,
+          'is_home': isHome,
+          'is_starter': true,
         });
       }
       for (final p in side.bench) {
         out.add({
-          'name': p.name, 'player_name': p.name,
+          'name': p.name,
+          'player_name': p.name,
           'jersey_number': p.shirtNumber,
           'position': p.position,
-          'is_home': isHome, 'is_starter': false,
+          'is_home': isHome,
+          'is_starter': false,
         });
       }
     }
+
     addSide(ml.home, true);
     addSide(ml.away, false);
     return out.isEmpty ? null : out;
@@ -596,8 +716,7 @@ class _LineupsTabState extends ConsumerState<_LineupsTab> {
 
   // ── Subs list ───────────────────────────────────────────────────────────────
 
-  Widget _buildSubsList(Palette p,
-      List<Map<String, dynamic>> homeSubs,
+  Widget _buildSubsList(Palette p, List<Map<String, dynamic>> homeSubs,
       List<Map<String, dynamic>> awaySubs) {
     if (homeSubs.isEmpty && awaySubs.isEmpty) {
       return const _Unavailable(
@@ -611,13 +730,23 @@ class _LineupsTabState extends ConsumerState<_LineupsTab> {
         if (homeSubs.isEmpty)
           _emptyRow(p, 'None listed')
         else
-          ...homeSubs.map((pl) => _SubRow(player: pl, p: p)),
+          ...homeSubs.map((pl) => _SubRow(
+                player: pl,
+                p: p,
+                teamHint: widget.match.homeTeam.name,
+                color: AppTheme.brand,
+              )),
         const SizedBox(height: 12),
         _SectionLabel('${widget.match.awayTeam.tla} — Substitutes'),
         if (awaySubs.isEmpty)
           _emptyRow(p, 'None listed')
         else
-          ...awaySubs.map((pl) => _SubRow(player: pl, p: p)),
+          ...awaySubs.map((pl) => _SubRow(
+                player: pl,
+                p: p,
+                teamHint: widget.match.awayTeam.name,
+                color: AppTheme.live,
+              )),
       ],
     );
   }
@@ -633,12 +762,8 @@ class _LineupsTabState extends ConsumerState<_LineupsTab> {
         .toList();
   }
 
-  Widget _buildUnavailList(
-      Palette p,
-      List<Map<String, dynamic>> home,
-      List<Map<String, dynamic>> away,
-      String title,
-      IconData icon) {
+  Widget _buildUnavailList(Palette p, List<Map<String, dynamic>> home,
+      List<Map<String, dynamic>> away, String title, IconData icon) {
     if (home.isEmpty && away.isEmpty) {
       return _Unavailable(icon: icon, message: 'No $title reported.');
     }
@@ -649,13 +774,23 @@ class _LineupsTabState extends ConsumerState<_LineupsTab> {
         if (home.isEmpty)
           _emptyRow(p, 'None reported')
         else
-          ...home.map((pl) => _UnavailRow(player: pl, p: p)),
+          ...home.map((pl) => _UnavailRow(
+                player: pl,
+                p: p,
+                teamHint: widget.match.homeTeam.name,
+                color: AppTheme.brand,
+              )),
         const SizedBox(height: 12),
         _SectionLabel('${widget.match.awayTeam.tla} — $title'),
         if (away.isEmpty)
           _emptyRow(p, 'None reported')
         else
-          ...away.map((pl) => _UnavailRow(player: pl, p: p)),
+          ...away.map((pl) => _UnavailRow(
+                player: pl,
+                p: p,
+                teamHint: widget.match.awayTeam.name,
+                color: AppTheme.live,
+              )),
       ],
     );
   }
@@ -664,9 +799,7 @@ class _LineupsTabState extends ConsumerState<_LineupsTab> {
         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
         child: Text(msg,
             style: TextStyle(
-                fontSize: 13,
-                color: p.textLow,
-                fontStyle: FontStyle.italic)),
+                fontSize: 13, color: p.textLow, fontStyle: FontStyle.italic)),
       );
 }
 
@@ -749,9 +882,8 @@ class _TeamStrip extends StatelessWidget {
     final coachVal = coach;
     if (coachVal != null && coachVal.trim().isNotEmpty) {
       final parts = coachVal.trim().split(' ');
-      coachShort = parts.length > 1
-          ? '${parts.first[0]}. ${parts.last}'
-          : coach;
+      coachShort =
+          parts.length > 1 ? '${parts.first[0]}. ${parts.last}' : coach;
     }
 
     final pills = <Widget>[
@@ -763,7 +895,9 @@ class _TeamStrip extends StatelessWidget {
       const SizedBox(width: 5),
       Text(team.tla,
           style: const TextStyle(
-              color: Colors.white, fontSize: 12, fontWeight: FontWeight.w900,
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
               shadows: [Shadow(color: Colors.black54, blurRadius: 4)])),
       if (coachShort != null) ...[
         const SizedBox(width: 5),
@@ -792,11 +926,13 @@ class _Pill extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-        decoration: BoxDecoration(
-            color: color, borderRadius: BorderRadius.circular(4)),
+        decoration:
+            BoxDecoration(color: color, borderRadius: BorderRadius.circular(4)),
         child: Text(text,
             style: const TextStyle(
-                color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800)),
+                color: Colors.white,
+                fontSize: 10,
+                fontWeight: FontWeight.w800)),
       );
 }
 
@@ -805,7 +941,12 @@ class _Pill extends StatelessWidget {
 class _PlayerChip extends StatelessWidget {
   final Map<String, dynamic> player;
   final Color teamColor;
-  const _PlayerChip({required this.player, required this.teamColor});
+  final String? teamHint;
+  const _PlayerChip({
+    required this.player,
+    required this.teamColor,
+    this.teamHint,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -824,17 +965,26 @@ class _PlayerChip extends StatelessWidget {
           Stack(
             clipBehavior: Clip.none,
             children: [
-              ClipOval(
-                child: Container(
-                  width: 36,
-                  height: 36,
-                  color: teamColor.withValues(alpha: 0.85),
-                  child: (photoUrl != null && photoUrl.isNotEmpty)
-                      ? Image.network(photoUrl,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) =>
-                              _initialsWidget(name, jersey))
-                      : _initialsWidget(name, jersey),
+              GestureDetector(
+                onTap: name.trim().isEmpty
+                    ? null
+                    : () => Navigator.of(context).push(MaterialPageRoute(
+                          builder: (_) => PlayerDetailScreen(
+                            name: name,
+                            teamHint: teamHint,
+                            shirtNumber: jersey is int
+                                ? jersey
+                                : int.tryParse(jersey?.toString() ?? ''),
+                            position: player['position'] as String?,
+                          ),
+                        )),
+                child: _PlayerPhotoAvatar(
+                  name: name,
+                  teamHint: teamHint,
+                  photoUrl: photoUrl,
+                  size: 36,
+                  fallbackColor: teamColor,
+                  jersey: jersey,
                 ),
               ),
               if (jersey != null)
@@ -842,11 +992,14 @@ class _PlayerChip extends StatelessWidget {
                   top: -2,
                   right: -4,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
                     decoration: BoxDecoration(
                       color: Colors.black87,
                       borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.5), width: 0.5),
+                      border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.5),
+                          width: 0.5),
                     ),
                     child: Text(
                       '$jersey',
@@ -900,20 +1053,203 @@ class _PlayerChip extends StatelessWidget {
     );
   }
 
-  Widget _initialsWidget(String name, dynamic jersey) {
-    final initials = name.trim().split(' ').map((w) => w.isEmpty ? '' : w[0]).join();
-    final text = jersey?.toString() ??
-        (name.trim().isEmpty ? '?' : initials.substring(0, math.min(2, initials.length)));
-    return Center(
-      child: Text(text,
-          style: const TextStyle(
-              color: Colors.white,
-              fontSize: 13,
-              fontWeight: FontWeight.w900)),
+  String _short(String s) => s.length > 8 ? '${s.substring(0, 7)}.' : s;
+}
+
+class _LineupNotice extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String message;
+  const _LineupNotice({
+    required this.icon,
+    required this.title,
+    required this.message,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppTheme.warn.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppTheme.r),
+        border: Border.all(color: AppTheme.warn.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: AppTheme.warn, size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    style: const TextStyle(
+                        color: AppTheme.warn,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 12)),
+                const SizedBox(height: 3),
+                Text(message,
+                    style: TextStyle(
+                        fontSize: 11, height: 1.35, color: p.textMid)),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
+}
 
-  String _short(String s) => s.length > 8 ? '${s.substring(0, 7)}.' : s;
+class _LineupTeamList extends StatelessWidget {
+  final String title;
+  final String tla;
+  final List<Map<String, dynamic>> players;
+  final List<Map<String, dynamic>> subs;
+  final String teamHint;
+  final Color color;
+  final Palette p;
+  const _LineupTeamList({
+    required this.title,
+    required this.tla,
+    required this.players,
+    required this.subs,
+    required this.teamHint,
+    required this.color,
+    required this.p,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return _DetailCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 4,
+                height: 18,
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        color: p.textHi,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 14)),
+              ),
+              _Pill('${players.length}/11', color.withValues(alpha: 0.9)),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (players.isEmpty)
+            Text('No starters returned yet.',
+                style: TextStyle(color: p.textLow, fontSize: 12))
+          else
+            ...players.map((pl) => _LineupPlayerRow(
+                  player: pl,
+                  p: p,
+                  teamHint: teamHint,
+                  color: color,
+                )),
+          if (subs.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text('Substitutes',
+                style: TextStyle(
+                    color: p.textLow,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.2)),
+            const SizedBox(height: 6),
+            ...subs.take(12).map((pl) => _LineupPlayerRow(
+                  player: pl,
+                  p: p,
+                  teamHint: teamHint,
+                  color: color,
+                  compact: true,
+                )),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _LineupPlayerRow extends StatelessWidget {
+  final Map<String, dynamic> player;
+  final Palette p;
+  final String teamHint;
+  final Color color;
+  final bool compact;
+  const _LineupPlayerRow({
+    required this.player,
+    required this.p,
+    required this.teamHint,
+    required this.color,
+    this.compact = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final name = (player['player_name'] ?? player['name'] ?? '').toString();
+    final jersey = player['jersey_number'];
+    final pos = player['position']?.toString();
+    final photoUrl = player['photo_url'] as String?;
+    return InkWell(
+      onTap: name.trim().isEmpty
+          ? null
+          : () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => PlayerDetailScreen(
+                  name: name,
+                  teamHint: teamHint,
+                  shirtNumber: jersey is int
+                      ? jersey
+                      : int.tryParse(jersey?.toString() ?? ''),
+                  position: pos,
+                ),
+              )),
+      child: Padding(
+        padding: EdgeInsets.symmetric(vertical: compact ? 4 : 6),
+        child: Row(
+          children: [
+            _PlayerPhotoAvatar(
+              name: name,
+              teamHint: teamHint,
+              photoUrl: photoUrl,
+              size: compact ? 30 : 36,
+              fallbackColor: color,
+              jersey: jersey,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(name.isEmpty ? 'Unknown player' : name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                      color: p.textHi,
+                      fontSize: compact ? 12 : 13,
+                      fontWeight: FontWeight.w700)),
+            ),
+            if (pos != null && pos.isNotEmpty)
+              Text(pos,
+                  style: TextStyle(
+                      color: p.textLow,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700)),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 // ─── Substitutes row ──────────────────────────────────────────────────────────
@@ -921,61 +1257,81 @@ class _PlayerChip extends StatelessWidget {
 class _SubRow extends StatelessWidget {
   final Map<String, dynamic> player;
   final Palette p;
-  const _SubRow({required this.player, required this.p});
+  final String teamHint;
+  final Color color;
+  const _SubRow({
+    required this.player,
+    required this.p,
+    required this.teamHint,
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final name = (player['player_name'] ?? player['name'] ?? '') as String;
+    final name = (player['player_name'] ?? player['name'] ?? '').toString();
     final jersey = player['jersey_number'];
-    final pos = player['position'] as String?;
+    final pos = player['position']?.toString();
     final rating = (player['rating'] as num?)?.toDouble();
+    final photoUrl =
+        (player['photo_url'] ?? player['photoUrl'] ?? player['imageUrl'])
+            ?.toString();
     final rColor = _ratingColor(rating);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        children: [
-          Container(
-            width: 28,
-            height: 28,
-            decoration: BoxDecoration(
-              color: p.surfaceHi,
-              borderRadius: BorderRadius.circular(8),
+    return InkWell(
+      onTap: name.trim().isEmpty
+          ? null
+          : () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => PlayerDetailScreen(
+                  name: name,
+                  teamHint: teamHint,
+                  shirtNumber: jersey is int
+                      ? jersey
+                      : int.tryParse(jersey?.toString() ?? ''),
+                  position: pos,
+                ),
+              )),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          children: [
+            _PlayerPhotoAvatar(
+              name: name,
+              teamHint: teamHint,
+              photoUrl: photoUrl,
+              size: 34,
+              fallbackColor: color,
+              jersey: jersey,
             ),
-            alignment: Alignment.center,
-            child: Text('${jersey ?? '—'}',
-                style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    color: p.textMid)),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(name,
-                style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: p.textHi)),
-          ),
-          if (pos != null)
-            Text(pos, style: TextStyle(fontSize: 11, color: p.textLow)),
-          if (rating != null) ...[
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: rColor,
-                borderRadius: BorderRadius.circular(5),
-              ),
-              child: Text(
-                rating.toStringAsFixed(1),
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800),
-              ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(name.isEmpty ? 'Unknown player' : name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: p.textHi)),
             ),
+            if (pos != null && pos.isNotEmpty)
+              Text(pos, style: TextStyle(fontSize: 11, color: p.textLow)),
+            if (rating != null) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: rColor,
+                  borderRadius: BorderRadius.circular(5),
+                ),
+                child: Text(
+                  rating.toStringAsFixed(1),
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800),
+                ),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -986,41 +1342,89 @@ class _SubRow extends StatelessWidget {
 class _UnavailRow extends StatelessWidget {
   final Map<String, dynamic> player;
   final Palette p;
-  const _UnavailRow({required this.player, required this.p});
+  final String teamHint;
+  final Color color;
+  const _UnavailRow({
+    required this.player,
+    required this.p,
+    required this.teamHint,
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final name = (player['name'] ?? player['player_name'] ?? '') as String;
+    final name = (player['name'] ?? player['player_name'] ?? '').toString();
     final reason = player['reason'] as String?;
     final ret = player['expectedReturn'] as String?;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        children: [
-          const Icon(Icons.person_off_outlined, size: 18, color: AppTheme.bad),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    final jersey = player['jersey_number'] ?? player['number'];
+    final pos = player['position']?.toString();
+    final photoUrl =
+        (player['photo_url'] ?? player['photoUrl'] ?? player['imageUrl'])
+            ?.toString();
+    return InkWell(
+      onTap: name.trim().isEmpty
+          ? null
+          : () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => PlayerDetailScreen(
+                  name: name,
+                  teamHint: teamHint,
+                  shirtNumber: jersey is int
+                      ? jersey
+                      : int.tryParse(jersey?.toString() ?? ''),
+                  position: pos,
+                ),
+              )),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          children: [
+            Stack(
+              clipBehavior: Clip.none,
               children: [
-                Text(name,
-                    style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: p.textHi)),
-                if (reason != null)
-                  Text(reason,
-                      style: TextStyle(fontSize: 11, color: p.textLow)),
+                _PlayerPhotoAvatar(
+                  name: name,
+                  teamHint: teamHint,
+                  photoUrl: photoUrl,
+                  size: 34,
+                  fallbackColor: color,
+                  jersey: jersey,
+                ),
+                const Positioned(
+                  right: -2,
+                  bottom: -2,
+                  child: Icon(Icons.person_off_outlined,
+                      size: 14, color: AppTheme.bad),
+                ),
               ],
             ),
-          ),
-          if (ret != null)
-            Text(ret,
-                style: TextStyle(
-                    fontSize: 11,
-                    color: p.textLow,
-                    fontStyle: FontStyle.italic)),
-        ],
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(name.isEmpty ? 'Unknown player' : name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: p.textHi)),
+                  if (reason != null)
+                    Text(reason,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 11, color: p.textLow)),
+                ],
+              ),
+            ),
+            if (ret != null)
+              Text(ret,
+                  style: TextStyle(
+                      fontSize: 11,
+                      color: p.textLow,
+                      fontStyle: FontStyle.italic)),
+          ],
+        ),
       ),
     );
   }

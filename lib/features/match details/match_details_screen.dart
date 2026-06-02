@@ -34,6 +34,7 @@ import '../../core/services/extras_service.dart';
 import '../../core/services/live_data_service.dart';
 import '../../core/services/match_details_resolver.dart';
 import '../../core/services/sportsdb_match_service.dart';
+import '../../core/services/sportsdb_service.dart';
 import '../../shared/widgets/pitch_painter.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/models/match.dart';
@@ -45,6 +46,7 @@ import '../../shared/widgets/ai_insights_widget.dart';
 import '../../shared/widgets/fan_poll_widget.dart';
 import '../team details/team_details_screen.dart';
 import '../team_comparison/team_comparison_screen.dart';
+import '../player screen/player_details_screen.dart';
 
 part 'match_details_shared.dart';
 part 'summary_tab.dart';
@@ -104,6 +106,14 @@ final _sdbLineupsProvider =
   if (id == null) return null;
   return svc.fetchLineups(id,
       homeName: m.homeTeam.name, awayName: m.awayTeam.name);
+});
+
+final _playerPhotoProvider =
+    FutureProvider.family.autoDispose<String?, String>((ref, key) async {
+  final parts = key.split('\u001f');
+  final name = parts.isNotEmpty ? parts[0] : '';
+  final teamHint = parts.length > 1 && parts[1].isNotEmpty ? parts[1] : null;
+  return SportsDbService.searchPlayerPhoto(name, teamHint: teamHint);
 });
 
 // ─── Screen ─────────────────────────────────────────────────────────────────
