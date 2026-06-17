@@ -13,9 +13,8 @@ class LeaguePickerChip extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final p = AppTheme.of(context);
     final league = ref.watch(selectedLeagueProvider);
-    final liveCount = ref.watch(liveScoreProvider).matches
-        .where((m) => m.isLive)
-        .length;
+    final liveCount =
+        ref.watch(liveScoreProvider).matches.where((m) => m.isLive).length;
     return GestureDetector(
       onTap: () => showLeagueSheet(context, ref),
       child: Container(
@@ -188,7 +187,8 @@ void showLeagueSheet(BuildContext context, WidgetRef ref) {
                               ),
                               if ((liveByCode[l.code] ?? 0) > 0) ...[
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 6, vertical: 2),
                                   decoration: BoxDecoration(
                                     color: AppTheme.live,
                                     borderRadius: BorderRadius.circular(6),
@@ -205,7 +205,10 @@ void showLeagueSheet(BuildContext context, WidgetRef ref) {
                               ] else if ((totalByCode[l.code] ?? 0) > 0) ...[
                                 Text(
                                   '${totalByCode[l.code]}',
-                                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: p.textLow),
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: p.textLow),
                                 ),
                                 const SizedBox(width: 6),
                               ],

@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../core/services/ad_service.dart';
 import '../../core/theme/app_theme.dart';
+import '../home/home_extras_widgets.dart';
 
 // ──────────────────────────────────────────────────────────────────────────
 // Built-in 60-question football trivia bank — covers WC, UEFA, EPL, La Liga,
@@ -25,50 +26,50 @@ class _Q {
 }
 
 const List<_Q> _bank = [
-  // World Cup history
-  _Q('How many World Cups has Brazil won?', ['3', '4', '5', '6'], 2,
+  // global football tournament history
+  _Q('How many global tournaments has Brazil won?', ['3', '4', '5', '6'], 2,
       'Brazil has won 5 (1958, 62, 70, 94, 2002).', 'world_cup'),
   _Q(
-      'Which country hosted the 1986 World Cup?',
+      'Which country hosted the 1986 global football tournament?',
       ['Argentina', 'Mexico', 'Spain', 'USA'],
       1,
       'Mexico hosted in 1986 — also in 1970.',
       'world_cup'),
   _Q(
-      'Who won the 2022 World Cup?',
+      'Who won the 2022 global football tournament?',
       ['France', 'Argentina', 'Brazil', 'Croatia'],
       1,
       'Argentina beat France on penalties.',
       'world_cup'),
   _Q(
-      'Where will the 2030 World Cup be held?',
+      'Where will the 2030 global football tournament be held?',
       ['Spain & Portugal & Morocco', 'USA', 'England', 'Australia'],
       0,
       'Spain, Portugal & Morocco co-host, with games also in South America.',
       'world_cup'),
   _Q(
-      'How many teams will play in the 2026 World Cup?',
+      'How many teams will play in the 2026 global football tournament?',
       ['32', '40', '48', '64'],
       2,
       'The format expanded to 48 teams for 2026.',
       'world_cup'),
   _Q(
-      'Who is the all-time top scorer in World Cup history?',
+      'Who is the all-time top scorer in global football tournament history?',
       ['Pelé', 'Miroslav Klose', 'Ronaldo', 'Gerd Müller'],
       1,
-      'Klose scored 16 across four World Cups.',
+      'Klose scored 16 across four global tournaments.',
       'world_cup'),
   _Q(
-      'Which country has lost the most World Cup finals?',
+      'Which country has lost the most global football tournament finals?',
       ['Germany', 'Argentina', 'Netherlands', 'Italy'],
       2,
       'The Netherlands has lost three finals (1974, 1978, 2010).',
       'world_cup'),
   _Q(
-      'What year was the first World Cup held?',
+      'What year was the first global football tournament held?',
       ['1928', '1930', '1934', '1950'],
       1,
-      'Uruguay hosted and won the first World Cup in 1930.',
+      'Uruguay hosted and won the first global football tournament in 1930.',
       'world_cup'),
 
   // UEFA / Champions League
@@ -180,7 +181,7 @@ const List<_Q> _bank = [
       'Which player scored the "Hand of God" goal?',
       ['Maradona', 'Pelé', 'Beckenbauer', 'Müller'],
       0,
-      "Maradona vs England in the 1986 World Cup.",
+      "Maradona vs England in the 1986 global football tournament.",
       'players'),
   _Q(
       'Which club did Ronaldinho NOT play for?',
@@ -189,7 +190,7 @@ const List<_Q> _bank = [
       "Ronaldinho never played for Manchester United.",
       'players'),
   _Q(
-      'Who won the 2022 Golden Boot at the World Cup?',
+      'Who won the 2022 Golden Boot at the global football tournament?',
       ['Mbappé', 'Messi', 'Giroud', 'Álvarez'],
       0,
       'Kylian Mbappé scored 8 goals.',
@@ -203,7 +204,7 @@ const List<_Q> _bank = [
 
   // Records
   _Q(
-      'Highest-scoring World Cup final?',
+      'Highest-scoring global football tournament final?',
       ['7-1 (2002)', '5-1 (1970)', '6-3 (1958)', '5-2 (1958)'],
       2,
       'Brazil 5-2 Sweden in 1958, 7 goals total.',
@@ -528,6 +529,10 @@ class _TriviaScreenState extends ConsumerState<TriviaScreen> {
       padding: const EdgeInsets.all(20),
       child: Column(
         children: [
+          // ── Daily fact + On This Day cards ──────────────────────────────
+          const DailyFactCard(),
+          const OnThisDayCard(),
+          const SizedBox(height: 8),
           const SizedBox(height: 20),
           Container(
             width: 80,

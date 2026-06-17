@@ -171,7 +171,8 @@ class _HeroCard extends StatelessWidget {
                         fit: BoxFit.cover,
                         errorBuilder: (_, __, ___) => Container(
                             color: p.surfaceHi,
-                            child: const Icon(Icons.image_not_supported_outlined)),
+                            child:
+                                const Icon(Icons.image_not_supported_outlined)),
                       ),
                       Positioned.fill(
                         child: DecoratedBox(
@@ -223,7 +224,8 @@ class _HeroCard extends StatelessWidget {
                         Text(_ago(article.publishedAt),
                             style: TextStyle(fontSize: 11, color: p.textLow)),
                         if (article.description != null) ...[
-                          Text(' · ', style: TextStyle(color: p.textLow, fontSize: 11)),
+                          Text(' · ',
+                              style: TextStyle(color: p.textLow, fontSize: 11)),
                           Text('${_readMin(article.description!)} min',
                               style: TextStyle(fontSize: 11, color: p.textLow)),
                         ],
@@ -329,7 +331,8 @@ class _ArticleTile extends StatelessWidget {
                       Text(_ago(article.publishedAt),
                           style: TextStyle(fontSize: 10.5, color: p.textLow)),
                       if (article.description != null) ...[
-                        Text(' • ', style: TextStyle(color: p.textLow, fontSize: 10.5)),
+                        Text(' • ',
+                            style: TextStyle(color: p.textLow, fontSize: 10.5)),
                         Text(
                           '${_readMin(article.description!)} min read',
                           style: TextStyle(fontSize: 10.5, color: p.textLow),
@@ -349,7 +352,8 @@ class _ArticleTile extends StatelessWidget {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-int _readMin(String text) => (text.trim().split(RegExp(r'\s+')).length / 200).ceil().clamp(1, 10);
+int _readMin(String text) =>
+    (text.trim().split(RegExp(r'\s+')).length / 200).ceil().clamp(1, 10);
 
 String _ago(DateTime dt) {
   final d = DateTime.now().difference(dt);

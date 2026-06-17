@@ -25,48 +25,49 @@ class OnThisDayService {
       OnThisDayFact(
           year: 2010,
           text:
-              'The 2010 World Cup kicked off in South Africa — the first World Cup hosted on African soil.',
+              'The 2010 global football tournament kicked off in South Africa — the first global football tournament hosted on African soil.',
           category: 'misc'),
     ],
     '06-12': [
       OnThisDayFact(
           year: 1934,
           text:
-              'Italy won their first World Cup, beating Czechoslovakia 2-1 in extra time.',
+              'Italy won their first global football tournament, beating Czechoslovakia 2-1 in extra time.',
           category: 'final'),
     ],
     '06-13': [
       OnThisDayFact(
           year: 2018,
           text:
-              'Hosting was awarded for the 2026 World Cup to USA, Canada and Mexico — the first three-country hosting.',
+              'Hosting was awarded for the 2026 global football tournament to USA, Canada and Mexico — the first three-country hosting.',
           category: 'misc'),
     ],
     '06-14': [
       OnThisDayFact(
           year: 2014,
           text:
-              'The 2014 World Cup began in Brazil with hosts Brazil beating Croatia 3-1.',
+              'The 2014 global football tournament began in Brazil with hosts Brazil beating Croatia 3-1.',
           category: 'match'),
     ],
     '06-15': [
       OnThisDayFact(
           year: 1958,
-          text: '17-year-old Pelé scored his first World Cup goal vs Wales.',
+          text:
+              '17-year-old Pelé scored his first global football tournament goal vs Wales.',
           category: 'record'),
     ],
     '06-16': [
       OnThisDayFact(
           year: 2018,
           text:
-              'Iceland held Argentina to a 1-1 draw at their first World Cup.',
+              'Iceland held Argentina to a 1-1 draw at their first global football tournament.',
           category: 'match'),
     ],
     '06-17': [
       OnThisDayFact(
           year: 1970,
           text:
-              'Brazil 4-1 Italy in the 1970 World Cup final — widely considered one of the greatest teams ever.',
+              'Brazil 4-1 Italy in the 1970 global football tournament final — widely considered one of the greatest teams ever.',
           category: 'final'),
     ],
     '06-18': [
@@ -80,7 +81,7 @@ class OnThisDayService {
       OnThisDayFact(
           year: 2014,
           text:
-              'Costa Rica shocked Italy 1-0 at the World Cup, sealing their qualification from the Group of Death.',
+              'Costa Rica shocked Italy 1-0 at the global football tournament, sealing their qualification from the Group of Death.',
           category: 'match'),
     ],
     '06-20': [
@@ -94,7 +95,7 @@ class OnThisDayService {
       OnThisDayFact(
           year: 1970,
           text:
-              'Brazil beat Italy 4-1 in the World Cup final, becoming the first nation to win three World Cups.',
+              'Brazil beat Italy 4-1 in the global football tournament final, becoming the first nation to win three global tournaments.',
           category: 'final'),
       OnThisDayFact(
           year: 1986,
@@ -126,7 +127,7 @@ class OnThisDayService {
       OnThisDayFact(
           year: 1978,
           text:
-              'Argentina won their first World Cup, beating Netherlands 3-1 in Buenos Aires.',
+              'Argentina won their first global football tournament, beating Netherlands 3-1 in Buenos Aires.',
           category: 'final'),
     ],
     '06-26': [
@@ -140,7 +141,7 @@ class OnThisDayService {
       OnThisDayFact(
           year: 1982,
           text:
-              'Brazil 4-1 Scotland — one of the greatest World Cup performances; Sócrates, Zico, Falcão dazzled.',
+              'Brazil 4-1 Scotland — one of the greatest global football tournament performances; Sócrates, Zico, Falcão dazzled.',
           category: 'match'),
     ],
     '06-28': [
@@ -154,56 +155,56 @@ class OnThisDayService {
       OnThisDayFact(
           year: 1958,
           text:
-              'Brazil won their first World Cup, beating Sweden 5-2 with two goals from 17-year-old Pelé.',
+              'Brazil won their first global football tournament, beating Sweden 5-2 with two goals from 17-year-old Pelé.',
           category: 'final'),
     ],
     '06-30': [
       OnThisDayFact(
           year: 1974,
           text:
-              'West Germany won the World Cup 2-1 over the Netherlands, ending Total Football\'s dream.',
+              'West Germany won the global football tournament 2-1 over the Netherlands, ending Total Football\'s dream.',
           category: 'final'),
     ],
     '07-01': [
       OnThisDayFact(
           year: 1990,
           text:
-              'England beat Cameroon 3-2 in extra time in the World Cup quarter-finals.',
+              'England beat Cameroon 3-2 in extra time in the global football tournament quarter-finals.',
           category: 'match'),
     ],
     '07-02': [
       OnThisDayFact(
           year: 1994,
           text:
-              'Colombian defender Andrés Escobar was murdered in Medellín, days after scoring an own goal at the World Cup.',
+              'Colombian defender Andrés Escobar was murdered in Medellín, days after scoring an own goal at the global football tournament.',
           category: 'misc'),
     ],
     '07-03': [
       OnThisDayFact(
           year: 2010,
           text:
-              'Germany dismantled Argentina 4-0 in the World Cup quarter-finals.',
+              'Germany dismantled Argentina 4-0 in the global football tournament quarter-finals.',
           category: 'match'),
     ],
     '07-04': [
       OnThisDayFact(
           year: 1990,
           text:
-              'England lost the World Cup semi-final to West Germany on penalties — Gascoigne\'s tears became iconic.',
+              'England lost the global football tournament semi-final to West Germany on penalties — Gascoigne\'s tears became iconic.',
           category: 'match'),
     ],
     '07-05': [
       OnThisDayFact(
           year: 1994,
           text:
-              'Diego Maradona was banned from the World Cup after failing a drug test for ephedrine.',
+              'Diego Maradona was banned from the global football tournament after failing a drug test for ephedrine.',
           category: 'misc'),
     ],
     '07-06': [
       OnThisDayFact(
           year: 2002,
           text:
-              'Brazil 2-0 Germany — Ronaldo scored twice to win the World Cup final, completing his redemption from 1998.',
+              'Brazil 2-0 Germany — Ronaldo scored twice to win the global football tournament final, completing his redemption from 1998.',
           category: 'final'),
     ],
     '07-07': [
@@ -217,14 +218,14 @@ class OnThisDayService {
       OnThisDayFact(
           year: 2014,
           text:
-              'Germany 7-1 Brazil in the semi-final — Brazil\'s worst-ever World Cup defeat, at home.',
+              'Germany 7-1 Brazil in the semi-final — Brazil\'s worst-ever global football tournament defeat, at home.',
           category: 'match'),
     ],
     '07-09': [
       OnThisDayFact(
           year: 2006,
           text:
-              'Italy won the World Cup on penalties vs France; Zidane was sent off for headbutting Materazzi.',
+              'Italy won the global football tournament on penalties vs France; Zidane was sent off for headbutting Materazzi.',
           category: 'final'),
     ],
     '07-10': [
@@ -238,12 +239,12 @@ class OnThisDayService {
       OnThisDayFact(
           year: 1982,
           text:
-              'Italy won the World Cup 3-1 over West Germany — Paolo Rossi top-scored after returning from a betting ban.',
+              'Italy won the global football tournament 3-1 over West Germany — Paolo Rossi top-scored after returning from a betting ban.',
           category: 'final'),
       OnThisDayFact(
           year: 2018,
           text:
-              'Croatia beat England 2-1 in extra time to reach the World Cup final.',
+              'Croatia beat England 2-1 in extra time to reach the global football tournament final.',
           category: 'match'),
     ],
     '07-12': [
@@ -257,12 +258,12 @@ class OnThisDayService {
       OnThisDayFact(
           year: 1930,
           text:
-              'The very first World Cup match was played: France 4-1 Mexico in Uruguay.',
+              'The very first global football tournament match was played: France 4-1 Mexico in Uruguay.',
           category: 'record'),
       OnThisDayFact(
           year: 2014,
           text:
-              'Germany 1-0 Argentina in the World Cup final — Mario Götze\'s extra-time winner sealed it.',
+              'Germany 1-0 Argentina in the global football tournament final — Mario Götze\'s extra-time winner sealed it.',
           category: 'final'),
     ],
     '07-14': [
@@ -276,14 +277,14 @@ class OnThisDayService {
       OnThisDayFact(
           year: 2018,
           text:
-              'France won the World Cup 4-2 over Croatia in Russia — Mbappé became the first teen since Pelé to score in a final.',
+              'France won the global football tournament 4-2 over Croatia in Russia — Mbappé became the first teen since Pelé to score in a final.',
           category: 'final'),
     ],
     '07-16': [
       OnThisDayFact(
           year: 1950,
           text:
-              'The "Maracanazo": Uruguay shocked Brazil 2-1 to win the World Cup in front of 200,000 fans.',
+              'The "Maracanazo": Uruguay shocked Brazil 2-1 to win the global football tournament in front of 200,000 fans.',
           category: 'final'),
     ],
     '07-17': [
@@ -302,7 +303,8 @@ class OnThisDayService {
     '07-19': [
       OnThisDayFact(
           year: 2026,
-          text: 'The 2026 World Cup final is scheduled to be played today.',
+          text:
+              'The 2026 global football tournament final is scheduled to be played today.',
           category: 'final'),
     ],
     '02-05': [

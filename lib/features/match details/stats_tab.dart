@@ -78,8 +78,8 @@ class _StatsTab extends ConsumerWidget {
     });
 
     if (fsStats != null && fsStats.isNotEmpty) {
-      return _buildBody(p, ref, fsStats, possHome, possAway, xgHome, xgAway,
-          showXg,
+      return _buildBody(
+          p, ref, fsStats, possHome, possAway, xgHome, xgAway, showXg,
           fromFirestore: true,
           momentumPoints: momentumFromIncs,
           incidents: incidentList);
@@ -101,8 +101,8 @@ class _StatsTab extends ConsumerWidget {
             break;
           }
         }
-        return _buildBody(p, ref, bsdStats, bsdPossHome, bsdPossAway, xgHome,
-            xgAway, showXg,
+        return _buildBody(
+            p, ref, bsdStats, bsdPossHome, bsdPossAway, xgHome, xgAway, showXg,
             momentumPoints: momentumFromIncs, incidents: incidentList);
       },
     );
@@ -121,10 +121,8 @@ class _StatsTab extends ConsumerWidget {
     List<MatchIncident> incidents = const [],
     bool fromFirestore = false,
   }) {
-    final allEmpty = stats.isEmpty &&
-        !showXg &&
-        possHome == null &&
-        possAway == null;
+    final allEmpty =
+        stats.isEmpty && !showXg && possHome == null && possAway == null;
 
     if (allEmpty) {
       return _Unavailable(
@@ -218,14 +216,11 @@ class _StatsTab extends ConsumerWidget {
             title: 'STATISTICS',
             fromFirestore: fromFirestore,
             groups: [
-              if (attackStats.isNotEmpty)
-                _StatGroup('ATTACK', attackStats),
-              if (passingStats.isNotEmpty)
-                _StatGroup('PASSING', passingStats),
+              if (attackStats.isNotEmpty) _StatGroup('ATTACK', attackStats),
+              if (passingStats.isNotEmpty) _StatGroup('PASSING', passingStats),
               if (disciplineStats.isNotEmpty)
                 _StatGroup('DISCIPLINE', disciplineStats),
-              if (otherStats.isNotEmpty)
-                _StatGroup('', otherStats),
+              if (otherStats.isNotEmpty) _StatGroup('', otherStats),
             ],
             p: p,
           ),
@@ -269,9 +264,7 @@ class _PossessionCard extends StatelessWidget {
           const Spacer(),
           Text('Possession',
               style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: p.textLow)),
+                  fontSize: 11, fontWeight: FontWeight.w600, color: p.textLow)),
           const Spacer(),
           Text(awayTeam,
               style: const TextStyle(
@@ -283,9 +276,7 @@ class _PossessionCard extends StatelessWidget {
         Row(children: [
           Text('${homePct.toStringAsFixed(0)}%',
               style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w900,
-                  color: p.textHi)),
+                  fontSize: 22, fontWeight: FontWeight.w900, color: p.textHi)),
           Expanded(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -312,9 +303,7 @@ class _PossessionCard extends StatelessWidget {
           ),
           Text('${awayPct.toStringAsFixed(0)}%',
               style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w900,
-                  color: p.textHi)),
+                  fontSize: 22, fontWeight: FontWeight.w900, color: p.textHi)),
         ]),
       ]),
     );
@@ -355,9 +344,7 @@ class _XgCard extends StatelessWidget {
           const Spacer(),
           Text('Expected Goals (xG)',
               style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: p.textLow)),
+                  fontSize: 11, fontWeight: FontWeight.w600, color: p.textLow)),
           const Spacer(),
           Text(awayTeam,
               style: const TextStyle(
@@ -458,18 +445,14 @@ class _ShotAccuracyCard extends StatelessWidget {
         const SizedBox(height: 4),
         Text('${(accuracy * 100).toInt()}%',
             style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w900,
-                color: color)),
+                fontSize: 20, fontWeight: FontWeight.w900, color: color)),
         Text(
           '${onTarget.toInt()} of ${total.toInt()} on target',
           style: TextStyle(fontSize: 10, color: p.textLow),
         ),
         Text(teamTla,
             style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                color: p.textMid)),
+                fontSize: 12, fontWeight: FontWeight.w800, color: p.textMid)),
       ]);
     }
 
@@ -489,8 +472,7 @@ class _ShotAccuracyCard extends StatelessWidget {
                   fontWeight: FontWeight.w800,
                   color: p.textLow)),
           const Spacer(),
-          Text('on-target %',
-              style: TextStyle(fontSize: 10, color: p.textLow)),
+          Text('on-target %', style: TextStyle(fontSize: 10, color: p.textLow)),
         ]),
         const SizedBox(height: 12),
         Row(children: [
@@ -609,17 +591,13 @@ class _MomentumCard extends StatelessWidget {
           const SizedBox(width: 5),
           Text(homeTeam,
               style: TextStyle(
-                  fontSize: 11,
-                  color: p.textMid,
-                  fontWeight: FontWeight.w700)),
+                  fontSize: 11, color: p.textMid, fontWeight: FontWeight.w700)),
           const SizedBox(width: 14),
           const _LegendDot(color: AppTheme.live),
           const SizedBox(width: 5),
           Text(awayTeam,
               style: TextStyle(
-                  fontSize: 11,
-                  color: p.textMid,
-                  fontWeight: FontWeight.w700)),
+                  fontSize: 11, color: p.textMid, fontWeight: FontWeight.w700)),
         ]),
       ]),
     );
@@ -734,15 +712,11 @@ class _MomentumPainter extends CustomPainter {
     drawPath(awayOffsets, AppTheme.live);
 
     // ── Goal event dots ──────────────────────────────────────────────────────
-    final goalIncs =
-        incidents.where((i) => i.type == 'goal').toList();
+    final goalIncs = incidents.where((i) => i.type == 'goal').toList();
     for (final inc in goalIncs) {
       final x = (inc.minute / span) * w;
       final color = inc.isHome ? AppTheme.brand : AppTheme.live;
-      canvas.drawCircle(
-          Offset(x, chartH / 2),
-          4,
-          Paint()..color = color);
+      canvas.drawCircle(Offset(x, chartH / 2), 4, Paint()..color = color);
       canvas.drawCircle(
           Offset(x, chartH / 2),
           4,
@@ -758,9 +732,7 @@ class _MomentumPainter extends CustomPainter {
         text: TextSpan(
           text: text,
           style: TextStyle(
-              fontSize: 9,
-              color: palette.textLow,
-              fontWeight: FontWeight.w600),
+              fontSize: 9, color: palette.textLow, fontWeight: FontWeight.w600),
         ),
         textDirection: TextDirection.ltr,
       )..layout();
@@ -821,8 +793,7 @@ class _StatsCard extends StatelessWidget {
             if (fromFirestore) ...[
               const Spacer(),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
                   color: AppTheme.good.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(4),

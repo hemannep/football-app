@@ -55,7 +55,7 @@ class RivalriesService {
       region: 'South America',
       nickname: 'Superclásico de las Américas',
       origin:
-          'The greatest national rivalry in football. The two CONMEBOL giants have produced legends from Pelé to Maradona to Messi, contested every Copa América since 1916, and met in countless World Cup qualifiers.',
+          'The greatest national rivalry in football. The two CONMEBOL giants have produced legends from Pelé to Maradona to Messi, contested every Copa América since 1916, and met in countless global football tournament qualifiers.',
       moments: [
         '1990 WC R16: Argentina 1-0 Brazil — Maradona\'s assist for Caniggia knocked the favourites out',
         '2005 Confed Cup final: Brazil 4-1 Argentina — Adriano destroyed his rivals',
@@ -86,7 +86,7 @@ class RivalriesService {
       tla2: 'NED',
       region: 'Europe',
       origin:
-          'Born from the 1974 World Cup final, this is one of football\'s most bitter rivalries, fueled by historical and footballing grievances.',
+          'Born from the 1974 global football tournament final, this is one of football\'s most bitter rivalries, fueled by historical and footballing grievances.',
       moments: [
         '1974 WC final: West Germany 2-1 Netherlands — ending Total Football\'s dream',
         '1988 EURO SF: Netherlands 2-1 West Germany — Marco van Basten\'s revenge',
@@ -100,7 +100,7 @@ class RivalriesService {
       tla2: 'GER',
       region: 'Europe',
       origin:
-          'Defined by two brutal World Cup semi-finals in the 1980s and a modern revival around Euros.',
+          'Defined by two brutal global football tournament semi-finals in the 1980s and a modern revival around Euros.',
       moments: [
         '1982 WC SF: West Germany 3-3 France (5-4 pens) — the infamous Schumacher foul on Battiston',
         '1986 WC SF: West Germany 2-0 France — another semi-final heartbreak',
@@ -146,7 +146,7 @@ class RivalriesService {
       region: 'South America',
       nickname: 'Clásico del Río de la Plata',
       origin:
-          'Defined by the 1950 Maracanazo — when tiny Uruguay shocked hosts Brazil in front of 200,000 to win the World Cup.',
+          'Defined by the 1950 Maracanazo — when tiny Uruguay shocked hosts Brazil in front of 200,000 to win the global football tournament.',
       moments: [
         '1950 WC final: Uruguay 2-1 Brazil — the Maracanazo, still scarring Brazilian football',
         '2010 WC QF: Uruguay 2-1 Ghana (not vs BRA but defining for URU\'s WC return)',
@@ -172,7 +172,7 @@ class RivalriesService {
       tla2: 'FRA',
       region: 'Europe',
       origin:
-          'Latin neighbours with two World Cup final showdowns and an Olympic gold game that defined a generation.',
+          'Latin neighbours with two global football tournament final showdowns and an Olympic gold game that defined a generation.',
       moments: [
         '2000 EURO final: France 2-1 Italy (AET) — Trezeguet\'s golden goal',
         '2006 WC final: Italy 1-1 France (5-3 pens) — Zidane\'s headbutt sent off in his final match',
@@ -212,9 +212,9 @@ class RivalriesService {
       tla2: 'GER',
       region: 'Global',
       origin:
-          'They\'ve met in 3 World Cup finals — more than any other pairing.',
+          'They\'ve met in 3 global football tournament finals — more than any other pairing.',
       moments: [
-        '1986 WC final: Argentina 3-2 West Germany — Maradona\'s World Cup',
+        '1986 WC final: Argentina 3-2 West Germany — Maradona\'s global football tournament',
         '1990 WC final: West Germany 1-0 Argentina — Brehme\'s late penalty',
         '2014 WC final: Germany 1-0 Argentina (AET) — Götze\'s winning volley',
       ],
@@ -225,7 +225,7 @@ class RivalriesService {
       tla2: 'ITA',
       region: 'Global',
       origin:
-          'Football aristocracy. Two of the most successful nations in World Cup history meeting in classic matches.',
+          'Football aristocracy. Two of the most successful nations in global football tournament history meeting in classic matches.',
       moments: [
         '1970 WC final: Brazil 4-1 Italy — widely considered the greatest team performance ever',
         '1982 WC group of death: Italy 3-2 Brazil — Paolo Rossi\'s hat-trick',

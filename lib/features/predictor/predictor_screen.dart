@@ -22,6 +22,7 @@ import '../../core/services/user_profile_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/models/match.dart';
 import '../../shared/widgets/display_name_sheet.dart';
+import '../../shared/widgets/inline_banner_ad.dart';
 import '../../shared/widgets/team_crest_widget.dart';
 import '../league picker/league_picker.dart';
 
@@ -196,11 +197,19 @@ class _PredictTab extends ConsumerWidget {
       );
     }
 
+    // Inject a medium-rectangle ad every 3 prediction tiles.
+    final items = <Object>[];
+    for (var i = 0; i < upcoming.length; i++) {
+      items.add(upcoming[i]);
+      if ((i + 1) % 3 == 0 && i < upcoming.length - 1) items.add('ad');
+    }
+
     return ListView.builder(
       padding: const EdgeInsets.only(bottom: 24),
-      itemCount: upcoming.length,
+      itemCount: items.length,
       itemBuilder: (_, i) {
-        final m = upcoming[i];
+        if (items[i] == 'ad') return const InlineBannerAd();
+        final m = items[i] as Match;
         final myPred =
             myPreds.where((p) => p.matchKey == m.matchKey).firstOrNull;
         return _PredictionTile(
@@ -561,18 +570,27 @@ class _LeaderboardTab extends ConsumerWidget {
           return ListView(
             padding: const EdgeInsets.only(bottom: 24),
             children: [
-              _MyCard(myUid: myUid, myName: myName, myRank: null, myEntry: null, ref: ref),
+              _MyCard(
+                  myUid: myUid,
+                  myName: myName,
+                  myRank: null,
+                  myEntry: null,
+                  ref: ref),
               const SizedBox(height: 32),
               Center(
                 child: Column(
                   children: [
-                    Icon(Icons.leaderboard_outlined, size: 48,
-                        color: p.textLow.withValues(alpha: 0.4)),
+                    Icon(Icons.leaderboard_outlined,
+                        size: 48, color: p.textLow.withValues(alpha: 0.4)),
                     const SizedBox(height: 12),
                     Text('No rankings yet',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: p.textHi)),
+                        style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: p.textHi)),
                     const SizedBox(height: 6),
-                    Text('Submit predictions on finished matches\nto earn points and appear here.',
+                    Text(
+                        'Submit predictions on finished matches\nto earn points and appear here.',
                         textAlign: TextAlign.center,
                         style: TextStyle(fontSize: 13, color: p.textMid)),
                   ],
@@ -931,7 +949,12 @@ class _Counter extends StatelessWidget {
     return Column(
       children: [
         InkWell(
-          onTap: enabled ? () { HapticFeedback.selectionClick(); onChanged!((value + 1).clamp(0, 20)); } : null,
+          onTap: enabled
+              ? () {
+                  HapticFeedback.selectionClick();
+                  onChanged!((value + 1).clamp(0, 20));
+                }
+              : null,
           customBorder: const CircleBorder(),
           child: Container(
             width: 28,
@@ -963,7 +986,12 @@ class _Counter extends StatelessWidget {
                   height: 1.0)),
         ),
         InkWell(
-          onTap: enabled ? () { HapticFeedback.selectionClick(); onChanged!((value - 1).clamp(0, 20)); } : null,
+          onTap: enabled
+              ? () {
+                  HapticFeedback.selectionClick();
+                  onChanged!((value - 1).clamp(0, 20));
+                }
+              : null,
           customBorder: const CircleBorder(),
           child: Container(
             width: 28,

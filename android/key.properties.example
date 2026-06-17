@@ -1,0 +1,4 @@
+storePassword=heman12345
+keyPassword=heman12345
+keyAlias=upload
+storeFile=/Users/hemanneupane/upload-keystore.jks

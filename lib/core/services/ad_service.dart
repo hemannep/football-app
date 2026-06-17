@@ -20,7 +20,7 @@
 //   3. Rewarded     — Opt-in only (user taps "watch ad for hint"). Highest
 //                     eCPM, zero UX harm. Already wired into trivia hints.
 //
-// IAP $1.99 'Remove Ads' wipes all of the above.
+// IAP $1.99/month 'Remove Ads' subscription wipes all of the above while active.
 
 import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
@@ -38,12 +38,28 @@ class AdService {
       ? 'ca-app-pub-3940256099942544/5224354917'
       : AdMobIds.rewardedId;
 
-  // ── Remove-ads IAP flag ───────────────────────────────────────────────────
-  static bool get adsRemoved =>
-      Hive.box('user_prefs').get('ads_removed', defaultValue: false) as bool;
+  // ── Remove-ads subscription entitlement ──────────────────────────────────
+  static const _adsSubActiveKey = 'ads_subscription_active';
+  static const _adsSubVerifiedAtKey = 'ads_subscription_verified_at';
+  static const _adsSubGraceMs = 35 * 24 * 60 * 60 * 1000;
 
-  static Future<void> setAdsRemoved(bool v) =>
-      Hive.box('user_prefs').put('ads_removed', v);
+  static bool get adsRemoved {
+    final box = Hive.box('user_prefs');
+    final active = box.get(_adsSubActiveKey, defaultValue: false) as bool;
+    final verifiedAt = box.get(_adsSubVerifiedAtKey) as int?;
+    if (!active || verifiedAt == null) return false;
+    final age = DateTime.now().millisecondsSinceEpoch - verifiedAt;
+    return age < _adsSubGraceMs;
+  }
+
+  static Future<void> setAdsSubscriptionActive(bool v) async {
+    final box = Hive.box('user_prefs');
+    await box.put(_adsSubActiveKey, v);
+    await box.put(_adsSubVerifiedAtKey, DateTime.now().millisecondsSinceEpoch);
+  }
+
+  @Deprecated('Use setAdsSubscriptionActive for monthly entitlements.')
+  static Future<void> setAdsRemoved(bool v) => setAdsSubscriptionActive(v);
 
   // ── Frequency capping for interstitials ───────────────────────────────────
   /// Minimum seconds between any two interstitials.

@@ -5,7 +5,7 @@
 // WhatsApp renders multi-line text + emojis perfectly, no Play Store risks.
 //
 // All strings carry the app name + Play Store link so shared content drives
-// installs. No FIFA / official trademark words.
+// installs. No official / official trademark words.
 
 import 'package:share_plus/share_plus.dart';
 import '../../shared/models/match.dart';

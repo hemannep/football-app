@@ -13,7 +13,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
-
 import 'core/providers/locale_provider.dart';
 import 'core/providers/selected_leagues_provider.dart';
 import 'core/providers/theme_provider.dart';
@@ -169,12 +168,12 @@ class _RootShellState extends ConsumerState<RootShell>
   ];
 
   List<_NavTab> _buildTabs(AppL10n t) => [
-        _NavTab(Icons.dashboard_rounded, t.navHome),
+        _NavTab(Icons.home_rounded, t.navHome),
         _NavTab(Icons.calendar_month_rounded, t.navFixtures),
         _NavTab(Icons.online_prediction_rounded, t.navPredictor),
         _NavTab(Icons.psychology_rounded, t.navTrivia),
         _NavTab(Icons.account_tree_rounded, t.navBracket),
-        _NavTab(Icons.leaderboard_rounded, t.navStandings),
+        _NavTab(Icons.emoji_events_rounded, t.navStandings),
       ];
 
   @override
@@ -201,27 +200,25 @@ class _RootShellState extends ConsumerState<RootShell>
 
     return Scaffold(
       body: IndexedStack(index: currentIdx, children: visibleScreens),
-      bottomNavigationBar: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (!AdService.adsRemoved && _banner != null && _bannerLoaded)
-            Container(
-              color: p.bg,
-              alignment: Alignment.center,
-              padding: const EdgeInsets.symmetric(vertical: 2),
-              child: SizedBox(
-                width: _banner!.size.width.toDouble(),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // ── Banner (above nav so nav tabs are always reachable) ───────
+            if (!AdService.adsRemoved && _banner != null && _bannerLoaded)
+              Container(
+                color: p.bg,
                 height: _banner!.size.height.toDouble(),
+                alignment: Alignment.center,
                 child: AdWidget(ad: _banner!),
               ),
-            ),
-          Container(
-            decoration: BoxDecoration(
-              color: p.surface,
-              border: Border(top: BorderSide(color: p.stroke)),
-            ),
-            child: SafeArea(
-              top: false,
+            // ── Nav tabs ─────────────────────────────────────────────────
+            Container(
+              decoration: BoxDecoration(
+                color: p.surface,
+                border: Border(top: BorderSide(color: p.stroke)),
+              ),
               child: SizedBox(
                 height: 64,
                 child: Row(
@@ -231,31 +228,36 @@ class _RootShellState extends ConsumerState<RootShell>
                     return Expanded(
                       child: InkWell(
                         onTap: () => _onTab(activeIndices[i]),
+                        splashColor: Colors.transparent,
+                        highlightColor: Colors.transparent,
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             AnimatedContainer(
-                              duration: const Duration(milliseconds: 220),
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 4),
+                              duration: const Duration(milliseconds: 250),
+                              curve: Curves.easeOutBack,
+                              width: 46,
+                              height: 34,
                               decoration: BoxDecoration(
-                                color: sel
-                                    ? AppTheme.brand.withValues(alpha: 0.15)
-                                    : Colors.transparent,
-                                borderRadius: BorderRadius.circular(20),
+                                color:
+                                    sel ? AppTheme.brand : Colors.transparent,
+                                borderRadius: BorderRadius.circular(17),
                               ),
                               child: Icon(tab.icon,
                                   size: 22,
-                                  color: sel ? AppTheme.brand : p.textLow),
+                                  color: sel ? Colors.black : p.textLow),
                             ),
-                            const SizedBox(height: 3),
-                            Text(tab.label,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w700,
-                                    color: sel ? AppTheme.brand : p.textLow)),
+                            const SizedBox(height: 2),
+                            AnimatedDefaultTextStyle(
+                              duration: const Duration(milliseconds: 200),
+                              style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight:
+                                      sel ? FontWeight.w800 : FontWeight.w600,
+                                  color: sel ? AppTheme.brand : p.textLow),
+                              child: Text(tab.label,
+                                  maxLines: 1, overflow: TextOverflow.ellipsis),
+                            ),
                           ],
                         ),
                       ),
@@ -264,8 +266,8 @@ class _RootShellState extends ConsumerState<RootShell>
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -1,16 +1,7 @@
 // lib/shared/widgets/match_card.dart
 //
-// Complete drop-in replacement.
-//
-// Renders a compact match card with:
-//   • Group / stage chip on top
-//   • Optional date stamp (when showDate is true)
-//   • Two team rows with flag + name
-//   • Score box that adapts: live (with pulse), finished (FT), or upcoming
-//     (time + date).
-//
-// Goal scorers are NOT shown on the card itself (that would require an API
-// call per visible card). They show on the match details page instead.
+// Livescore-inspired vertical layout:
+//   [Status col] | [Stacked team rows + scorers] [Score col]
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -22,6 +13,7 @@ class MatchCard extends StatelessWidget {
   final Match match;
   final VoidCallback? onTap;
   final bool showDate;
+
   const MatchCard({
     super.key,
     required this.match,
@@ -33,344 +25,492 @@ class MatchCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
     final isLive = match.isLive;
+    final isFinished = match.isFinished;
+    final isHt = match.status == 'PAUSED';
+    final accent = _accentColor(match.competitionCode);
 
-    final accentColor = _competitionColor(match.competitionCode);
+    // Live minute
+    int? liveMin;
+    if (isLive) {
+      final elapsed = DateTime.now().difference(match.utcDate).inMinutes;
+      liveMin = match.minute ??
+          (elapsed < 55
+                  ? elapsed
+                  : elapsed < 105
+                      ? elapsed - 15
+                      : elapsed - 30)
+              .clamp(1, 120);
+    }
 
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-      decoration: BoxDecoration(
-        color: p.surface,
-        borderRadius: BorderRadius.circular(AppTheme.r),
-        border: Border.all(
-          color: isLive ? AppTheme.live.withValues(alpha: 0.5) : p.stroke,
-          width: isLive ? 1.5 : 1,
-        ),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(AppTheme.r),
+    // Goal scorers split by team
+    final homeGoals = match.goals
+        .where((g) => g.teamId == match.homeTeam.id)
+        .toList()
+      ..sort((a, b) => a.minute.compareTo(b.minute));
+    final awayGoals = match.goals
+        .where((g) => g.teamId == match.awayTeam.id)
+        .toList()
+      ..sort((a, b) => a.minute.compareTo(b.minute));
+
+    // Score winner colors
+    Color homeScoreColor = p.textHi;
+    Color awayScoreColor = p.textHi;
+    final winner = match.score.winner;
+    if (isFinished) {
+      if (winner == 'HOME_TEAM') {
+        homeScoreColor = AppTheme.good;
+        awayScoreColor = p.textLow;
+      } else if (winner == 'AWAY_TEAM') {
+        homeScoreColor = p.textLow;
+        awayScoreColor = AppTheme.good;
+      }
+    }
+    if (isLive) {
+      homeScoreColor = Colors.white;
+      awayScoreColor = Colors.white;
+    }
+
+    // Upcoming time soon?
+    final diff = match.utcDate.toLocal().difference(DateTime.now());
+    final isSoon =
+        !isLive && !isFinished && diff.inMinutes > 0 && diff.inMinutes <= 60;
+
+    return Material(
+      color: isLive ? p.surface.withValues(alpha: 0.0) : Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        splashColor: AppTheme.brand.withValues(alpha: 0.06),
+        highlightColor: AppTheme.brand.withValues(alpha: 0.03),
+        child: Container(
+          decoration: BoxDecoration(
+            color: isLive ? AppTheme.live.withValues(alpha: 0.04) : p.surface,
+            border: Border(
+              bottom: BorderSide(
+                  color: p.stroke.withValues(alpha: 0.6), width: 0.5),
+              left: isLive
+                  ? const BorderSide(color: AppTheme.live, width: 3)
+                  : BorderSide.none,
+            ),
+          ),
           child: IntrinsicHeight(
             child: Row(
-            children: [
-              Container(
-                width: 3,
-                decoration: BoxDecoration(
-                  color: isLive ? AppTheme.live : accentColor,
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(AppTheme.r),
-                    bottomLeft: Radius.circular(AppTheme.r),
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // ── Status column (time / minute / FT) ─────────────────
+                SizedBox(
+                  width: 58,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (isLive) ...[
+                          _LiveMinBadge(
+                              minute: isHt ? null : liveMin, isHt: isHt),
+                        ] else if (isFinished) ...[
+                          Text(
+                            'FT',
+                            style: TextStyle(
+                              color: p.textLow,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          if (showDate) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              DateFormat('d MMM')
+                                  .format(match.utcDate.toLocal()),
+                              style: TextStyle(
+                                color: p.textLow,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ] else ...[
+                          Text(
+                            DateFormat('HH:mm').format(match.utcDate.toLocal()),
+                            style: TextStyle(
+                              color: isSoon ? AppTheme.brand : p.textMid,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          if (showDate) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              DateFormat('d MMM')
+                                  .format(match.utcDate.toLocal()),
+                              style: TextStyle(
+                                color: p.textLow,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ] else if (isSoon) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              'in ${diff.inMinutes}m',
+                              style: const TextStyle(
+                                color: AppTheme.brand,
+                                fontSize: 9,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              Expanded(
-            child: Padding(
-            padding: const EdgeInsets.fromLTRB(11, 12, 14, 12),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    if (match.group != null)
-                      _Chip(
-                          text: _prettyGroup(match.group!),
-                          color: accentColor)
-                    else
-                      _Chip(
-                          text: _prettyStage(match.stage),
-                          color: accentColor),
-                    const Spacer(),
-                    if (_hasRecentGoal(match)) const _GoalBadge(),
-                    if (showDate)
-                      Text(DateFormat('d MMM').format(match.utcDate),
+                // ── Vertical separator ──────────────────────────────────
+                Container(
+                  width: 1,
+                  color: isLive
+                      ? AppTheme.live.withValues(alpha: 0.3)
+                      : p.stroke.withValues(alpha: 0.6),
+                ),
+                // ── Teams + scorers ─────────────────────────────────────
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        // Small stage/group chip
+                        if (match.group != null || match.stage.isNotEmpty) ...[
+                          Text(
+                            _stageLabel(match),
+                            style: TextStyle(
+                              color: accent.withValues(alpha: 0.85),
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.2,
+                            ),
+                          ),
+                          const SizedBox(height: 5),
+                        ],
+                        // Home row
+                        _TeamLine(
+                          team: match.homeTeam,
+                          goals: homeGoals,
+                          palette: p,
+                          isWinner: winner == 'HOME_TEAM',
+                          isLoser: winner == 'AWAY_TEAM',
+                          isFinished: isFinished,
+                          hasRecentGoal:
+                              _hasRecentGoal(match, match.homeTeam.id),
+                        ),
+                        const SizedBox(height: 7),
+                        // Away row
+                        _TeamLine(
+                          team: match.awayTeam,
+                          goals: awayGoals,
+                          palette: p,
+                          isWinner: winner == 'AWAY_TEAM',
+                          isLoser: winner == 'HOME_TEAM',
+                          isFinished: isFinished,
+                          hasRecentGoal:
+                              _hasRecentGoal(match, match.awayTeam.id),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                // ── Score ───────────────────────────────────────────────
+                if (isLive || isFinished)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(0, 10, 12, 10),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          '${match.score.homeGoals ?? 0}',
                           style: TextStyle(
-                              fontSize: 11,
-                              color: p.textLow,
-                              fontWeight: FontWeight.w600)),
-                    if (onTap != null)
-                      Padding(
-                        padding: const EdgeInsets.only(left: 4),
-                        child: Icon(Icons.chevron_right_rounded,
-                            size: 16, color: p.textLow),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                        child: _TeamRow(
-                            name: match.homeTeam.name,
-                            tla: match.homeTeam.tla,
-                            crest: match.homeTeam.crest,
-                            reverse: false)),
-                    _ScoreBox(match: match),
-                    Expanded(
-                        child: _TeamRow(
-                            name: match.awayTeam.name,
-                            tla: match.awayTeam.tla,
-                            crest: match.awayTeam.crest,
-                            reverse: true)),
-                  ],
-                ),
-                if (match.isFinished && match.goals.isNotEmpty) ...[
-                  const SizedBox(height: 6),
-                  _CardScorers(match: match, p: p),
-                ],
+                            color: homeScoreColor,
+                            fontSize: 17,
+                            fontWeight: FontWeight.w900,
+                            height: 1.1,
+                          ),
+                        ),
+                        const SizedBox(height: 7),
+                        Text(
+                          '${match.score.awayGoals ?? 0}',
+                          style: TextStyle(
+                            color: awayScoreColor,
+                            fontSize: 17,
+                            fontWeight: FontWeight.w900,
+                            height: 1.1,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: Icon(Icons.chevron_right_rounded,
+                        size: 18, color: p.textLow.withValues(alpha: 0.5)),
+                  ),
               ],
             ),
           ),
-          ),           // Expanded
-          ],           // Row children
-        ),             // Row
-        ),             // IntrinsicHeight
-        ),             // InkWell
-      ),               // Material
-    );                 // Container
+        ),
+      ),
+    );
   }
 
-  String _prettyStage(String s) {
-    return s
-        .split('_')
-        .map((p) => p.isEmpty ? p : p[0] + p.substring(1).toLowerCase())
-        .join(' ');
-  }
+  // ── Helpers ──────────────────────────────────────────────────────────────
 
-  String _prettyGroup(String g) {
-    if (g.startsWith('GROUP_')) return 'Group ${g.substring(6)}';
-    return g;
-  }
-
-  // Returns true when a goal was scored within the last 5 estimated minutes.
-  bool _hasRecentGoal(Match m) {
-    if (!m.isLive || m.goals.isEmpty) return false;
-    final elapsed = DateTime.now().difference(m.utcDate).inMinutes.clamp(1, 120);
-    final lastMin = m.goals.fold(0, (max, g) => g.minute > max ? g.minute : max);
+  bool _hasRecentGoal(Match m, int? teamId) {
+    if (!m.isLive || m.goals.isEmpty || teamId == null) return false;
+    final elapsed =
+        DateTime.now().difference(m.utcDate).inMinutes.clamp(1, 120);
+    final teamGoals = m.goals.where((g) => g.teamId == teamId).toList();
+    if (teamGoals.isEmpty) return false;
+    final lastMin = teamGoals.fold(0, (mx, g) => g.minute > mx ? g.minute : mx);
     return lastMin > 0 && (elapsed - lastMin) <= 5;
   }
 
-  // Deterministic accent color from competition code.
+  String _stageLabel(Match m) {
+    if (m.group != null) {
+      return m.group!.startsWith('GROUP_')
+          ? 'Group ${m.group!.substring(6)}'
+          : m.group!;
+    }
+    return m.stage
+        .split('_')
+        .map((s) => s.isEmpty ? s : s[0] + s.substring(1).toLowerCase())
+        .join(' ');
+  }
+
   static const _competitionColors = <String, Color>{
-    'WC':  Color(0xFF8B0000),
-    'CL':  Color(0xFF1A237E),
-    'EL':  Color(0xFFE65100),
+    'WC': Color(0xFF8B0000),
+    'CL': Color(0xFF1A237E),
+    'EL': Color(0xFFE65100),
     'ECL': Color(0xFF1B5E20),
-    'EC':  Color(0xFF004D40),
-    'PL':  Color(0xFF38003C),
+    'EC': Color(0xFF004D40),
+    'PL': Color(0xFF38003C),
     'BL1': Color(0xFFD32F2F),
-    'PD':  Color(0xFFFF6F00),
-    'SA':  Color(0xFF0D47A1),
+    'PD': Color(0xFFFF6F00),
+    'SA': Color(0xFF0D47A1),
     'FL1': Color(0xFF1565C0),
     'PPL': Color(0xFF006400),
   };
 
-  Color _competitionColor(String? code) {
-    if (code != null && _competitionColors.containsKey(code)) {
-      return _competitionColors[code]!;
-    }
-    return AppTheme.brand;
-  }
+  static Color _accentColor(String? code) =>
+      code != null && _competitionColors.containsKey(code)
+          ? _competitionColors[code]!
+          : AppTheme.brand;
 }
 
-class _Chip extends StatelessWidget {
-  final String text;
-  final Color color;
-  const _Chip({required this.text, required this.color});
+// ─── Live minute badge ────────────────────────────────────────────────────────
+
+class _LiveMinBadge extends StatefulWidget {
+  final int? minute;
+  final bool isHt;
+  const _LiveMinBadge({this.minute, required this.isHt});
+
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(text.toUpperCase(),
-          style: TextStyle(
-            color: color,
-            fontSize: 10,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0.8,
-          )),
-    );
-  }
+  State<_LiveMinBadge> createState() => _LiveMinBadgeState();
 }
 
-class _TeamRow extends StatelessWidget {
-  final String name;
-  final String tla;
-  final String? crest;
-  final bool reverse;
-  const _TeamRow(
-      {required this.name, required this.tla, this.crest, required this.reverse});
+class _LiveMinBadgeState extends State<_LiveMinBadge>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c;
+
+  @override
+  void initState() {
+    super.initState();
+    _c = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 900))
+      ..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final p = AppTheme.of(context);
-    final flag = TeamCrestWidget(crestUrl: crest, tla: tla, size: 30);
-    final label = Flexible(
-      child: Text(name,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          textAlign: reverse ? TextAlign.right : TextAlign.left,
-          style: TextStyle(
-              fontSize: 14, fontWeight: FontWeight.w700, color: p.textHi)),
-    );
-    return Row(
-      mainAxisAlignment:
-          reverse ? MainAxisAlignment.end : MainAxisAlignment.start,
-      children: reverse
-          ? [label, const SizedBox(width: 10), flag]
-          : [flag, const SizedBox(width: 10), label],
-    );
-  }
-}
-
-class _ScoreBox extends StatelessWidget {
-  final Match match;
-  const _ScoreBox({required this.match});
-
-  @override
-  Widget build(BuildContext context) {
-    final p = AppTheme.of(context);
-
-    if (match.isLive) {
-      final isHt = match.status == 'PAUSED';
-      final elapsed = DateTime.now().difference(match.utcDate).inMinutes;
-      // Use relay-stored minute when available; otherwise estimate from wall clock.
-      final liveMin = match.minute ??
-          (elapsed < 55 ? elapsed : elapsed < 105 ? elapsed - 15 : elapsed - 30)
-              .clamp(1, 120);
-      final minute = isHt ? 45 : liveMin;
-      final minuteStr = isHt ? 'HT' : "$minute'";
-      return Container(
-        constraints: const BoxConstraints(minWidth: 76),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          gradient: AppTheme.liveGradient,
-          borderRadius: BorderRadius.circular(10),
+    final label = widget.isHt
+        ? 'HT'
+        : widget.minute != null
+            ? "${widget.minute}'"
+            : '●';
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        FadeTransition(
+          opacity: _c,
+          child: Container(
+            width: 6,
+            height: 6,
+            decoration: const BoxDecoration(
+                color: AppTheme.live, shape: BoxShape.circle),
+          ),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        const SizedBox(height: 3),
+        Text(
+          label,
+          style: const TextStyle(
+            color: AppTheme.live,
+            fontSize: 12,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─── Single team line ────────────────────────────────────────────────────────
+
+class _TeamLine extends StatelessWidget {
+  final TeamRef team;
+  final List<MatchGoal> goals;
+  final Palette palette;
+  final bool isWinner;
+  final bool isLoser;
+  final bool isFinished;
+  final bool hasRecentGoal;
+
+  const _TeamLine({
+    required this.team,
+    required this.goals,
+    required this.palette,
+    this.isWinner = false,
+    this.isLoser = false,
+    this.isFinished = false,
+    this.hasRecentGoal = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final nameColor = isLoser
+        ? palette.textLow
+        : isWinner
+            ? palette.textHi
+            : palette.textHi;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
           children: [
-            Text(minuteStr,
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 0.5)),
-            const SizedBox(height: 2),
-            Text(match.score.display,
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w900,
-                    height: 1.0)),
-            if (!isHt) const _PulseDot(),
-          ],
-        ),
-      );
-    }
-
-    if (match.isFinished) {
-      final hg = match.score.homeGoals;
-      final ag = match.score.awayGoals;
-      final winner = match.score.winner;
-      Color homeColor = p.textHi;
-      Color awayColor = p.textHi;
-      if (winner == 'HOME_TEAM') {
-        homeColor = AppTheme.good;
-        awayColor = p.textLow;
-      } else if (winner == 'AWAY_TEAM') {
-        homeColor = p.textLow;
-        awayColor = AppTheme.good;
-      }
-      return Container(
-        constraints: const BoxConstraints(minWidth: 76),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        decoration: BoxDecoration(
-          color: p.surfaceHi,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: p.stroke),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(hg != null ? '$hg' : '-',
-                    style: TextStyle(
-                        color: homeColor,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w900,
-                        height: 1.0)),
-                Text(' – ',
-                    style: TextStyle(
-                        color: p.textLow,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        height: 1.0)),
-                Text(ag != null ? '$ag' : '-',
-                    style: TextStyle(
-                        color: awayColor,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w900,
-                        height: 1.0)),
-              ],
+            TeamCrestWidget(
+              crestUrl: team.crest,
+              tla: team.tla,
+              name: team.name,
+              size: 20,
             ),
-            const SizedBox(height: 2),
-            Text('FT',
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                team.name,
                 style: TextStyle(
-                    color: p.textLow,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700)),
+                  color: nameColor,
+                  fontSize: 14,
+                  fontWeight: isWinner ? FontWeight.w700 : FontWeight.w500,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (hasRecentGoal) ...[
+              const SizedBox(width: 6),
+              const _GoalFlash(),
+            ],
           ],
         ),
-      );
-    }
-
-    final diff = match.utcDate.toLocal().difference(DateTime.now());
-    final isSoon = diff.inMinutes > 0 && diff.inMinutes <= 60;
-    final countdownStr = diff.inMinutes <= 0
-        ? null
-        : diff.inMinutes < 60
-            ? 'in ${diff.inMinutes}m'
-            : diff.inHours < 24
-                ? 'in ${diff.inHours}h'
-                : null;
-
-    return Container(
-      constraints: const BoxConstraints(minWidth: 76),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: isSoon ? AppTheme.brand.withValues(alpha: 0.08) : p.surfaceHi,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: isSoon ? AppTheme.brand.withValues(alpha: 0.3) : p.stroke,
-        ),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(DateFormat('HH:mm').format(match.utcDate),
-              style: TextStyle(
-                  color: isSoon ? AppTheme.brand : p.textHi,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w800,
-                  height: 1.0)),
+        // Goal scorers (shown below team name when available)
+        if (goals.isNotEmpty) ...[
           const SizedBox(height: 2),
           Text(
-            countdownStr ?? DateFormat('d MMM').format(match.utcDate),
+            goals.map((g) {
+              final name = _short(g.scorerName);
+              final suffix = g.isPenalty
+                  ? ' (P)'
+                  : g.isOwnGoal
+                      ? ' (OG)'
+                      : '';
+              return "$name$suffix ${g.minute}'";
+            }).join('  '),
             style: TextStyle(
-                color: isSoon ? AppTheme.brand.withValues(alpha: 0.7) : p.textLow,
-                fontSize: 10,
-                fontWeight: FontWeight.w600),
+              color: palette.textLow,
+              fontSize: 10,
+              fontWeight: FontWeight.w500,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
-      ),
+      ],
     );
   }
+
+  String _short(String? name) {
+    if (name == null || name.isEmpty) return '—';
+    final parts = name.trim().split(' ');
+    if (parts.length <= 1) return name;
+    return '${parts.first[0]}. ${parts.last}';
+  }
 }
+
+// ─── Goal flash badge ────────────────────────────────────────────────────────
+
+class _GoalFlash extends StatefulWidget {
+  const _GoalFlash();
+  @override
+  State<_GoalFlash> createState() => _GoalFlashState();
+}
+
+class _GoalFlashState extends State<_GoalFlash>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c;
+
+  @override
+  void initState() {
+    super.initState();
+    _c = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 600))
+      ..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => FadeTransition(
+        opacity: Tween(begin: 0.5, end: 1.0).animate(_c),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+          decoration: BoxDecoration(
+            gradient: AppTheme.liveGradient,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: const Text(
+            '⚽ GOAL',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 9,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ),
+      );
+}
+
+// ─── Pulse dot (kept for any callers that still use it) ───────────────────────
 
 class _PulseDot extends StatefulWidget {
   const _PulseDot();
@@ -381,6 +521,7 @@ class _PulseDot extends StatefulWidget {
 class _PulseDotState extends State<_PulseDot>
     with SingleTickerProviderStateMixin {
   late final AnimationController _c;
+
   @override
   void initState() {
     super.initState();
@@ -405,112 +546,4 @@ class _PulseDotState extends State<_PulseDot>
               const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
         ),
       );
-}
-
-class _GoalBadge extends StatefulWidget {
-  const _GoalBadge();
-  @override
-  State<_GoalBadge> createState() => _GoalBadgeState();
-}
-
-class _GoalBadgeState extends State<_GoalBadge>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _c;
-  @override
-  void initState() {
-    super.initState();
-    _c = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 700))
-      ..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: Tween(begin: 0.6, end: 1.0).animate(_c),
-      child: Container(
-        margin: const EdgeInsets.only(right: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-        decoration: BoxDecoration(
-          gradient: AppTheme.liveGradient,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: const Text(
-          '⚽ GOAL!',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 9,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 0.5,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _CardScorers extends StatelessWidget {
-  final Match match;
-  final Palette p;
-  const _CardScorers({required this.match, required this.p});
-
-  String _short(String name) {
-    final parts = name.trim().split(' ');
-    if (parts.length <= 1) return name;
-    return '${parts.first[0]}. ${parts.last}';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final home = match.goals
-        .where((g) => g.teamId == match.homeTeam.id)
-        .toList()
-      ..sort((a, b) => a.minute.compareTo(b.minute));
-    final away = match.goals
-        .where((g) => g.teamId == match.awayTeam.id)
-        .toList()
-      ..sort((a, b) => a.minute.compareTo(b.minute));
-
-    Widget col(List<MatchGoal> goals, bool alignRight) => Column(
-          crossAxisAlignment: alignRight
-              ? CrossAxisAlignment.end
-              : CrossAxisAlignment.start,
-          children: goals
-              .map((g) {
-                final name = g.scorerName?.isNotEmpty == true
-                    ? _short(g.scorerName!)
-                    : '—';
-                final suffix =
-                    g.isPenalty ? ' (P)' : g.isOwnGoal ? ' (OG)' : '';
-                final label = alignRight
-                    ? "${g.minute}' $name$suffix"
-                    : "$name$suffix ${g.minute}'";
-                return Text(
-                  label,
-                  style: TextStyle(
-                      fontSize: 10,
-                      color: p.textLow,
-                      fontWeight: FontWeight.w600),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                );
-              })
-              .toList(),
-        );
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(child: col(home, false)),
-        const SizedBox(width: 80),
-        Expanded(child: col(away, true)),
-      ],
-    );
-  }
 }

@@ -54,7 +54,9 @@ class _H2HTab extends ConsumerWidget {
           final rmHomeTla = (rm['homeTeam'] as Map?)?['tla'] as String?;
           final rmHomeName = (rm['homeTeam'] as Map?)?['name'] as String? ?? '';
           rmIsCurrentHome = rmHomeTla == match.homeTeam.tla ||
-              rmHomeName.toLowerCase().contains(match.homeTeam.tla.toLowerCase());
+              rmHomeName
+                  .toLowerCase()
+                  .contains(match.homeTeam.tla.toLowerCase());
         }
         if (rmIsCurrentHome ? hg > ag : ag > hg) {
           homeWins++;
@@ -127,7 +129,10 @@ class _H2HTab extends ConsumerWidget {
                   children: [
                     Text(
                       '${(homeWins / (homeWins + draws + awayWins) * 100).round()}%',
-                      style: const TextStyle(fontSize: 10, color: AppTheme.brand, fontWeight: FontWeight.w700),
+                      style: const TextStyle(
+                          fontSize: 10,
+                          color: AppTheme.brand,
+                          fontWeight: FontWeight.w700),
                     ),
                     Expanded(
                       child: Text(
@@ -138,7 +143,10 @@ class _H2HTab extends ConsumerWidget {
                     ),
                     Text(
                       '${(awayWins / (homeWins + draws + awayWins) * 100).round()}%',
-                      style: const TextStyle(fontSize: 10, color: AppTheme.live, fontWeight: FontWeight.w700),
+                      style: const TextStyle(
+                          fontSize: 10,
+                          color: AppTheme.live,
+                          fontWeight: FontWeight.w700),
                     ),
                   ],
                 ),
@@ -160,10 +168,12 @@ class _H2HTab extends ConsumerWidget {
           ...relayMeetings.take(10).map((rm) {
             final htMap = (rm['homeTeam'] as Map?);
             final atMap = (rm['awayTeam'] as Map?);
-            final homeTeamName = htMap?['name'] as String? ?? htMap?['tla'] as String? ?? '—';
-            final awayTeamName = atMap?['name'] as String? ?? atMap?['tla'] as String? ?? '—';
-            final homeCrest   = htMap?['crest'] as String?;
-            final awayCrest   = atMap?['crest'] as String?;
+            final homeTeamName =
+                htMap?['name'] as String? ?? htMap?['tla'] as String? ?? '—';
+            final awayTeamName =
+                atMap?['name'] as String? ?? atMap?['tla'] as String? ?? '—';
+            final homeCrest = htMap?['crest'] as String?;
+            final awayCrest = atMap?['crest'] as String?;
             final sc = rm['score'] as Map?;
             final ft = sc?['fullTime'] as Map?;
             final hg = (ft?['home'] as num?)?.toInt();
@@ -179,11 +189,12 @@ class _H2HTab extends ConsumerWidget {
             Color pillText = p.textHi;
             if (hg != null && ag != null) {
               final rmHomeId = htMap?['id'];
-              final bool rmIsCurrentHome = (rmHomeId != null && match.homeTeam.id != null)
-                  ? rmHomeId == match.homeTeam.id
-                  : (htMap?['tla'] as String?) == match.homeTeam.tla;
+              final bool rmIsCurrentHome =
+                  (rmHomeId != null && match.homeTeam.id != null)
+                      ? rmHomeId == match.homeTeam.id
+                      : (htMap?['tla'] as String?) == match.homeTeam.tla;
               final currentTeamGoals = rmIsCurrentHome ? hg : ag;
-              final opponentGoals    = rmIsCurrentHome ? ag : hg;
+              final opponentGoals = rmIsCurrentHome ? ag : hg;
               if (currentTeamGoals > opponentGoals) {
                 pillBg = AppTheme.good.withValues(alpha: 0.15);
                 pillText = AppTheme.good;
@@ -224,7 +235,10 @@ class _H2HTab extends ConsumerWidget {
                                 fontWeight: FontWeight.w600)),
                       ),
                     const SizedBox(width: 6),
-                    TeamCrestWidget(crestUrl: homeCrest, tla: htMap?['tla'] as String? ?? '?', size: 18),
+                    TeamCrestWidget(
+                        crestUrl: homeCrest,
+                        tla: htMap?['tla'] as String? ?? '?',
+                        size: 18),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(homeTeamName,
@@ -237,7 +251,8 @@ class _H2HTab extends ConsumerWidget {
                     ),
                     Container(
                       margin: const EdgeInsets.symmetric(horizontal: 8),
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
                         color: pillBg,
                         borderRadius: BorderRadius.circular(7),
@@ -259,7 +274,10 @@ class _H2HTab extends ConsumerWidget {
                               color: p.textHi)),
                     ),
                     const SizedBox(width: 6),
-                    TeamCrestWidget(crestUrl: awayCrest, tla: atMap?['tla'] as String? ?? '?', size: 18),
+                    TeamCrestWidget(
+                        crestUrl: awayCrest,
+                        tla: atMap?['tla'] as String? ?? '?',
+                        size: 18),
                   ]),
                 ],
               ),
@@ -276,9 +294,9 @@ class _H2HTab extends ConsumerWidget {
             final hg = m.score.homeGoals ?? 0;
             final ag = m.score.awayGoals ?? 0;
             final isCurrentHome = m.homeTeam.tla == match.homeTeam.tla;
-            final myGoals  = isCurrentHome ? hg : ag;
+            final myGoals = isCurrentHome ? hg : ag;
             final oppGoals = isCurrentHome ? ag : hg;
-            Color pillBg   = p.surfaceHi;
+            Color pillBg = p.surfaceHi;
             Color pillText = p.textHi;
             if (m.score.homeGoals != null) {
               if (myGoals > oppGoals) {
@@ -307,7 +325,8 @@ class _H2HTab extends ConsumerWidget {
                           fontWeight: FontWeight.w600)),
                 ),
                 const SizedBox(width: 6),
-                TeamCrestWidget(crestUrl: m.homeTeam.crest, tla: m.homeTeam.tla, size: 18),
+                TeamCrestWidget(
+                    crestUrl: m.homeTeam.crest, tla: m.homeTeam.tla, size: 18),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(m.homeTeam.tla,
@@ -318,7 +337,8 @@ class _H2HTab extends ConsumerWidget {
                 ),
                 Container(
                   margin: const EdgeInsets.symmetric(horizontal: 8),
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     color: pillBg,
                     borderRadius: BorderRadius.circular(7),
@@ -338,7 +358,8 @@ class _H2HTab extends ConsumerWidget {
                           color: p.textHi)),
                 ),
                 const SizedBox(width: 6),
-                TeamCrestWidget(crestUrl: m.awayTeam.crest, tla: m.awayTeam.tla, size: 18),
+                TeamCrestWidget(
+                    crestUrl: m.awayTeam.crest, tla: m.awayTeam.tla, size: 18),
               ]),
             );
           }),
@@ -404,8 +425,8 @@ class _H2HAnalyticsCard extends StatelessWidget {
     final gpm = totalGoals / counted;
     final pOver25 = (over25 * 100 / counted).round();
     final pOver15 = (over15 * 100 / counted).round();
-    final pBtts   = (btts * 100 / counted).round();
-    final pCs     = (cleanSheet * 100 / counted).round();
+    final pBtts = (btts * 100 / counted).round();
+    final pCs = (cleanSheet * 100 / counted).round();
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -419,32 +440,50 @@ class _H2HAnalyticsCard extends StatelessWidget {
         children: [
           Row(children: [
             Text('Based on $counted matches',
-                style: TextStyle(fontSize: 10, color: p.textLow, fontWeight: FontWeight.w600)),
+                style: TextStyle(
+                    fontSize: 10,
+                    color: p.textLow,
+                    fontWeight: FontWeight.w600)),
           ]),
           const SizedBox(height: 12),
           // 2×2 stat grid
           Row(children: [
-            Expanded(child: _AnalyticTile(
-              label: 'Over 2.5', pct: pOver25,
-              sub: pOver25 < 50 ? 'Unlikely' : pOver25 < 70 ? 'Possible' : 'Likely',
+            Expanded(
+                child: _AnalyticTile(
+              label: 'Over 2.5',
+              pct: pOver25,
+              sub: pOver25 < 50
+                  ? 'Unlikely'
+                  : pOver25 < 70
+                      ? 'Possible'
+                      : 'Likely',
               color: _pctColor(pOver25),
             )),
             const SizedBox(width: 8),
-            Expanded(child: _AnalyticTile(
-              label: 'Over 1.5', pct: pOver15,
-              sub: pOver15 < 50 ? 'Unlikely' : pOver15 < 70 ? 'Possible' : 'Likely',
+            Expanded(
+                child: _AnalyticTile(
+              label: 'Over 1.5',
+              pct: pOver15,
+              sub: pOver15 < 50
+                  ? 'Unlikely'
+                  : pOver15 < 70
+                      ? 'Possible'
+                      : 'Likely',
               color: _pctColor(pOver15),
             )),
           ]),
           const SizedBox(height: 8),
           Row(children: [
-            Expanded(child: _AnalyticTile(
-              label: 'BTTS', pct: pBtts,
+            Expanded(
+                child: _AnalyticTile(
+              label: 'BTTS',
+              pct: pBtts,
               sub: 'Both teams score',
               color: _pctColor(pBtts),
             )),
             const SizedBox(width: 8),
-            Expanded(child: _AnalyticTile(
+            Expanded(
+                child: _AnalyticTile(
               label: 'Goals/Match',
               valueStr: gpm.toStringAsFixed(1),
               sub: 'Avg total goals',
@@ -453,8 +492,10 @@ class _H2HAnalyticsCard extends StatelessWidget {
           ]),
           const SizedBox(height: 8),
           Row(children: [
-            Expanded(child: _AnalyticTile(
-              label: 'Clean Sheet', pct: pCs,
+            Expanded(
+                child: _AnalyticTile(
+              label: 'Clean Sheet',
+              pct: pCs,
               sub: 'At least one team',
               color: _pctColor(pCs),
             )),
@@ -502,12 +543,13 @@ class _AnalyticTile extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(label,
-              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: p.textLow)),
+              style: TextStyle(
+                  fontSize: 10, fontWeight: FontWeight.w700, color: p.textLow)),
           const SizedBox(height: 4),
           Text(display,
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: color)),
-          Text(sub,
-              style: TextStyle(fontSize: 9, color: p.textLow)),
+              style: TextStyle(
+                  fontSize: 22, fontWeight: FontWeight.w900, color: color)),
+          Text(sub, style: TextStyle(fontSize: 9, color: p.textLow)),
         ],
       ),
     );

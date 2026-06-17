@@ -41,8 +41,7 @@ class TeamJourneyWidget extends StatelessWidget {
         children: [
           const Row(
             children: [
-              Icon(Icons.timeline_rounded,
-                  size: 16, color: AppTheme.brand),
+              Icon(Icons.timeline_rounded, size: 16, color: AppTheme.brand),
               SizedBox(width: 6),
               Text('TOURNAMENT JOURNEY',
                   style: TextStyle(

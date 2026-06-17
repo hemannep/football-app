@@ -158,15 +158,13 @@ class _OfflinePackScreenState extends ConsumerState<OfflinePackScreen> {
                         fontWeight: FontWeight.w800,
                         color: p.textLow)),
                 const SizedBox(height: 8),
-                ...Leagues.all
-                    .map((l) => _LeagueTile(
-                          league: l,
-                          isSelected: _selectedLeague.code == l.code,
-                          onTap: _downloading
-                              ? null
-                              : () => setState(() => _selectedLeague = l),
-                        ))
-                    ,
+                ...Leagues.all.map((l) => _LeagueTile(
+                      league: l,
+                      isSelected: _selectedLeague.code == l.code,
+                      onTap: _downloading
+                          ? null
+                          : () => setState(() => _selectedLeague = l),
+                    )),
                 const SizedBox(height: 20),
                 // Download button
                 if (!_downloading)

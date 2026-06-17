@@ -1,9 +1,4 @@
 // lib/features/home/home_screen.dart
-//
-// Updates:
-//   • Coming Soon cards now use the shared TeamCrestWidget — so club crests
-//     (PL, La Liga, etc.) render reliably, national teams get country flags,
-//     and unknown clubs get a styled initials badge (no broken images).
 
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -15,9 +10,11 @@ import '../../core/providers/favorites_provider.dart';
 import '../../core/providers/selected_leagues_provider.dart';
 import '../../core/providers/theme_provider.dart';
 import '../../core/services/live_data_service.dart';
+import '../../core/services/user_profile_service.dart';
 import '../../core/theme/app_theme.dart';
 
 import '../../shared/models/match.dart';
+import '../../shared/widgets/inline_banner_ad.dart';
 import '../../shared/widgets/match_card.dart';
 import '../../shared/widgets/team_crest_widget.dart';
 import '../league picker/league_picker.dart';
@@ -67,9 +64,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       firstDate: DateTime.now().subtract(const Duration(days: 60)),
       lastDate: DateTime(2027, 12, 31),
     );
-    if (picked != null) {
-      setState(() => _selectedDay = picked);
-    }
+    if (picked != null) setState(() => _selectedDay = picked);
   }
 
   @override
@@ -95,7 +90,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         .toList()
       ..sort((a, b) => a.utcDate.compareTo(b.utcDate));
 
-    // Build tla→crest and tla→teamId maps for the favorites strip.
     final crestByTla = <String, String?>{};
     final idByTla = <String, int>{};
     for (final m in s.matches) {
@@ -115,69 +109,119 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       ..sort((a, b) => a.utcDate.compareTo(b.utcDate));
     final upcomingMatches = comingSoon.take(3).toList();
 
-    final liveCount = s.matches.where((m) => m.isLive).length;
+    final liveMatches = s.matches.where((m) => m.isLive).toList();
+    final liveCount = liveMatches.length;
+
+    // Time-based greeting + real user name
+    final rawName = UserProfileService.instance.localName;
+    final displayName = rawName.isNotEmpty ? rawName : 'Football Fan';
+    final hour = DateTime.now().hour;
+    final greetWord = hour < 5
+        ? 'Good night'
+        : hour < 12
+            ? 'Good morning'
+            : hour < 17
+                ? 'Good afternoon'
+                : hour < 22
+                    ? 'Good evening'
+                    : 'Good night';
+    final greetEmoji = hour < 5
+        ? '🌙'
+        : hour < 12
+            ? '☀️'
+            : hour < 17
+                ? '⛅'
+                : hour < 22
+                    ? '🌆'
+                    : '🌙';
+
+    // Prefer a live match for the hero; fall back to next upcoming.
+    final Match? featuredMatch = liveMatches.isNotEmpty
+        ? liveMatches.first
+        : comingSoon.isNotEmpty
+            ? comingSoon.first
+            : null;
 
     return Scaffold(
       key: _scaffoldKey,
       drawer: const SettingsDrawer(),
+      backgroundColor:
+          isDark ? const Color(0xFF0B1510) : const Color(0xFFF2F8F3),
       body: RefreshIndicator(
         color: AppTheme.brand,
         onRefresh: () => ref.read(liveScoreProvider.notifier).forceRefresh(),
         child: CustomScrollView(
           slivers: [
-            SliverAppBar(
-              pinned: true,
-              backgroundColor: p.bg,
-              leading: IconButton(
-                icon: const Icon(Icons.menu_rounded),
-                onPressed: () => _scaffoldKey.currentState?.openDrawer(),
-              ),
-              title: Row(
-                children: [
-                  Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      gradient: AppTheme.brandGradient,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(Icons.sports_soccer,
-                        color: Colors.black, size: 18),
-                  ),
-                  const SizedBox(width: 10),
-                  const Text('FootballHub',
-                      style:
-                          TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
-                  if (liveCount > 0) ...[
-                    const SizedBox(width: 8),
-                    _LiveBadge(count: liveCount),
-                  ],
-                ],
-              ),
-              actions: [
-                IconButton(
-                  icon: Icon(isDark
-                      ? Icons.light_mode_rounded
-                      : Icons.dark_mode_rounded),
-                  onPressed: () =>
+            // ── Custom top bar ─────────────────────────────────────────────
+            SliverToBoxAdapter(
+              child: SafeArea(
+                bottom: false,
+                child: _TopBar(
+                  liveCount: liveCount,
+                  palette: p,
+                  onMenu: () => _scaffoldKey.currentState?.openDrawer(),
+                  onToggleTheme: () =>
                       ref.read(themeModeProvider.notifier).toggle(),
+                  isDark: isDark,
                 ),
-              ],
+              ),
             ),
+            // ── Hero greeting ──────────────────────────────────────────────
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+                padding: const EdgeInsets.fromLTRB(20, 10, 20, 4),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '$greetWord, $displayName $greetEmoji',
+                      style: TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.w900,
+                        color: p.textHi,
+                        height: 1.2,
+                        letterSpacing: -0.4,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Get live scores, detailed stats, and instant\nmatch alerts around the world.',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: p.textMid,
+                        height: 1.55,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            // ── Featured match hero card ───────────────────────────────────
+            if (featuredMatch != null)
+              SliverToBoxAdapter(
+                child: _HeroMatchCard(
+                  match: featuredMatch,
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) =>
+                          MatchDetailsScreen(match: featuredMatch))),
+                ),
+              ),
+            // ── League picker + match count ────────────────────────────────
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
                 child: Row(
                   children: [
                     const LeaguePickerChip(),
                     const Spacer(),
-                    Text(
-                      '${s.matches.length} matches',
-                      style: TextStyle(
-                          color: p.textLow,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600),
-                    ),
+                    if (s.matches.isNotEmpty)
+                      Text(
+                        '${s.matches.length} matches',
+                        style: TextStyle(
+                            color: p.textLow,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600),
+                      ),
                   ],
                 ),
               ),
@@ -185,13 +229,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             if (freshnessLabel.isNotEmpty)
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-                  child: Text(
-                    freshnessLabel,
-                    style: TextStyle(fontSize: 10, color: p.textLow),
-                  ),
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+                  child: Text(freshnessLabel,
+                      style: TextStyle(fontSize: 10, color: p.textLow)),
                 ),
               ),
+            // ── Pinned date strip ──────────────────────────────────────────
             SliverPersistentHeader(
               pinned: true,
               delegate: _DateStripDelegate(
@@ -213,11 +256,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 },
               ),
             ),
-            // ── Engagement extras (orphan widgets we wire here) ────────────
+            // ── Engagement extras ──────────────────────────────────────────
             const SliverToBoxAdapter(child: WelcomeBackRecap()),
             const SliverToBoxAdapter(child: XpProgressBar()),
-            const SliverToBoxAdapter(child: DailyFactCard()),
-            const SliverToBoxAdapter(child: OnThisDayCard()),
+            // ── Favorites ─────────────────────────────────────────────────
             if (favMatches.isNotEmpty) ...[
               SliverToBoxAdapter(
                 child: Padding(
@@ -235,44 +277,40 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                         child: SingleChildScrollView(
                           scrollDirection: Axis.horizontal,
                           child: Row(
-                            children: favorites
-                                .take(8)
-                                .map((tla) {
-                                  final teamId = idByTla[tla];
-                                  return GestureDetector(
-                                    onTap: teamId != null
-                                        ? () => Navigator.of(context).push(
-                                              MaterialPageRoute(
-                                                builder: (_) => TeamDetailScreen(
-                                                  teamId: teamId,
-                                                  fallbackName: tla,
-                                                  fallbackTla: tla,
-                                                ),
-                                              ),
-                                            )
-                                        : null,
-                                    child: Container(
-                                      margin: const EdgeInsets.only(right: 8),
-                                      child: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          TeamCrestWidget(
-                                            crestUrl: crestByTla[tla],
-                                            tla: tla,
-                                            size: 28,
+                            children: favorites.take(8).map((tla) {
+                              final teamId = idByTla[tla];
+                              return GestureDetector(
+                                onTap: teamId != null
+                                    ? () => Navigator.of(context).push(
+                                          MaterialPageRoute(
+                                            builder: (_) => TeamDetailScreen(
+                                              teamId: teamId,
+                                              fallbackName: tla,
+                                              fallbackTla: tla,
+                                            ),
                                           ),
-                                          const SizedBox(height: 3),
-                                          Text(tla,
-                                              style: TextStyle(
-                                                  fontSize: 9,
-                                                  fontWeight: FontWeight.w700,
-                                                  color: p.textMid)),
-                                        ],
-                                      ),
-                                    ),
-                                  );
-                                })
-                                .toList(),
+                                        )
+                                    : null,
+                                child: Container(
+                                  margin: const EdgeInsets.only(right: 8),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      TeamCrestWidget(
+                                          crestUrl: crestByTla[tla],
+                                          tla: tla,
+                                          size: 28),
+                                      const SizedBox(height: 3),
+                                      Text(tla,
+                                          style: TextStyle(
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.w700,
+                                              color: p.textMid)),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            }).toList(),
                           ),
                         ),
                       ),
@@ -287,14 +325,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   return MatchCard(
                     match: m,
                     showDate: true,
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                          builder: (_) => MatchDetailsScreen(match: m)),
-                    ),
+                    onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => MatchDetailsScreen(match: m))),
                   );
                 },
               ),
             ],
+            // ── Coming Soon ────────────────────────────────────────────────
             if (upcomingMatches.isNotEmpty) ...[
               SliverToBoxAdapter(
                 child: Padding(
@@ -303,24 +340,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     crossAxisAlignment: CrossAxisAlignment.baseline,
                     textBaseline: TextBaseline.alphabetic,
                     children: [
-                      const Text(
-                        '🕐  COMING SOON',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          color: AppTheme.brand,
-                          letterSpacing: 1.1,
-                        ),
-                      ),
+                      const Text('🕐  COMING SOON',
+                          style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: AppTheme.brand,
+                              letterSpacing: 1.1)),
                       const SizedBox(width: 8),
-                      Text(
-                        '· tap a card to jump to that day',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w500,
-                          color: p.textLow,
-                        ),
-                      ),
+                      Text('· tap a card to jump to that day',
+                          style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w500,
+                              color: p.textLow)),
                     ],
                   ),
                 ),
@@ -341,11 +372,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                           final matchDay = m.utcDate.toLocal();
                           setState(() => _selectedDay = DateTime(
                               matchDay.year, matchDay.month, matchDay.day));
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => MatchDetailsScreen(match: m),
-                            ),
-                          );
+                          Navigator.of(context).push(MaterialPageRoute(
+                              builder: (_) => MatchDetailsScreen(match: m)));
                         },
                       );
                     },
@@ -354,22 +382,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               ),
               const SliverToBoxAdapter(child: SizedBox(height: 8)),
             ],
+            // ── Today's Matches header ─────────────────────────────────────
             SliverToBoxAdapter(
-              child: SectionLabel(
-                dayMatches.isEmpty
-                    ? _dayLabel(_selectedDay, league.name)
-                    : '${_dayLabel(_selectedDay, league.name)}  ·  ${dayMatches.length}',
+              child: _TodayMatchesHeader(
+                dayLabel: _dayLabel(_selectedDay),
+                leagueName: league.name,
+                count: dayMatches.length,
               ),
             ),
+            // ── Match list (loading / empty / grouped) ─────────────────────
             if (s.isLoading && s.matches.isEmpty)
               const SliverToBoxAdapter(child: _SkeletonList()),
             if (!s.isLoading && dayMatches.isEmpty)
-              SliverToBoxAdapter(
-                child: _EmptyDay(date: _selectedDay),
-              ),
-            // ── Matches grouped by competition ─────────────────────────
+              SliverToBoxAdapter(child: _EmptyDay(date: _selectedDay)),
             Builder(builder: (context) {
-              // Group by competition, preserving time-sort order.
               final seen = <String>{};
               final compOrder = <String>[];
               final grouped = <String, List<Match>>{};
@@ -378,19 +404,33 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 if (seen.add(key)) compOrder.add(key);
                 grouped.putIfAbsent(key, () => []).add(m);
               }
-              // Flat list: alternating header + match items.
-              final items = <({String? header, int liveCount, Match? match})>[];
+              // isAd=true items inject an inline banner every 3 competitions.
+              final items = <({
+                String? header,
+                int liveCount,
+                Match? match,
+                bool isAd
+              })>[];
+              var compIdx = 0;
               for (final comp in compOrder) {
+                if (compIdx > 0 && compIdx % 3 == 0) {
+                  items.add(
+                      (header: null, liveCount: 0, match: null, isAd: true));
+                }
+                compIdx++;
                 final live = grouped[comp]!.where((m) => m.isLive).length;
-                items.add((header: comp, liveCount: live, match: null));
+                items.add(
+                    (header: comp, liveCount: live, match: null, isAd: false));
                 for (final m in grouped[comp]!) {
-                  items.add((header: null, liveCount: 0, match: m));
+                  items
+                      .add((header: null, liveCount: 0, match: m, isAd: false));
                 }
               }
               return SliverList.builder(
                 itemCount: items.length,
                 itemBuilder: (_, i) {
                   final item = items[i];
+                  if (item.isAd) return const InlineBannerAd();
                   if (item.header != null) {
                     return _CompetitionHeader(
                         name: item.header!, liveCount: item.liveCount);
@@ -398,11 +438,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   final m = item.match!;
                   return MatchCard(
                     match: m,
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => MatchDetailsScreen(match: m),
-                      ),
-                    ),
+                    onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => MatchDetailsScreen(match: m))),
                   );
                 },
               );
@@ -412,10 +449,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Center(
-                    child: Text(
-                      'Updated ${_ago(s.lastUpdated!)}',
-                      style: TextStyle(fontSize: 11, color: p.textLow),
-                    ),
+                    child: Text('Updated ${_ago(s.lastUpdated!)}',
+                        style: TextStyle(fontSize: 11, color: p.textLow)),
                   ),
                 ),
               ),
@@ -426,12 +461,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     );
   }
 
-  String _dayLabel(DateTime d, String leagueName) {
+  String _dayLabel(DateTime d) {
     final today = DateTime.now();
     final isToday =
         d.year == today.year && d.month == today.month && d.day == today.day;
-    final prefix = isToday ? "Today's" : DateFormat('d MMM').format(d);
-    return '$prefix matches  •  $leagueName';
+    return isToday ? "Today's Matches" : DateFormat('d MMM').format(d);
   }
 
   String _ago(DateTime dt) {
@@ -442,7 +476,515 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   }
 }
 
-// ─── Live badge (pulsing dot + count) ───────────────────────────────────────
+// ─── Custom top bar ──────────────────────────────────────────────────────────
+
+class _TopBar extends StatelessWidget {
+  final int liveCount;
+  final bool isDark;
+  final Palette palette;
+  final VoidCallback onMenu;
+  final VoidCallback onToggleTheme;
+
+  const _TopBar({
+    required this.liveCount,
+    required this.isDark,
+    required this.palette,
+    required this.onMenu,
+    required this.onToggleTheme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final p = palette;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+      child: Row(
+        children: [
+          // Grid / menu icon
+          GestureDetector(
+            onTap: onMenu,
+            child: Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: p.surfaceHi,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: p.stroke),
+              ),
+              child: Icon(Icons.grid_view_rounded, color: p.textMid, size: 20),
+            ),
+          ),
+          const Spacer(),
+          // Notification bell with live dot
+          GestureDetector(
+            onTap: () {},
+            child: Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: p.surfaceHi,
+                shape: BoxShape.circle,
+                border: Border.all(color: p.stroke),
+              ),
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Center(
+                    child: Icon(Icons.notifications_outlined,
+                        color: p.textMid, size: 20),
+                  ),
+                  if (liveCount > 0)
+                    Positioned(
+                      right: 9,
+                      top: 9,
+                      child: Container(
+                        width: 8,
+                        height: 8,
+                        decoration: const BoxDecoration(
+                          color: AppTheme.live,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          // Avatar / theme toggle
+          GestureDetector(
+            onTap: onToggleTheme,
+            child: Container(
+              width: 42,
+              height: 42,
+              decoration: const BoxDecoration(
+                gradient: AppTheme.brandGradient,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+                color: Colors.black,
+                size: 20,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Hero featured match card ─────────────────────────────────────────────────
+
+class _HeroMatchCard extends StatelessWidget {
+  final Match match;
+  final VoidCallback onTap;
+
+  const _HeroMatchCard({required this.match, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final isLive = match.isLive;
+    final isFinished = match.isFinished;
+    final isHt = match.status == 'PAUSED';
+
+    int? liveMin;
+    if (isLive) {
+      final elapsed = DateTime.now().difference(match.utcDate).inMinutes;
+      liveMin = match.minute ??
+          (elapsed < 55
+                  ? elapsed
+                  : elapsed < 105
+                      ? elapsed - 15
+                      : elapsed - 30)
+              .clamp(1, 120);
+    }
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(16, 6, 16, 4),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF163324), Color(0xFF0C1E32)],
+          ),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(
+            color: isLive
+                ? AppTheme.live.withValues(alpha: 0.55)
+                : AppTheme.brand.withValues(alpha: 0.30),
+            width: 1.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: (isLive ? AppTheme.live : AppTheme.brand)
+                  .withValues(alpha: 0.18),
+              blurRadius: 24,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Stack(
+          children: [
+            // Decorative pitch-circle rings
+            Positioned(
+              right: -40,
+              top: -40,
+              child: Container(
+                width: 160,
+                height: 160,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.04), width: 32),
+                ),
+              ),
+            ),
+            Positioned(
+              left: -24,
+              bottom: -24,
+              child: Container(
+                width: 110,
+                height: 110,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.03), width: 22),
+                ),
+              ),
+            ),
+            // Main content
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Competition name
+                  Text(
+                    match.competitionName ?? match.competitionCode ?? '',
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.6,
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 10),
+                  // Live badge / kickoff time / FT
+                  if (isLive)
+                    _HeroLiveBadge(minute: isHt ? null : liveMin, isHt: isHt)
+                  else if (!isFinished)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: AppTheme.brand.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                            color: AppTheme.brand.withValues(alpha: 0.35)),
+                      ),
+                      child: Text(
+                        DateFormat('HH:mm  ·  d MMM')
+                            .format(match.utcDate.toLocal()),
+                        style: const TextStyle(
+                          color: AppTheme.brand,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    )
+                  else
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Text(
+                        'FULL TIME',
+                        style: TextStyle(
+                          color: Colors.white54,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 14),
+                  // Teams + score row
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      // Home team
+                      Expanded(
+                        child: Column(
+                          children: [
+                            Container(
+                              width: 62,
+                              height: 62,
+                              padding: const EdgeInsets.all(5),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.07),
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                    color:
+                                        Colors.white.withValues(alpha: 0.12)),
+                              ),
+                              child: TeamCrestWidget(
+                                crestUrl: match.homeTeam.crest,
+                                tla: match.homeTeam.tla,
+                                name: match.homeTeam.name,
+                                size: 48,
+                              ),
+                            ),
+                            const SizedBox(height: 7),
+                            Text(
+                              match.homeTeam.tla,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Score / vs
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        child: Text(
+                          isLive || isFinished ? match.score.display : 'vs',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 34,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -0.5,
+                            height: 1.0,
+                          ),
+                        ),
+                      ),
+                      // Away team
+                      Expanded(
+                        child: Column(
+                          children: [
+                            Container(
+                              width: 62,
+                              height: 62,
+                              padding: const EdgeInsets.all(5),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.07),
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                    color:
+                                        Colors.white.withValues(alpha: 0.12)),
+                              ),
+                              child: TeamCrestWidget(
+                                crestUrl: match.awayTeam.crest,
+                                tla: match.awayTeam.tla,
+                                name: match.awayTeam.name,
+                                size: 48,
+                              ),
+                            ),
+                            const SizedBox(height: 7),
+                            Text(
+                              match.awayTeam.tla,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  // Group / stage subtitle
+                  if (match.group != null || match.stage.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Text(
+                      _stageLabel(match),
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.35),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _stageLabel(Match m) {
+    if (m.group != null) {
+      final g = m.group!.startsWith('GROUP_')
+          ? 'Group ${m.group!.substring(6)}'
+          : m.group!;
+      return m.isLive ? 'Live · $g' : g;
+    }
+    final stage = m.stage
+        .split('_')
+        .map((p) => p.isEmpty ? p : p[0] + p.substring(1).toLowerCase())
+        .join(' ');
+    return m.isLive ? 'Live · $stage' : stage;
+  }
+}
+
+// ─── Hero live badge (animated pulse) ────────────────────────────────────────
+
+class _HeroLiveBadge extends StatefulWidget {
+  final int? minute;
+  final bool isHt;
+  const _HeroLiveBadge({this.minute, required this.isHt});
+
+  @override
+  State<_HeroLiveBadge> createState() => _HeroLiveBadgeState();
+}
+
+class _HeroLiveBadgeState extends State<_HeroLiveBadge>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c;
+
+  @override
+  void initState() {
+    super.initState();
+    _c = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 800))
+      ..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final label = widget.isHt
+        ? 'HT'
+        : widget.minute != null
+            ? "${widget.minute}'"
+            : 'LIVE';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 7),
+      decoration: BoxDecoration(
+        gradient: AppTheme.liveGradient,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FadeTransition(
+            opacity: _c,
+            child: Container(
+              width: 7,
+              height: 7,
+              decoration: const BoxDecoration(
+                  color: Colors.white, shape: BoxShape.circle),
+            ),
+          ),
+          const SizedBox(width: 7),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 15,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Today's Matches section header ──────────────────────────────────────────
+
+class _TodayMatchesHeader extends StatelessWidget {
+  final String dayLabel;
+  final String leagueName;
+  final int count;
+
+  const _TodayMatchesHeader({
+    required this.dayLabel,
+    required this.leagueName,
+    required this.count,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  dayLabel,
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    color: p.textHi,
+                    letterSpacing: -0.3,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  leagueName,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: p.textLow,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (count > 0)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppTheme.brand.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+                border:
+                    Border.all(color: AppTheme.brand.withValues(alpha: 0.25)),
+              ),
+              child: Text(
+                '$count',
+                style: const TextStyle(
+                  color: AppTheme.brand,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Live badge (pulsing dot + count) ────────────────────────────────────────
 
 class _LiveBadge extends StatefulWidget {
   final int count;
@@ -500,7 +1042,7 @@ class _LiveBadgeState extends State<_LiveBadge>
   }
 }
 
-// ─── Coming Soon Card ───────────────────────────────────────────────────────
+// ─── Coming Soon Card ─────────────────────────────────────────────────────────
 
 class _ComingSoonCard extends StatelessWidget {
   final Match match;
@@ -541,22 +1083,15 @@ class _ComingSoonCard extends StatelessWidget {
             padding: const EdgeInsets.all(3),
             alignment: Alignment.center,
             child: TeamCrestWidget(
-              crestUrl: t.crest,
-              tla: t.tla,
-              name: t.name,
-              size: 28,
-            ),
+                crestUrl: t.crest, tla: t.tla, name: t.name, size: 28),
           ),
           const SizedBox(height: 5),
-          Text(
-            t.tla,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              color: palette.textHi,
-            ),
-            overflow: TextOverflow.ellipsis,
-          ),
+          Text(t.tla,
+              style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: palette.textHi),
+              overflow: TextOverflow.ellipsis),
         ],
       );
 
@@ -599,14 +1134,11 @@ class _ComingSoonCard extends StatelessWidget {
                 _team(match.homeTeam, reverse: false),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 6),
-                  child: Text(
-                    'vs',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      color: palette.textLow,
-                    ),
-                  ),
+                  child: Text('vs',
+                      style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: palette.textLow)),
                 ),
                 _team(match.awayTeam, reverse: true),
               ],
@@ -615,14 +1147,11 @@ class _ComingSoonCard extends StatelessWidget {
               children: [
                 Icon(Icons.schedule_rounded, size: 11, color: palette.textLow),
                 const SizedBox(width: 4),
-                Text(
-                  _kickoffTime(match.utcDate),
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: palette.textLow,
-                  ),
-                ),
+                Text(_kickoffTime(match.utcDate),
+                    style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: palette.textLow)),
               ],
             ),
           ],
@@ -632,7 +1161,7 @@ class _ComingSoonCard extends StatelessWidget {
   }
 }
 
-// ─── Date strip ─────────────────────────────────────────────────────────────
+// ─── Date strip ───────────────────────────────────────────────────────────────
 
 class _DateStripDelegate extends SliverPersistentHeaderDelegate {
   final DateTime selected;
@@ -641,6 +1170,7 @@ class _DateStripDelegate extends SliverPersistentHeaderDelegate {
   final Palette palette;
   final Set<DateTime> matchDays;
   final Set<DateTime> liveDays;
+
   _DateStripDelegate({
     required this.selected,
     required this.onPick,
@@ -667,7 +1197,6 @@ class _DateStripDelegate extends SliverPersistentHeaderDelegate {
       BuildContext context, double shrinkOffset, bool overlapsContent) {
     final today = DateTime.now();
     final base = DateTime(today.year, today.month, today.day);
-
     final diff = selected.difference(base).inDays;
     final start = diff.abs() > 3
         ? selected.subtract(const Duration(days: 3))
@@ -774,7 +1303,7 @@ class _DateStripDelegate extends SliverPersistentHeaderDelegate {
       a.year == b.year && a.month == b.month && a.day == b.day;
 }
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
+// ─── Skeleton loader ──────────────────────────────────────────────────────────
 
 class _SkeletonList extends StatefulWidget {
   const _SkeletonList();
@@ -807,7 +1336,7 @@ class _SkeletonListState extends State<_SkeletonList>
       builder: (_, __) {
         final opacity = 0.4 + 0.6 * _c.value;
         return Column(
-          children: List.generate(4, (i) {
+          children: List.generate(4, (_) {
             return Container(
               height: 84,
               margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
@@ -821,45 +1350,49 @@ class _SkeletonListState extends State<_SkeletonList>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Stage chip placeholder
                     Container(
-                      width: 60,
-                      height: 10,
-                      decoration: BoxDecoration(
-                        color: p.surfaceHi.withValues(alpha: opacity),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ),
+                        width: 60,
+                        height: 10,
+                        decoration: BoxDecoration(
+                            color: p.surfaceHi.withValues(alpha: opacity),
+                            borderRadius: BorderRadius.circular(4))),
                     const SizedBox(height: 10),
                     Row(
                       children: [
-                        // Home team
-                        Container(width: 28, height: 28,
+                        Container(
+                            width: 28,
+                            height: 28,
                             decoration: BoxDecoration(
-                              color: p.surfaceHi.withValues(alpha: opacity),
-                              borderRadius: BorderRadius.circular(6))),
+                                color: p.surfaceHi.withValues(alpha: opacity),
+                                borderRadius: BorderRadius.circular(6))),
                         const SizedBox(width: 8),
-                        Container(width: 70, height: 10,
+                        Container(
+                            width: 70,
+                            height: 10,
                             decoration: BoxDecoration(
-                              color: p.surfaceHi.withValues(alpha: opacity),
-                              borderRadius: BorderRadius.circular(4))),
+                                color: p.surfaceHi.withValues(alpha: opacity),
+                                borderRadius: BorderRadius.circular(4))),
                         const Spacer(),
-                        // Score box
-                        Container(width: 68, height: 34,
+                        Container(
+                            width: 68,
+                            height: 34,
                             decoration: BoxDecoration(
-                              color: p.surfaceHi.withValues(alpha: opacity),
-                              borderRadius: BorderRadius.circular(8))),
+                                color: p.surfaceHi.withValues(alpha: opacity),
+                                borderRadius: BorderRadius.circular(8))),
                         const Spacer(),
-                        // Away team
-                        Container(width: 70, height: 10,
+                        Container(
+                            width: 70,
+                            height: 10,
                             decoration: BoxDecoration(
-                              color: p.surfaceHi.withValues(alpha: opacity),
-                              borderRadius: BorderRadius.circular(4))),
+                                color: p.surfaceHi.withValues(alpha: opacity),
+                                borderRadius: BorderRadius.circular(4))),
                         const SizedBox(width: 8),
-                        Container(width: 28, height: 28,
+                        Container(
+                            width: 28,
+                            height: 28,
                             decoration: BoxDecoration(
-                              color: p.surfaceHi.withValues(alpha: opacity),
-                              borderRadius: BorderRadius.circular(6))),
+                                color: p.surfaceHi.withValues(alpha: opacity),
+                                borderRadius: BorderRadius.circular(6))),
                       ],
                     ),
                   ],
@@ -872,6 +1405,8 @@ class _SkeletonListState extends State<_SkeletonList>
     );
   }
 }
+
+// ─── Empty day ────────────────────────────────────────────────────────────────
 
 class _EmptyDay extends StatelessWidget {
   final DateTime date;
@@ -895,9 +1430,7 @@ class _EmptyDay extends StatelessWidget {
               width: 56,
               height: 56,
               decoration: BoxDecoration(
-                color: p.surfaceHi,
-                borderRadius: BorderRadius.circular(16),
-              ),
+                  color: p.surfaceHi, borderRadius: BorderRadius.circular(16)),
               child: Icon(Icons.event_busy_rounded, size: 26, color: p.textLow),
             ),
             const SizedBox(height: 12),
@@ -919,64 +1452,118 @@ class _EmptyDay extends StatelessWidget {
   }
 }
 
-// ─── Competition group header ────────────────────────────────────────────────
+// ─── Competition group header — Livescore style ───────────────────────────────
 
 class _CompetitionHeader extends StatelessWidget {
   final String name;
   final int liveCount;
   const _CompetitionHeader({required this.name, this.liveCount = 0});
 
+  static const _competitionColors = <String, Color>{
+    'WC': Color(0xFF8B0000),
+    'CL': Color(0xFF1A237E),
+    'EL': Color(0xFFE65100),
+    'ECL': Color(0xFF1B5E20),
+    'EC': Color(0xFF004D40),
+    'PL': Color(0xFF38003C),
+    'BL1': Color(0xFFD32F2F),
+    'PD': Color(0xFFFF6F00),
+    'SA': Color(0xFF0D47A1),
+    'FL1': Color(0xFF1565C0),
+    'PPL': Color(0xFF006400),
+  };
+
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 14, 12, 4),
-      child: Row(
-        children: [
-          Container(
-            width: 3,
-            height: 14,
-            decoration: BoxDecoration(
-              color: liveCount > 0 ? AppTheme.live : AppTheme.brand,
-              borderRadius: BorderRadius.circular(2),
+    // Derive a color badge from competition name initial
+    final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
+    // Try to match known codes in the name
+    final badgeColor = _competitionColors.entries
+            .where((e) => name.toUpperCase().contains(e.key))
+            .map((e) => e.value)
+            .firstOrNull ??
+        AppTheme.brand.withValues(alpha: 0.6);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: null,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+          decoration: BoxDecoration(
+            border: Border(
+              top: BorderSide(
+                  color: p.stroke.withValues(alpha: 0.6), width: 0.5),
+              bottom: BorderSide(
+                  color: p.stroke.withValues(alpha: 0.3), width: 0.5),
             ),
+            color: p.surfaceHi.withValues(alpha: 0.5),
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              name.toUpperCase(),
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.8,
-                color: p.textMid,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          if (liveCount > 0) ...[
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: AppTheme.live,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(
-                '$liveCount LIVE',
-                style: const TextStyle(
+          child: Row(
+            children: [
+              // Colored competition badge
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: badgeColor,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  initial,
+                  style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w900),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
               ),
-            ),
-          ],
-        ],
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  name,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: p.textHi,
+                    letterSpacing: 0.1,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (liveCount > 0) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: AppTheme.live,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    '$liveCount LIVE',
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w900),
+                  ),
+                ),
+              ] else ...[
+                Icon(Icons.chevron_right_rounded,
+                    size: 18, color: p.textLow.withValues(alpha: 0.5)),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }
 }
+
+// ─── Section label (shared export) ───────────────────────────────────────────
 
 class SectionLabel extends StatelessWidget {
   final String text;

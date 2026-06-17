@@ -58,8 +58,7 @@ class AiInsightsWidget extends ConsumerWidget {
         children: [
           const Row(
             children: [
-              Icon(Icons.auto_awesome_rounded,
-                  size: 16, color: AppTheme.brand),
+              Icon(Icons.auto_awesome_rounded, size: 16, color: AppTheme.brand),
               SizedBox(width: 6),
               Text('INSIGHTS',
                   style: TextStyle(

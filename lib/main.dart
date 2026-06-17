@@ -33,7 +33,8 @@ void main() async {
         'app_settings'), // locale_provider  ← MISSING in old main.dart, caused the crash
     Hive.openBox('fan_xp'), // fan_xp_service
     Hive.openBox('fan_polls'), // fan_polls_service
-    Hive.openBox('live_cache'), // live_data_service — match / team / player / news cache
+    Hive.openBox(
+        'live_cache'), // live_data_service — match / team / player / news cache
   ]);
 
   // ── Firebase (Auth + FCM + Crashlytics + Analytics + Remote Config) ────

@@ -48,11 +48,9 @@ class _PitchPainter extends CustomPainter {
 
     // Subtle alternating stripes (lighter/darker) to simulate real turf.
     final stripeW = w / 8;
-    final stripePaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.03);
+    final stripePaint = Paint()..color = Colors.white.withValues(alpha: 0.03);
     for (int i = 0; i < 8; i += 2) {
-      canvas.drawRect(
-          Rect.fromLTWH(i * stripeW, 0, stripeW, h), stripePaint);
+      canvas.drawRect(Rect.fromLTWH(i * stripeW, 0, stripeW, h), stripePaint);
     }
 
     // ── Line paint ─────────────────────────────────────────────────────────
@@ -88,22 +86,24 @@ class _PitchPainter extends CustomPainter {
     final paW = fieldW * 0.59;
     final paH = fieldH * 0.155;
     final paX = (w - paW) / 2;
-    canvas.drawRect(Rect.fromLTRB(paX, my, paX + paW, my + paH), lp);           // top
-    canvas.drawRect(Rect.fromLTRB(paX, h - my - paH, paX + paW, h - my), lp);  // bottom
+    canvas.drawRect(Rect.fromLTRB(paX, my, paX + paW, my + paH), lp); // top
+    canvas.drawRect(
+        Rect.fromLTRB(paX, h - my - paH, paX + paW, h - my), lp); // bottom
 
     // ── 6-yard boxes ────────────────────────────────────────────────────────
     // Real proportions: 18.32m / 68m ≈ 27%  depth = 5.5m / 105m ≈ 5%
     final sbW = fieldW * 0.27;
     final sbH = fieldH * 0.055;
     final sbX = (w - sbW) / 2;
-    canvas.drawRect(Rect.fromLTRB(sbX, my, sbX + sbW, my + sbH), lp);           // top
-    canvas.drawRect(Rect.fromLTRB(sbX, h - my - sbH, sbX + sbW, h - my), lp);  // bottom
+    canvas.drawRect(Rect.fromLTRB(sbX, my, sbX + sbW, my + sbH), lp); // top
+    canvas.drawRect(
+        Rect.fromLTRB(sbX, h - my - sbH, sbX + sbW, h - my), lp); // bottom
 
     // ── Penalty spots ───────────────────────────────────────────────────────
     // Real: 11m / 105m ≈ 10.5% from goal line
     final psY = fieldH * 0.105;
-    canvas.drawCircle(Offset(w * 0.5, my + psY), 2.5, dotPaint);            // top
-    canvas.drawCircle(Offset(w * 0.5, h - my - psY), 2.5, dotPaint);       // bottom
+    canvas.drawCircle(Offset(w * 0.5, my + psY), 2.5, dotPaint); // top
+    canvas.drawCircle(Offset(w * 0.5, h - my - psY), 2.5, dotPaint); // bottom
 
     // ── Penalty arcs (the "D") ──────────────────────────────────────────────
     // Only the arc outside the penalty box is visible.
@@ -133,9 +133,8 @@ class _PitchPainter extends CustomPainter {
       (Offset(mx, h - my), -math.pi / 2),
       (Offset(w - mx, h - my), math.pi),
     ]) {
-      canvas.drawArc(
-          Rect.fromCircle(center: cfg.$1, radius: cArcR),
-          cfg.$2, math.pi / 2, false, lp);
+      canvas.drawArc(Rect.fromCircle(center: cfg.$1, radius: cArcR), cfg.$2,
+          math.pi / 2, false, lp);
     }
   }
 
@@ -149,11 +148,8 @@ class _PitchPainter extends CustomPainter {
 /// Always prepends a GK row of 1, giving [1, 4, 3, 3] total.
 List<int> parseFormation(String? formation) {
   if (formation == null || formation.isEmpty) return [1, 4, 3, 3];
-  final parts = formation
-      .split('-')
-      .map(int.tryParse)
-      .whereType<int>()
-      .toList();
+  final parts =
+      formation.split('-').map(int.tryParse).whereType<int>().toList();
   if (parts.isEmpty) return [1, 4, 3, 3];
   return [1, ...parts];
 }

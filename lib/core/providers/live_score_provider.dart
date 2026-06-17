@@ -67,7 +67,8 @@ class LiveScoreNotifier extends StateNotifier<LiveScoreState> {
         // the competition object (competitionCode == null) so a mis-configured
         // relay still shows data rather than a blank screen.
         final matches = allMatches
-            .where((m) => m.competitionCode == null || m.competitionCode == code)
+            .where(
+                (m) => m.competitionCode == null || m.competitionCode == code)
             .toList();
         state = state.copyWith(
           matches: matches,
@@ -115,4 +116,3 @@ class LiveScoreNotifier extends StateNotifier<LiveScoreState> {
 final liveScoreProvider =
     StateNotifierProvider<LiveScoreNotifier, LiveScoreState>(
         (ref) => LiveScoreNotifier(ref));
-

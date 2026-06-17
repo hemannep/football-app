@@ -1062,7 +1062,7 @@ abstract class AppL10n {
   /// No description provided for @settingsRemoveAdsBlurb.
   ///
   /// In en, this message translates to:
-  /// **'One-time purchase. No banner ads, no interstitials. Forever.'**
+  /// **'Monthly subscription. No banner ads or interstitials while active.'**
   String get settingsRemoveAdsBlurb;
 
   /// No description provided for @settingsRemoveAdsBuy.

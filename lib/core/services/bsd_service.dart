@@ -557,8 +557,7 @@ class BsdService {
         position: _shortPos((m['position'] ?? m['pos'])?.toString()),
         minutesPlayed: _asInt(m['minutes_played'] ?? m['minutes']) ?? 0,
         rating: _asDouble(m['rating']),
-        isSubstitute:
-            _asBool(m['substitute'] ?? m['is_substitute']) ?? false,
+        isSubstitute: _asBool(m['substitute'] ?? m['is_substitute']) ?? false,
         goals: _asInt(m['goals'] ?? m['goals_scored']) ?? 0,
         assists: _asInt(m['goal_assist'] ?? m['assists']) ?? 0,
         expectedGoals: _asDouble(m['expected_goals'] ?? m['xg']),
@@ -566,12 +565,10 @@ class BsdService {
         totalShots: _asInt(m['total_shots'] ?? m['shots']) ?? 0,
         shotsOnTarget: _asInt(m['shots_on_target']) ?? 0,
         totalPasses: _asInt(m['total_pass'] ?? m['passes']) ?? 0,
-        accuratePasses:
-            _asInt(m['accurate_pass'] ?? m['accurate_passes']) ?? 0,
+        accuratePasses: _asInt(m['accurate_pass'] ?? m['accurate_passes']) ?? 0,
         keyPasses: _asInt(m['key_pass'] ?? m['key_passes']),
         totalTackles: _asInt(m['total_tackle'] ?? m['tackles']) ?? 0,
-        interceptions:
-            _asInt(m['interception'] ?? m['interceptions']) ?? 0,
+        interceptions: _asInt(m['interception'] ?? m['interceptions']) ?? 0,
         yellowCards: _asInt(m['yellow_card'] ?? m['yellow_cards']) ?? 0,
         redCards: _asInt(m['red_card'] ?? m['red_cards']) ?? 0,
         saves: _asInt(m['saves']),
@@ -636,31 +633,34 @@ class BsdService {
     if (data is! Map) return null;
     final m = Map<String, dynamic>.from(data);
 
-    final rawFacts =
-        _asList(m['funfacts'] ?? m['fun_facts'] ?? m['facts']);
-    final funfacts = rawFacts.whereType<Map>().map((f) {
-      final fm = Map<String, dynamic>.from(f);
-      return MatchFunFact(
-        typeId: _asInt(fm['type_id'] ?? fm['typeId']) ?? 0,
-        sentence: (fm['sentence'] ?? fm['text'] ?? '').toString().trim(),
-      );
-    }).where((f) => f.sentence.isNotEmpty).toList();
+    final rawFacts = _asList(m['funfacts'] ?? m['fun_facts'] ?? m['facts']);
+    final funfacts = rawFacts
+        .whereType<Map>()
+        .map((f) {
+          final fm = Map<String, dynamic>.from(f);
+          return MatchFunFact(
+            typeId: _asInt(fm['type_id'] ?? fm['typeId']) ?? 0,
+            sentence: (fm['sentence'] ?? fm['text'] ?? '').toString().trim(),
+          );
+        })
+        .where((f) => f.sentence.isNotEmpty)
+        .toList();
 
     final aiPreviewRaw = m['ai_preview'];
     final aiPreview = aiPreviewRaw is Map
         ? aiPreviewRaw['text']?.toString()
         : aiPreviewRaw?.toString();
 
-    final jerseyRaw =
-        m['jerseys'] is Map ? m['jerseys'] as Map : null;
+    final jerseyRaw = m['jerseys'] is Map ? m['jerseys'] as Map : null;
     MatchJerseys? jerseys;
     if (jerseyRaw != null) {
       JerseyColors? parseSide(dynamic raw) {
         if (raw is! Map) return null;
         final r = Map<String, dynamic>.from(raw);
         // BSD: {player: {primary, secondary}, GK: {primary, secondary}}
-        final player =
-            r['player'] is Map ? Map<String, dynamic>.from(r['player'] as Map) : r;
+        final player = r['player'] is Map
+            ? Map<String, dynamic>.from(r['player'] as Map)
+            : r;
         final primary =
             player['primary']?.toString() ?? player['color']?.toString();
         final secondary =

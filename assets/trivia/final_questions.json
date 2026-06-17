@@ -7,7 +7,7 @@
       "id": "f001",
       "category": "stage_history",
       "difficulty": "easy",
-      "q": "Which country won the first World Cup in 1930?",
+      "q": "Which country won the first global football tournament in 1930?",
       "options": ["Brazil", "Uruguay", "Italy", "Argentina"],
       "correct": 1
     },
@@ -15,7 +15,7 @@
       "id": "f002",
       "category": "stage_history",
       "difficulty": "easy",
-      "q": "Which country has won the most World Cups?",
+      "q": "Which country has won the most global tournaments?",
       "options": ["Germany", "Italy", "Brazil", "Argentina"],
       "correct": 2,
       "explanation": "Brazil has 5 titles."
@@ -24,7 +24,7 @@
       "id": "f003",
       "category": "stage_history",
       "difficulty": "medium",
-      "q": "Who scored a hat-trick in a World Cup final?",
+      "q": "Who scored a hat-trick in a global football tournament final?",
       "options": ["Pelé", "Geoff Hurst", "Diego Maradona", "Zinedine Zidane"],
       "correct": 1,
       "explanation": "Hurst's hat-trick for England vs West Germany in 1966."
@@ -33,7 +33,7 @@
       "id": "f004",
       "category": "stage_history",
       "difficulty": "medium",
-      "q": "Who scored a hat-trick in the 2022 World Cup final?",
+      "q": "Who scored a hat-trick in the 2022 global football tournament final?",
       "options": ["Lionel Messi", "Kylian Mbappé", "Olivier Giroud", "Ángel Di María"],
       "correct": 1,
       "explanation": "Mbappé scored 3 in the final, on the losing side."
@@ -42,7 +42,7 @@
       "id": "f005",
       "category": "stage_history",
       "difficulty": "hard",
-      "q": "What was the result of the 1950 World Cup decisive match (Maracanazo)?",
+      "q": "What was the result of the 1950 global football tournament decisive match (Maracanazo)?",
       "options": ["Brazil 1-2 Uruguay", "Brazil 0-1 Uruguay", "Brazil 2-3 Uruguay", "Brazil 1-1 Uruguay"],
       "correct": 0,
       "explanation": "Uruguay beat hosts Brazil 2-1 to win the Cup."
@@ -51,7 +51,7 @@
       "id": "f006",
       "category": "general_football",
       "difficulty": "medium",
-      "q": "Who is the only player to win three World Cups?",
+      "q": "Who is the only player to win three global tournaments?",
       "options": ["Pelé", "Garrincha", "Diego Maradona", "Franz Beckenbauer"],
       "correct": 0,
       "explanation": "Pelé won in 1958, 1962, and 1970."
@@ -60,7 +60,7 @@
       "id": "f007",
       "category": "general_football",
       "difficulty": "hard",
-      "q": "Which is the only country to host AND win the World Cup in different decades?",
+      "q": "Which is the only country to host AND win the global football tournament in different decades?",
       "options": ["Uruguay", "Brazil", "Argentina", "France"],
       "correct": 0,
       "explanation": "Uruguay hosted+won in 1930 and won again in 1950."
@@ -69,7 +69,7 @@
       "id": "f008",
       "category": "general_football",
       "difficulty": "easy",
-      "q": "How many continents have produced World Cup winners?",
+      "q": "How many continents have produced global football tournament winners?",
       "options": ["1", "2", "3", "4"],
       "correct": 1,
       "explanation": "Only Europe and South America have produced winners."
@@ -78,7 +78,7 @@
       "id": "f009",
       "category": "general_football",
       "difficulty": "medium",
-      "q": "Who won the Golden Boot at the 2018 World Cup?",
+      "q": "Who won the Golden Boot at the 2018 global football tournament?",
       "options": ["Cristiano Ronaldo", "Harry Kane", "Kylian Mbappé", "Romelu Lukaku"],
       "correct": 1,
       "explanation": "Kane scored 6 goals."
@@ -87,7 +87,7 @@
       "id": "f010",
       "category": "general_football",
       "difficulty": "hard",
-      "q": "Which country has been the runner-up the most times without winning the World Cup?",
+      "q": "Which country has been the runner-up the most times without winning the global football tournament?",
       "options": ["Hungary", "Czechoslovakia", "Netherlands", "Sweden"],
       "correct": 2,
       "explanation": "The Netherlands have finished runner-up three times."

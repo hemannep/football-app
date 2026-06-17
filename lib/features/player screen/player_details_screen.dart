@@ -62,9 +62,8 @@ class PlayerDetailScreen extends ConsumerWidget {
     final displayPhoto = (fsPlayer?['photoUrl'] as String?) ??
         sdbPlayer?.photoUrl ??
         sdbPlayer?.thumbUrl;
-    final resolvedPosition = (fsPlayer?['position'] as String?) ??
-        sdbPlayer?.position ??
-        position;
+    final resolvedPosition =
+        (fsPlayer?['position'] as String?) ?? sdbPlayer?.position ?? position;
 
     // Age + born display
     int? age;
@@ -193,8 +192,8 @@ class PlayerDetailScreen extends ConsumerWidget {
                               const SizedBox(height: 4),
                               Text('No public bio for this player.',
                                   textAlign: TextAlign.center,
-                                  style:
-                                      TextStyle(color: p.textLow, fontSize: 12)),
+                                  style: TextStyle(
+                                      color: p.textLow, fontSize: 12)),
                             ],
                           ),
                         ),

@@ -483,7 +483,7 @@ class AppL10nNe extends AppL10n {
 
   @override
   String get settingsRemoveAdsBlurb =>
-      'One-time purchase. No banner ads, no interstitials. Forever.';
+      'Monthly subscription. No banner ads or interstitials while active.';
 
   @override
   String get settingsRemoveAdsBuy => 'अहिले किन्नुहोस्';

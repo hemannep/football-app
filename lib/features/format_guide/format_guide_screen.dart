@@ -334,12 +334,15 @@ class _FormatGuideScreenState extends ConsumerState<FormatGuideScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(removed ? 'Ads removed' : 'Remove ads forever',
+                    Text(removed ? 'Ads removed' : 'Remove ads monthly',
                         style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w800,
                             color: p.textHi)),
-                    Text(removed ? 'Thanks for supporting!' : 'One-time \$1.99',
+                    Text(
+                        removed
+                            ? 'Thanks for supporting!'
+                            : '\$1.99/month subscription',
                         style: TextStyle(fontSize: 12, color: p.textMid)),
                   ],
                 ),
@@ -354,10 +357,18 @@ class _FormatGuideScreenState extends ConsumerState<FormatGuideScreen> {
                   onPressed: removed
                       ? null
                       : () async {
-                          await IapService.buyRemoveAds();
+                          final started = await IapService.buyRemoveAds();
+                          if (!started && mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                    'Subscription is not available yet. Try again soon.'),
+                              ),
+                            );
+                          }
                           if (mounted) setState(() {});
                         },
-                  child: Text(removed ? 'Already removed ✓' : 'Remove Ads'),
+                  child: Text(removed ? 'Active subscription ✓' : 'Subscribe'),
                 ),
               ),
               const SizedBox(width: 8),
@@ -377,7 +388,6 @@ class _FormatGuideScreenState extends ConsumerState<FormatGuideScreen> {
 }
 
 // ─── 3rd-Place calculator — auto-loads real standings ───────────────────────
-
 
 class _ThirdPlaceCalcScreen extends ConsumerStatefulWidget {
   const _ThirdPlaceCalcScreen();

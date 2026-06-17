@@ -1,8 +1,8 @@
 // lib/shared/widgets/iap_status_widget.dart
 //
 // Reusable IAP status banner — drop on any screen to show whether the user
-// has purchased "Remove Ads" + a one-tap restore button. Helps the
-// $1.99 IAP flow feel polished.
+// has an active "Remove Ads" subscription + a one-tap restore button. Helps
+// the $1.99/month IAP flow feel polished.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -25,7 +25,14 @@ class _IapStatusWidgetState extends ConsumerState<IapStatusWidget> {
   Future<void> _buy() async {
     setState(() => _busy = true);
     try {
-      await IapService.buyRemoveAds();
+      final started = await IapService.buyRemoveAds();
+      if (!started && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Subscription is not available yet. Try again soon.'),
+          ),
+        );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -98,7 +105,7 @@ class _IapStatusWidgetState extends ConsumerState<IapStatusWidget> {
               const Icon(Icons.block_rounded, color: Colors.black, size: 22),
               const SizedBox(width: 8),
               const Expanded(
-                child: Text('Remove ads forever',
+                child: Text('Remove ads monthly',
                     style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w900,
@@ -110,7 +117,7 @@ class _IapStatusWidgetState extends ConsumerState<IapStatusWidget> {
                   color: Colors.black,
                   borderRadius: BorderRadius.circular(6),
                 ),
-                child: const Text('\$1.99',
+                child: const Text('\$1.99/mo',
                     style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w900,
@@ -120,7 +127,7 @@ class _IapStatusWidgetState extends ConsumerState<IapStatusWidget> {
           ),
           const SizedBox(height: 6),
           const Text(
-              'One-time purchase. No banner ads, no interstitials. Forever.',
+              'Monthly subscription. No banner ads or interstitials while active.',
               style: TextStyle(
                   color: Colors.black87,
                   fontSize: 12,
@@ -146,7 +153,7 @@ class _IapStatusWidgetState extends ConsumerState<IapStatusWidget> {
                           child: CircularProgressIndicator(
                               color: Colors.white, strokeWidth: 2),
                         )
-                      : const Text('Buy now',
+                      : const Text('Subscribe',
                           style: TextStyle(
                               fontSize: 13, fontWeight: FontWeight.w900)),
                 ),

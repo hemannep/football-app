@@ -216,7 +216,9 @@ List<MatchIncident> _incidentsFromRaw(Map<String, dynamic> raw) {
     if (side == 'home') return true;
     if (side == 'away') return false;
     // Match by numeric team id.
-    if (homeTeamId != null && teamId != null && teamId == homeTeamId) return true;
+    if (homeTeamId != null && teamId != null && teamId == homeTeamId) {
+      return true;
+    }
     if (homeTeamId != null && teamId != null) return false;
     // Match by TLA string.
     if (homeTeamTla != null && teamTla != null && teamTla.isNotEmpty) {
@@ -232,13 +234,19 @@ List<MatchIncident> _incidentsFromRaw(Map<String, dynamic> raw) {
       if (item is! Map) continue;
       final j = item.cast<String, dynamic>();
 
-      final rawType = (j['type'] ?? j['incident_type'] ?? '').toString().toLowerCase();
-      final minuteRaw = j['minute'] ?? j['time'] ?? (j['time'] is Map ? (j['time'] as Map)['elapsed'] : null) ?? 0;
+      final rawType =
+          (j['type'] ?? j['incident_type'] ?? '').toString().toLowerCase();
+      final minuteRaw = j['minute'] ??
+          j['time'] ??
+          (j['time'] is Map ? (j['time'] as Map)['elapsed'] : null) ??
+          0;
       final minute = (minuteRaw as num).toInt();
 
       // Team identification for isHome
       final teamId = j['team'] is Map ? (j['team'] as Map)['id'] : null;
-      final teamTla = j['team'] is Map ? (j['team'] as Map)['tla'] as String? : j['team'] as String?;
+      final teamTla = j['team'] is Map
+          ? (j['team'] as Map)['tla'] as String?
+          : j['team'] as String?;
       final isHome = isHomeFor(j, teamId: teamId, teamTla: teamTla);
 
       String mapped;
@@ -246,12 +254,23 @@ List<MatchIncident> _incidentsFromRaw(Map<String, dynamic> raw) {
 
       if (rawType.contains('goal')) {
         mapped = 'goal';
-        if (rawType.contains('own') || j['is_own_goal'] == true || j['subtype'] == 'ownGoal') sub = 'ownGoal';
-        if (rawType.contains('pen') || j['is_penalty'] == true || j['subtype'] == 'penalty') sub = 'penalty';
+        if (rawType.contains('own') ||
+            j['is_own_goal'] == true ||
+            j['subtype'] == 'ownGoal') {
+          sub = 'ownGoal';
+        }
+        if (rawType.contains('pen') ||
+            j['is_penalty'] == true ||
+            j['subtype'] == 'penalty') {
+          sub = 'penalty';
+        }
       } else if (rawType.contains('red') || rawType.contains('yellowred')) {
         mapped = 'redCard';
       } else if (rawType.contains('yellow') || rawType.contains('card')) {
-        final ct = (j['card_type'] ?? j['cardType'] ?? j['card'] ?? j['detail'] ?? '').toString().toLowerCase();
+        final ct =
+            (j['card_type'] ?? j['cardType'] ?? j['card'] ?? j['detail'] ?? '')
+                .toString()
+                .toLowerCase();
         mapped = ct.contains('red') ? 'redCard' : 'yellowCard';
       } else if (rawType.contains('sub')) {
         mapped = 'substitution';
@@ -262,8 +281,10 @@ List<MatchIncident> _incidentsFromRaw(Map<String, dynamic> raw) {
       out.add(MatchIncident(
         minute: minute,
         type: mapped,
-        player: _extractName(j['player_name'] ?? j['player'] ?? j['scorer'] ?? j['player_in']),
-        assistOrOff: _extractName(j['assist'] ?? j['assistant'] ?? j['player_out'] ?? j['playerOut']),
+        player: _extractName(
+            j['player_name'] ?? j['player'] ?? j['scorer'] ?? j['player_in']),
+        assistOrOff: _extractName(
+            j['assist'] ?? j['assistant'] ?? j['player_out'] ?? j['playerOut']),
         isHome: isHome,
         subtype: sub,
       ));
@@ -291,7 +312,11 @@ List<MatchIncident> _incidentsFromRaw(Map<String, dynamic> raw) {
         player: _extractName(j['scorer'] ?? j['player_name'] ?? j['player']),
         assistOrOff: _extractName(j['assist'] ?? j['assistant']),
         isHome: isHomeFor(j, teamId: teamId, teamTla: teamTla),
-        subtype: type == 'OWN' ? 'ownGoal' : type == 'PENALTY' ? 'penalty' : null,
+        subtype: type == 'OWN'
+            ? 'ownGoal'
+            : type == 'PENALTY'
+                ? 'penalty'
+                : null,
       ));
     }
   }
@@ -342,26 +367,46 @@ List<MatchIncident> _incidentsFromRaw(Map<String, dynamic> raw) {
 // Normalize an API-Football "type" string to a camelCase key.
 String _apifbTypeToKey(String type) {
   switch (type.toLowerCase().trim()) {
-    case 'shots on goal':       return 'shotsOnGoal';
-    case 'shots on target':     return 'shotsOnGoal';
-    case 'shots off goal':      return 'shotsOffGoal';
-    case 'shots off target':    return 'shotsOffGoal';
-    case 'total shots':         return 'totalShots';
-    case 'blocked shots':       return 'blockedShots';
-    case 'shots insidebox':     return 'shotsInsideBox';
-    case 'shots outsidebox':    return 'shotsOutsideBox';
-    case 'fouls':               return 'fouls';
-    case 'corner kicks':        return 'cornerKicks';
-    case 'offsides':            return 'offsides';
-    case 'ball possession':     return 'ballPossession';
-    case 'yellow cards':        return 'yellowCards';
-    case 'red cards':           return 'redCards';
-    case 'goalkeeper saves':    return 'saves';
-    case 'total passes':        return 'passes';
-    case 'passes accurate':     return 'passAccurate';
-    case 'passes %':            return 'passAccuracy';
-    case 'expected_goals':      return 'xg';
-    default:                    return '';
+    case 'shots on goal':
+      return 'shotsOnGoal';
+    case 'shots on target':
+      return 'shotsOnGoal';
+    case 'shots off goal':
+      return 'shotsOffGoal';
+    case 'shots off target':
+      return 'shotsOffGoal';
+    case 'total shots':
+      return 'totalShots';
+    case 'blocked shots':
+      return 'blockedShots';
+    case 'shots insidebox':
+      return 'shotsInsideBox';
+    case 'shots outsidebox':
+      return 'shotsOutsideBox';
+    case 'fouls':
+      return 'fouls';
+    case 'corner kicks':
+      return 'cornerKicks';
+    case 'offsides':
+      return 'offsides';
+    case 'ball possession':
+      return 'ballPossession';
+    case 'yellow cards':
+      return 'yellowCards';
+    case 'red cards':
+      return 'redCards';
+    case 'goalkeeper saves':
+      return 'saves';
+    case 'total passes':
+      return 'passes';
+    case 'passes accurate':
+      return 'passAccurate';
+    case 'passes %':
+      return 'passAccuracy';
+    case 'expected_goals':
+      return 'xg';
+    default:
+      return '';
   }
 }
 
@@ -385,6 +430,7 @@ List<MatchStat> _statsFromRaw(Map<String, dynamic> raw) {
       if (key.isNotEmpty) target.putIfAbsent(key, () => s['value']);
     }
   }
+
   flattenStatsList(h, h['statistics']);
   flattenStatsList(a, a['statistics']);
 
@@ -414,22 +460,22 @@ List<MatchStat> _statsFromRaw(Map<String, dynamic> raw) {
     }
   }
 
-  add('Shots on Goal',     ['shotsOnGoal', 'shotsOnTarget', 'onTarget']);
-  add('Shots off Goal',    ['shotsOffGoal', 'shotsOff', 'offTarget']);
-  add('Total Shots',       ['totalShots', 'shots']);
-  add('Blocked Shots',     ['blockedShots']);
-  add('Shots inside Box',  ['shotsInsideBox', 'shotsInBox']);
+  add('Shots on Goal', ['shotsOnGoal', 'shotsOnTarget', 'onTarget']);
+  add('Shots off Goal', ['shotsOffGoal', 'shotsOff', 'offTarget']);
+  add('Total Shots', ['totalShots', 'shots']);
+  add('Blocked Shots', ['blockedShots']);
+  add('Shots inside Box', ['shotsInsideBox', 'shotsInBox']);
   add('Shots outside Box', ['shotsOutsideBox', 'shotsOutBox']);
-  add('Ball Possession',   ['ballPossession', 'possession'], pct: true);
-  add('Passes',            ['passes', 'totalPasses']);
-  add('Pass Accuracy',     ['passAccuracy', 'passesPercentage'], pct: true);
-  add('Corner Kicks',      ['cornerKicks', 'corners']);
-  add('Fouls',             ['fouls']);
-  add('Yellow Cards',      ['yellowCards']);
-  add('Red Cards',         ['redCards']);
-  add('Offsides',          ['offsides']);
-  add('Saves',             ['saves', 'goalkeeperSaves']);
-  add('Tackles',           ['tackles']);
+  add('Ball Possession', ['ballPossession', 'possession'], pct: true);
+  add('Passes', ['passes', 'totalPasses']);
+  add('Pass Accuracy', ['passAccuracy', 'passesPercentage'], pct: true);
+  add('Corner Kicks', ['cornerKicks', 'corners']);
+  add('Fouls', ['fouls']);
+  add('Yellow Cards', ['yellowCards']);
+  add('Red Cards', ['redCards']);
+  add('Offsides', ['offsides']);
+  add('Saves', ['saves', 'goalkeeperSaves']);
+  add('Tackles', ['tackles']);
   // Remove rows where both sides are "—"
   return out.where((s) => s.homeValue != '—' || s.awayValue != '—').toList();
 }

@@ -619,11 +619,15 @@ class _StatRow extends StatelessWidget {
                 child: Row(children: [
                   Expanded(
                     flex: (aRatio * 100).round().clamp(1, 99),
-                    child: ColoredBox(color: (color ?? AppTheme.brand).withValues(alpha: aBetter ? 1.0 : 0.35)),
+                    child: ColoredBox(
+                        color: (color ?? AppTheme.brand)
+                            .withValues(alpha: aBetter ? 1.0 : 0.35)),
                   ),
                   Expanded(
                     flex: ((1 - aRatio) * 100).round().clamp(1, 99),
-                    child: ColoredBox(color: (color ?? AppTheme.live).withValues(alpha: bBetter ? 1.0 : 0.35)),
+                    child: ColoredBox(
+                        color: (color ?? AppTheme.live)
+                            .withValues(alpha: bBetter ? 1.0 : 0.35)),
                   ),
                 ]),
               ),

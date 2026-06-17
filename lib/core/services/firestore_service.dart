@@ -90,10 +90,10 @@ class FirestoreService {
 
   /// Top 20 leaderboard — TTL-cached get(), not a persistent snapshots() listener.
   Stream<List<Map<String, dynamic>>> leaderboardStream() async* {
-    const key   = 'fs_trivia_lb';
+    const key = 'fs_trivia_lb';
     const keyAt = 'fs_trivia_lb_at';
-    const ttl   = 15 * 60 * 1000; // 15 min
-    final box   = Hive.box('live_cache');
+    const ttl = 15 * 60 * 1000; // 15 min
+    final box = Hive.box('live_cache');
 
     final hiveRaw = box.get(key);
     if (hiveRaw != null) {
@@ -104,7 +104,7 @@ class FirestoreService {
       } catch (_) {}
     }
 
-    final at  = box.get(keyAt) as int?;
+    final at = box.get(keyAt) as int?;
     final age = at == null ? null : DateTime.now().millisecondsSinceEpoch - at;
     if (age != null && age < ttl) return;
 

@@ -23,7 +23,9 @@ class _SummaryTab extends ConsumerWidget {
     // Goal scorers: prefer Firestore raw goals (have names), fall back to
     // the rich per-match API fetch.
     final richAsync = (match.isFinished || match.isLive)
-        ? ref.watch(matchGoalsProvider(match.id))
+        ? ref.watch(matchGoalsProvider(
+            (matchId: match.id, isFinished: match.isFinished),
+          ))
         : null;
     final goalsSource = richAsync?.value ?? match;
     final richLoading = richAsync != null && richAsync.isLoading;
@@ -164,6 +166,9 @@ class _SummaryTab extends ConsumerWidget {
             rawScore: rawDoc?['score'] as Map?,
           ),
         ],
+
+        // ── Inline 300×250 ad ───────────────────────────────────────────
+        const InlineBannerAd(),
 
         // ── xG bar ──────────────────────────────────────────────────────
         if (xgHome != null && xgAway != null) ...[

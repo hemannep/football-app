@@ -1,17 +1,21 @@
 import 'dart:async';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart' as firebase_core;
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:flutter/foundation.dart';
 
+import 'notification_service.dart';
 import 'user_profile_service.dart';
 
 /// Top-level handler required by FCM for background messages
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await firebase_core.Firebase.initializeApp();
   debugPrint('FCM background: ${message.notification?.title}');
+  await NotificationService.instance.showRemoteMessage(message);
 }
 
 class FirebaseService {
@@ -72,20 +76,35 @@ class FirebaseService {
   Future<void> _initFCM() async {
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
-    final settings = await _fcm.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
+    await NotificationService.instance.initialize();
+    await NotificationService.instance.configureForegroundPresentation();
+
+    final settings = await NotificationService.instance.requestPermissions();
     debugPrint('FCM permission: ${settings.authorizationStatus}');
 
     // Subscribe to topic so you can blast all users from Firebase console
     await _fcm.subscribeToTopic('wc26_all');
 
     // Foreground message handler
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
       debugPrint('FCM foreground: ${message.notification?.title}');
-      // TODO: show in-app snackbar/banner via your notification provider
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        await NotificationService.instance.showRemoteMessage(message);
+      }
+    });
+
+    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+      debugPrint('FCM opened app: ${message.messageId ?? message.data}');
+    });
+
+    final initialMessage = await _fcm.getInitialMessage();
+    if (initialMessage != null) {
+      debugPrint('FCM initial message: '
+          '${initialMessage.messageId ?? initialMessage.data}');
+    }
+
+    _fcm.onTokenRefresh.listen((token) {
+      debugPrint('FCM token refreshed: ${token.isNotEmpty}');
     });
 
     final token = await _fcm.getToken();

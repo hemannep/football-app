@@ -4,8 +4,8 @@
 // the new physical path at lib/l10n/generated/app_localizations.dart.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:hive/hive.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -13,7 +13,7 @@ import '../core/providers/locale_provider.dart';
 import '../core/providers/theme_provider.dart';
 import '../core/services/ad_service.dart';
 import '../core/services/iap_service.dart';
-import '../core/services/live_data_service.dart';
+import '../core/services/notification_service.dart';
 import '../core/theme/app_theme.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../shared/widgets/iap_status_widget.dart';
@@ -118,8 +118,8 @@ class SettingsDrawer extends ConsumerWidget {
                   _Tile(
                     icon: Icons.notifications_outlined,
                     label: t.settingsNotifications,
-                    trailing: 'Soon',
-                    onTap: () => _toast(context, 'Push notifications coming soon'),
+                    trailing: 'On',
+                    onTap: () => _enableNotifications(context),
                   ),
 
                   // ── Bonus features ──────────────────────────────────────
@@ -180,34 +180,6 @@ class SettingsDrawer extends ConsumerWidget {
                     },
                   ),
 
-                  // ── Data & Cache ────────────────────────────────────────
-                  const _SectionLabel('DATA & CACHE'),
-                  _ReadCounterTile(),
-                  _Tile(
-                    icon: Icons.cleaning_services_outlined,
-                    label: 'Clear App Cache',
-                    trailing: 'Refresh data',
-                    onTap: () async {
-                      // Wipe all Hive caches so next launch re-fetches from
-                      // Firestore. Useful after quota reset or data changes.
-                      await Hive.box('live_cache').clear();
-                      await Hive.box('matches_cache').clear();
-                      LiveDataService.instance.evict('matches_all');
-                      LiveDataService.instance.evict('standings_all');
-                      LiveDataService.instance.evict('news_30');
-                      if (context.mounted) {
-                        Navigator.of(context).pop();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                                'Cache cleared — restart the app for fresh data'),
-                            duration: Duration(seconds: 3),
-                          ),
-                        );
-                      }
-                    },
-                  ),
-
                   const _SectionLabel('SUPPORT'),
                   _Tile(
                     icon: Icons.mail_outline_rounded,
@@ -231,12 +203,12 @@ class SettingsDrawer extends ConsumerWidget {
                   _Tile(
                     icon: Icons.privacy_tip_outlined,
                     label: t.settingsPrivacyPolicy,
-                    onTap: () => _toast(context, 'Coming soon'),
+                    onTap: () => _launch('https://mangojuiceapp.blogspot.com/#privacy'),
                   ),
                   _Tile(
                     icon: Icons.description_outlined,
                     label: t.settingsTerms,
-                    onTap: () => _toast(context, 'Coming soon'),
+                    onTap: () => _launch('https://mangojuiceapp.blogspot.com/#terms'),
                   ),
 
                   if (!AdService.adsRemoved) ...[
@@ -244,10 +216,16 @@ class SettingsDrawer extends ConsumerWidget {
                     _Tile(
                       icon: Icons.block_rounded,
                       label: t.settingsRemoveAds,
-                      trailing: '\$1.99',
+                      trailing: '\$1.99/mo',
                       onTap: () async {
-                        await IapService.buyRemoveAds();
-                        if (context.mounted) Navigator.pop(context);
+                        final started = await IapService.buyRemoveAds();
+                        if (!context.mounted) return;
+                        if (started) {
+                          Navigator.pop(context);
+                        } else {
+                          _toast(context,
+                              'Subscription is not available yet. Try again soon.');
+                        }
                       },
                       accent: true,
                     ),
@@ -278,100 +256,11 @@ class SettingsDrawer extends ConsumerWidget {
               ),
               child: Column(
                 children: [
-                  // ╔══════════════════════════════════════════════════╗
-                  // ║  DEV TOOL — comment out the block below before   ║
-                  // ║  publishing to the store.                        ║
-                  // ╚══════════════════════════════════════════════════╝
-                  StatefulBuilder(
-                    builder: (ctx, setState) {
-                      final removed = AdService.adsRemoved;
-                      return GestureDetector(
-                        onTap: () async {
-                          await AdService.setAdsRemoved(!removed);
-                          setState(() {});
-                          if (ctx.mounted) {
-                            ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-                              content: Text(removed
-                                  ? '🔴 Ads re-enabled'
-                                  : '🟢 Ads disabled for this session'),
-                              duration: const Duration(seconds: 2),
-                            ));
-                          }
-                        },
-                        child: Container(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 10),
-                          decoration: BoxDecoration(
-                            color: removed
-                                ? const Color(0xFF1A2A10)
-                                : const Color(0xFF2A1A08),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: removed
-                                  ? AppTheme.brand.withValues(alpha: 0.55)
-                                  : const Color(0xFFFF9800)
-                                      .withValues(alpha: 0.55),
-                              width: 1.2,
-                            ),
-                          ),
-                          child: Row(children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 5, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFFF9800)
-                                    .withValues(alpha: 0.18),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: const Text('DEV',
-                                  style: TextStyle(
-                                      fontSize: 9,
-                                      fontWeight: FontWeight.w900,
-                                      color: Color(0xFFFF9800),
-                                      letterSpacing: 1.2)),
-                            ),
-                            const SizedBox(width: 10),
-                            Icon(
-                              removed
-                                  ? Icons.block_rounded
-                                  : Icons.ads_click_rounded,
-                              size: 16,
-                              color: removed
-                                  ? AppTheme.brand
-                                  : const Color(0xFFFF9800),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                removed ? 'Ads OFF' : 'Ads ON',
-                                style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                    color: removed
-                                        ? AppTheme.brand
-                                        : const Color(0xFFFF9800)),
-                              ),
-                            ),
-                            Icon(
-                              removed
-                                  ? Icons.toggle_on_rounded
-                                  : Icons.toggle_off_rounded,
-                              size: 26,
-                              color: removed
-                                  ? AppTheme.brand
-                                  : const Color(0xFFFF9800),
-                            ),
-                          ]),
-                        ),
-                      );
-                    },
-                  ),
-                  // ── end DEV TOOL ──────────────────────────────────
+                  if (kDebugMode) const _DebugAdsToggle(),
                   Text('${t.appName} v1.0',
                       style: TextStyle(fontSize: 11, color: p.textLow)),
                   const SizedBox(height: 2),
-                  Text('© 2026 • Built with ❤️ in Nepal',
+                  Text('© 2026 • Built with ❤️ in Nepal 🇳🇵',
                       style: TextStyle(fontSize: 10, color: p.textLow)),
                 ],
               ),
@@ -384,6 +273,23 @@ class SettingsDrawer extends ConsumerWidget {
 
   void _toast(BuildContext context, String msg) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  Future<void> _enableNotifications(BuildContext context) async {
+    final status = await NotificationService.instance.requestPermissions();
+    if (!context.mounted) return;
+
+    if (status.isAllowed) {
+      await NotificationService.instance.show(
+        title: 'Football Fan Hub 2026',
+        body: 'Notifications are ready for live match alerts.',
+        payload: 'settings_test',
+      );
+      if (!context.mounted) return;
+      _toast(context, 'Notifications enabled');
+    } else {
+      _toast(context, 'Notifications are blocked in device settings');
+    }
   }
 
   Future<void> _launch(String url) async {
@@ -400,6 +306,71 @@ class SettingsDrawer extends ConsumerWidget {
       query: 'subject=App%20Feedback',
     );
     if (await canLaunchUrl(uri)) await launchUrl(uri);
+  }
+}
+
+class _DebugAdsToggle extends StatefulWidget {
+  const _DebugAdsToggle();
+
+  @override
+  State<_DebugAdsToggle> createState() => _DebugAdsToggleState();
+}
+
+class _DebugAdsToggleState extends State<_DebugAdsToggle> {
+  @override
+  Widget build(BuildContext context) {
+    final removed = AdService.adsRemoved;
+    final p = AppTheme.of(context);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: removed
+            ? AppTheme.good.withValues(alpha: 0.14)
+            : AppTheme.warn.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: removed
+              ? AppTheme.good.withValues(alpha: 0.55)
+              : AppTheme.warn.withValues(alpha: 0.55),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: p.bg.withValues(alpha: 0.55),
+              borderRadius: BorderRadius.circular(5),
+            ),
+            child: const Text('DEBUG',
+                style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.1)),
+          ),
+          const SizedBox(width: 10),
+          Icon(removed ? Icons.block_rounded : Icons.ads_click_rounded,
+              size: 18, color: removed ? AppTheme.good : AppTheme.warn),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              removed ? 'Ads hidden for screenshots' : 'Ads visible',
+              style: TextStyle(
+                  color: p.textHi, fontWeight: FontWeight.w800, fontSize: 12),
+            ),
+          ),
+          Switch.adaptive(
+            value: removed,
+            activeThumbColor: AppTheme.good,
+            onChanged: (v) async {
+              await AdService.setAdsSubscriptionActive(v);
+              if (mounted) setState(() {});
+            },
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -466,68 +437,6 @@ class _Tile extends StatelessWidget {
             Icon(Icons.chevron_right_rounded, size: 18, color: p.textLow),
           ],
         ),
-      ),
-    );
-  }
-}
-
-// ── Firestore daily read counter tile ─────────────────────────────────────────
-class _ReadCounterTile extends StatefulWidget {
-  @override
-  State<_ReadCounterTile> createState() => _ReadCounterTileState();
-}
-
-class _ReadCounterTileState extends State<_ReadCounterTile> {
-  @override
-  Widget build(BuildContext context) {
-    final p = AppTheme.of(context);
-    final count = FirestoreReadCounter.todayCount;
-    final pct   = (count / 50000).clamp(0.0, 1.0);
-    final Color barColor = count < 30000
-        ? AppTheme.brand
-        : count < 45000
-            ? Colors.orange
-            : Colors.red;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.data_usage_rounded, size: 18, color: p.textMid),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Text('Firestore reads today',
-                    style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: p.textHi)),
-              ),
-              Text('$count / 50 000',
-                  style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: barColor)),
-            ],
-          ),
-          const SizedBox(height: 6),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(3),
-            child: LinearProgressIndicator(
-              value: pct,
-              backgroundColor: p.stroke,
-              valueColor: AlwaysStoppedAnimation(barColor),
-              minHeight: 4,
-            ),
-          ),
-          if (count >= 45000) ...[
-            const SizedBox(height: 4),
-            const Text('⚠ Approaching daily limit — non-critical reads are throttled.',
-                style: TextStyle(fontSize: 11, color: Colors.orange)),
-          ],
-        ],
       ),
     );
   }

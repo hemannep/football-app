@@ -381,66 +381,66 @@ class _WelcomeBackRecapState extends ConsumerState<WelcomeBackRecap> {
                     fontWeight: FontWeight.w700)),
             const SizedBox(height: 4),
             ...finished.take(4).map((m) {
-                final hg = m.score.homeGoals ?? 0;
-                final ag = m.score.awayGoals ?? 0;
-                final winner = m.score.winner;
-                Color homeCol = p.textMid;
-                Color awayCol = p.textMid;
-                if (winner == 'HOME_TEAM') {
-                  homeCol = AppTheme.good;
-                  awayCol = p.textLow;
-                } else if (winner == 'AWAY_TEAM') {
-                  homeCol = p.textLow;
-                  awayCol = AppTheme.good;
-                }
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 3),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          m.homeTeam.tla,
-                          textAlign: TextAlign.right,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
-                              color: homeCol),
-                        ),
+              final hg = m.score.homeGoals ?? 0;
+              final ag = m.score.awayGoals ?? 0;
+              final winner = m.score.winner;
+              Color homeCol = p.textMid;
+              Color awayCol = p.textMid;
+              if (winner == 'HOME_TEAM') {
+                homeCol = AppTheme.good;
+                awayCol = p.textLow;
+              } else if (winner == 'AWAY_TEAM') {
+                homeCol = p.textLow;
+                awayCol = AppTheme.good;
+              }
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 3),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        m.homeTeam.tla,
+                        textAlign: TextAlign.right,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: homeCol),
                       ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: p.surfaceHi,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          '$hg – $ag',
-                          style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w900,
-                              color: p.textHi),
-                        ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: p.surfaceHi,
+                        borderRadius: BorderRadius.circular(6),
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          m.awayTeam.tla,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
-                              color: awayCol),
-                        ),
+                      child: Text(
+                        '$hg – $ag',
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w900,
+                            color: p.textHi),
                       ),
-                    ],
-                  ),
-                );
-              }),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        m.awayTeam.tla,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: awayCol),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
             if (finished.length > 4)
               Padding(
                 padding: const EdgeInsets.only(top: 2),
@@ -467,7 +467,8 @@ class _WelcomeBackRecapState extends ConsumerState<WelcomeBackRecap> {
           Row(
             children: [
               Container(
-                width: 8, height: 8,
+                width: 8,
+                height: 8,
                 decoration: const BoxDecoration(
                     color: AppTheme.live, shape: BoxShape.circle),
               ),
@@ -482,31 +483,41 @@ class _WelcomeBackRecapState extends ConsumerState<WelcomeBackRecap> {
             ],
           ),
           ...live.take(3).map((m) => Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Row(
-              children: [
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Text(m.homeTeam.tla,
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: p.textMid)),
+                padding: const EdgeInsets.only(top: 4),
+                child: Row(
+                  children: [
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Text(m.homeTeam.tla,
+                          style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: p.textMid)),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppTheme.live.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(m.score.display,
+                          style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w900,
+                              color: AppTheme.live)),
+                    ),
+                    Expanded(
+                      child: Text(m.awayTeam.tla,
+                          textAlign: TextAlign.right,
+                          style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: p.textMid)),
+                    ),
+                  ],
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: AppTheme.live.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(m.score.display,
-                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: AppTheme.live)),
-                ),
-                Expanded(
-                  child: Text(m.awayTeam.tla,
-                      textAlign: TextAlign.right,
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: p.textMid)),
-                ),
-              ],
-            ),
-          )),
+              )),
         ],
       ),
     );

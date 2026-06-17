@@ -15,7 +15,7 @@ class CountryProfile {
   final String name;
   final String confederation;
   final List<String>
-      achievements; // e.g. "5x World Cup winners (1958, 62, 70, 94, 02)"
+      achievements; // e.g. "5x global football tournament winners (1958, 62, 70, 94, 02)"
   final List<String> starPlayers; // current star names
   final String qualificationJourney; // 1-2 sentences
   final String? legendaryPlayer; // historic icon
@@ -54,10 +54,10 @@ class CountryPagesService {
       name: 'Brazil',
       confederation: 'CONMEBOL',
       achievements: [
-        '5x World Cup winners (1958, 1962, 1970, 1994, 2002)',
+        '5x global football tournament winners (1958, 1962, 1970, 1994, 2002)',
         '9x Copa América winners',
         '4x Confederations Cup winners',
-        'Only nation to play every World Cup since 1930',
+        'Only nation to play every global football tournament since 1930',
       ],
       starPlayers: ['Vinícius Jr', 'Rodrygo', 'Raphinha', 'Alisson'],
       legendaryPlayer: 'Pelé',
@@ -66,14 +66,14 @@ class CountryPagesService {
       bestWcFinish: 1,
       bestWcYear: '2002',
       funFact:
-          'Brazil are the only nation never to have missed a World Cup since the tournament began in 1930.',
+          'Brazil are the only nation never to have missed a global football tournament since the tournament began in 1930.',
     ),
     'ARG': CountryProfile(
       tla: 'ARG',
       name: 'Argentina',
       confederation: 'CONMEBOL',
       achievements: [
-        '3x World Cup winners (1978, 1986, 2022)',
+        '3x global football tournament winners (1978, 1986, 2022)',
         '16x Copa América winners (joint-most with Uruguay)',
         '2x Olympic gold (2004, 2008)',
       ],
@@ -96,7 +96,7 @@ class CountryPagesService {
       name: 'France',
       confederation: 'UEFA',
       achievements: [
-        '2x World Cup winners (1998, 2018)',
+        '2x global football tournament winners (1998, 2018)',
         '2x EURO winners (1984, 2000)',
         '2x Confederations Cup winners',
       ],
@@ -112,14 +112,14 @@ class CountryPagesService {
       bestWcFinish: 1,
       bestWcYear: '2018',
       funFact:
-          'Mbappé is the first man since Pelé to score a hat-trick in a World Cup final (2022).',
+          'Mbappé is the first man since Pelé to score a hat-trick in a global football tournament final (2022).',
     ),
     'GER': CountryProfile(
       tla: 'GER',
       name: 'Germany',
       confederation: 'UEFA',
       achievements: [
-        '4x World Cup winners (1954, 1974, 1990, 2014)',
+        '4x global football tournament winners (1954, 1974, 1990, 2014)',
         '3x EURO winners (1972, 1980, 1996)',
         '1x Confederations Cup (2017)',
       ],
@@ -135,14 +135,14 @@ class CountryPagesService {
       bestWcFinish: 1,
       bestWcYear: '2014',
       funFact:
-          'Germany has reached more World Cup semi-finals (13) than any other nation.',
+          'Germany has reached more global football tournament semi-finals (13) than any other nation.',
     ),
     'ENG': CountryProfile(
       tla: 'ENG',
       name: 'England',
       confederation: 'UEFA',
       achievements: [
-        '1x World Cup winners (1966)',
+        '1x global football tournament winners (1966)',
         '1x UEFA Nations League runners-up',
         '2x EURO finalists (2020, 2024)',
       ],
@@ -158,14 +158,14 @@ class CountryPagesService {
       bestWcFinish: 1,
       bestWcYear: '1966',
       funFact:
-          'England\'s only World Cup title came at home in 1966 — Geoff Hurst is still the only player to score a hat-trick in a final.',
+          'England\'s only global football tournament title came at home in 1966 — Geoff Hurst is still the only player to score a hat-trick in a final.',
     ),
     'ESP': CountryProfile(
       tla: 'ESP',
       name: 'Spain',
       confederation: 'UEFA',
       achievements: [
-        '1x World Cup winners (2010)',
+        '1x global football tournament winners (2010)',
         '4x EURO winners (1964, 2008, 2012, 2024)',
         'First nation to win 3 consecutive major tournaments (2008-2012)',
       ],
@@ -185,7 +185,7 @@ class CountryPagesService {
       achievements: [
         '1x EURO winners (2016)',
         '1x UEFA Nations League winners (2019, 2025)',
-        'World Cup best: 3rd (1966)',
+        'global football tournament best: 3rd (1966)',
       ],
       starPlayers: [
         'Cristiano Ronaldo',
@@ -199,14 +199,14 @@ class CountryPagesService {
       bestWcFinish: 3,
       bestWcYear: '1966',
       funFact:
-          'Cristiano Ronaldo is the first male player to score in five different World Cups.',
+          'Cristiano Ronaldo is the first male player to score in five different global tournaments.',
     ),
     'NED': CountryProfile(
       tla: 'NED',
       name: 'Netherlands',
       confederation: 'UEFA',
       achievements: [
-        'World Cup runners-up 3x (1974, 1978, 2010)',
+        'global football tournament runners-up 3x (1974, 1978, 2010)',
         '1x EURO winners (1988)',
       ],
       starPlayers: [
@@ -221,7 +221,7 @@ class CountryPagesService {
       bestWcFinish: 2,
       bestWcYear: '2010',
       funFact:
-          'The Netherlands have lost more World Cup finals (3) than any nation that has never won one.',
+          'The Netherlands have lost more global football tournament finals (3) than any nation that has never won one.',
     ),
     'MEX': CountryProfile(
       tla: 'MEX',
@@ -241,11 +241,11 @@ class CountryPagesService {
       ],
       legendaryPlayer: 'Hugo Sánchez',
       qualificationJourney:
-          'Automatic qualifier as co-host. First nation to host three World Cups (1970, 1986, 2026).',
+          'Automatic qualifier as co-host. First nation to host three global tournaments (1970, 1986, 2026).',
       bestWcFinish: 6,
       bestWcYear: '1970 & 1986',
       funFact:
-          'Mexico has reached the World Cup R16 in 7 consecutive tournaments (1994-2018) — a record streak.',
+          'Mexico has reached the global football tournament R16 in 7 consecutive tournaments (1994-2018) — a record streak.',
     ),
     'USA': CountryProfile(
       tla: 'USA',
@@ -286,19 +286,19 @@ class CountryPagesService {
       ],
       legendaryPlayer: 'Atiba Hutchinson',
       qualificationJourney:
-          'Automatic qualifier as co-host. Returned to the World Cup in 2022 after a 36-year absence.',
+          'Automatic qualifier as co-host. Returned to the global football tournament in 2022 after a 36-year absence.',
       bestWcFinish: null,
       bestWcYear: null,
       funFact:
-          'Canada\'s only previous World Cup was 1986 — they didn\'t score a single goal.',
+          'Canada\'s only previous global football tournament was 1986 — they didn\'t score a single goal.',
     ),
     'CRO': CountryProfile(
       tla: 'CRO',
       name: 'Croatia',
       confederation: 'UEFA',
       achievements: [
-        'World Cup runners-up (2018)',
-        'World Cup 3rd place (1998, 2022)',
+        'global football tournament runners-up (2018)',
+        'global football tournament 3rd place (1998, 2022)',
       ],
       starPlayers: [
         'Luka Modrić',
@@ -312,14 +312,14 @@ class CountryPagesService {
       bestWcFinish: 2,
       bestWcYear: '2018',
       funFact:
-          'Croatia (pop ~4M) is the smallest nation to reach a modern World Cup final.',
+          'Croatia (pop ~4M) is the smallest nation to reach a modern global football tournament final.',
     ),
     'URU': CountryProfile(
       tla: 'URU',
       name: 'Uruguay',
       confederation: 'CONMEBOL',
       achievements: [
-        '2x World Cup winners (1930, 1950)',
+        '2x global football tournament winners (1930, 1950)',
         '16x Copa América winners (joint-most)',
         '2x Olympic gold (1924, 1928)',
       ],
@@ -331,19 +331,19 @@ class CountryPagesService {
       ],
       legendaryPlayer: 'Luis Suárez (modern), Obdulio Varela (historic)',
       qualificationJourney:
-          'Hosted the very first World Cup in 1930. Qualified through CONMEBOL.',
+          'Hosted the very first global football tournament in 1930. Qualified through CONMEBOL.',
       bestWcFinish: 1,
       bestWcYear: '1950',
       funFact:
-          'Uruguay are the smallest nation by population to win the World Cup.',
+          'Uruguay are the smallest nation by population to win the global football tournament.',
     ),
     'BEL': CountryProfile(
       tla: 'BEL',
       name: 'Belgium',
       confederation: 'UEFA',
       achievements: [
-        'World Cup 3rd place (1986, 2018)',
-        '14x at the World Cup',
+        'global football tournament 3rd place (1986, 2018)',
+        '14x at the global football tournament',
       ],
       starPlayers: [
         'Kevin De Bruyne',
@@ -364,7 +364,7 @@ class CountryPagesService {
       name: 'Italy',
       confederation: 'UEFA',
       achievements: [
-        '4x World Cup winners (1934, 1938, 1982, 2006)',
+        '4x global football tournament winners (1934, 1938, 1982, 2006)',
         '2x EURO winners (1968, 2020)',
       ],
       starPlayers: [
@@ -378,7 +378,8 @@ class CountryPagesService {
           'Italy must navigate UEFA qualifying carefully after missing 2018 and 2022.',
       bestWcFinish: 1,
       bestWcYear: '2006',
-      funFact: 'Italy\'s 4 World Cup titles are second only to Brazil.',
+      funFact:
+          'Italy\'s 4 global football tournament titles are second only to Brazil.',
     ),
     'JPN': CountryProfile(
       tla: 'JPN',
@@ -400,7 +401,7 @@ class CountryPagesService {
       bestWcFinish: 9,
       bestWcYear: '2002, 2010, 2018, 2022',
       funFact:
-          'Japan stunned Spain and Germany at the 2022 World Cup, topping their group.',
+          'Japan stunned Spain and Germany at the 2022 global football tournament, topping their group.',
     ),
     'KOR': CountryProfile(
       tla: 'KOR',
@@ -408,7 +409,7 @@ class CountryPagesService {
       confederation: 'AFC',
       achievements: [
         '2x AFC Asian Cup winners',
-        'World Cup 4th place (2002)',
+        'global football tournament 4th place (2002)',
       ],
       starPlayers: [
         'Son Heung-min',
@@ -445,7 +446,7 @@ class CountryPagesService {
       confederation: 'CAF',
       achievements: [
         '1x AFCON winners (2021)',
-        'World Cup QF (2002)',
+        'global football tournament QF (2002)',
       ],
       starPlayers: [
         'Sadio Mané',
@@ -466,7 +467,7 @@ class CountryPagesService {
       name: 'Morocco',
       confederation: 'CAF',
       achievements: [
-        'World Cup 4th place (2022) — first African semi-finalist',
+        'global football tournament 4th place (2022) — first African semi-finalist',
         'AFCON winners (1976)',
       ],
       starPlayers: [
@@ -481,7 +482,7 @@ class CountryPagesService {
       bestWcFinish: 4,
       bestWcYear: '2022',
       funFact:
-          'Morocco became the first African and first Arab nation to reach a World Cup semi-final in 2022.',
+          'Morocco became the first African and first Arab nation to reach a global football tournament semi-final in 2022.',
     ),
     'QAT': CountryProfile(
       tla: 'QAT',
@@ -489,7 +490,7 @@ class CountryPagesService {
       confederation: 'AFC',
       achievements: [
         '2x AFC Asian Cup winners (2019, 2023)',
-        'Hosted the 2022 World Cup',
+        'Hosted the 2022 global football tournament',
       ],
       starPlayers: [
         'Akram Afif',
@@ -502,7 +503,7 @@ class CountryPagesService {
       bestWcFinish: null,
       bestWcYear: null,
       funFact:
-          'Qatar are the only host nation to lose every group game at their own World Cup (2022).',
+          'Qatar are the only host nation to lose every group game at their own global football tournament (2022).',
     ),
     'JOR': CountryProfile(
       tla: 'JOR',
@@ -518,9 +519,10 @@ class CountryPagesService {
         'Ehsan Haddad'
       ],
       qualificationJourney:
-          'First-ever World Cup qualification — surged through AFC qualifying after their breakout 2023 Asian Cup run.',
+          'First-ever global football tournament qualification — surged through AFC qualifying after their breakout 2023 Asian Cup run.',
       isDebutant: true,
-      funFact: '2026 is Jordan\'s first-ever appearance at a senior World Cup.',
+      funFact:
+          '2026 is Jordan\'s first-ever appearance at a senior global football tournament.',
     ),
     'UZB': CountryProfile(
       tla: 'UZB',
@@ -536,10 +538,10 @@ class CountryPagesService {
         'Jaloliddin Masharipov'
       ],
       qualificationJourney:
-          'First-ever World Cup qualification after a strong AFC campaign.',
+          'First-ever global football tournament qualification after a strong AFC campaign.',
       isDebutant: true,
       funFact:
-          'Uzbekistan became an independent international football member in 1994 — 2026 is their first World Cup.',
+          'Uzbekistan became an independent international football member in 1994 — 2026 is their first global football tournament.',
     ),
     'CPV': CountryProfile(
       tla: 'CPV',
@@ -550,10 +552,10 @@ class CountryPagesService {
       ],
       starPlayers: ['Ryan Mendes', 'Garry Rodrigues', 'Stopira', 'Vozinha'],
       qualificationJourney:
-          'Historic first-ever World Cup qualification from CAF.',
+          'Historic first-ever global football tournament qualification from CAF.',
       isDebutant: true,
       funFact:
-          'Cape Verde (pop ~500,000) is among the smallest nations ever to qualify for a World Cup.',
+          'Cape Verde (pop ~500,000) is among the smallest nations ever to qualify for a global football tournament.',
     ),
     'CUW': CountryProfile(
       tla: 'CUW',
@@ -569,10 +571,10 @@ class CountryPagesService {
         'Eloy Room'
       ],
       qualificationJourney:
-          'Historic first World Cup appearance from CONCACAF qualifying.',
+          'Historic first global football tournament appearance from CONCACAF qualifying.',
       isDebutant: true,
       funFact:
-          'Curaçao (pop ~150,000) is the smallest country EVER to qualify for a World Cup.',
+          'Curaçao (pop ~150,000) is the smallest country EVER to qualify for a global football tournament.',
     ),
   };
 }

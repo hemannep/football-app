@@ -35,6 +35,8 @@ import '../../core/services/live_data_service.dart';
 import '../../core/services/match_details_resolver.dart';
 import '../../core/services/sportsdb_match_service.dart';
 import '../../core/services/sportsdb_service.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
+import '../../shared/widgets/inline_banner_ad.dart';
 import '../../shared/widgets/pitch_painter.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/models/match.dart';
@@ -81,8 +83,8 @@ final _matchStandingsProvider = FutureProvider.family
 /// • Live/paused → real-time snapshots() (1 read per relay push, justified).
 /// • Finished/upcoming → one-shot get() with 30-min Hive cache (0 persistent
 ///   listeners, eliminates the biggest source of excess Firestore reads).
-final _rawMatchProvider = StreamProvider.family
-    .autoDispose<Map<String, dynamic>?, Match>((ref, m) {
+final _rawMatchProvider =
+    StreamProvider.family.autoDispose<Map<String, dynamic>?, Match>((ref, m) {
   final live = m.isLive || m.status == 'PAUSED';
   return LiveDataService.instance.watchMatchRawSmart(m.id, live);
 });
@@ -159,15 +161,32 @@ class _MatchDetailsScreenState extends ConsumerState<MatchDetailsScreen>
     final p = AppTheme.of(context);
     // Use the live Firestore stream for real-time score/status updates;
     // fall back to the passed-in match when the stream hasn't emitted yet.
-    final liveMatch =
-        ref.watch(matchStreamProvider(widget.match)).value;
+    final liveMatch = ref.watch(matchStreamProvider(widget.match)).value;
     final m = liveMatch ?? widget.match;
+
+    // Enriched goals (with scorer names) from the BSD provider — same source
+    // that the Summary tab uses. Falls back to the basic match goals when the
+    // async fetch hasn't resolved yet.
+    final enrichedGoals = (m.isFinished || m.isLive)
+        ? (ref
+                .watch(matchGoalsProvider(
+                  (matchId: m.id, isFinished: m.isFinished),
+                ))
+                .value
+                ?.goals ??
+            m.goals)
+        : m.goals;
+
     final favorites = ref.watch(favoritesProvider).teamTlas;
     final isFav = favorites.contains(m.homeTeam.tla) ||
         favorites.contains(m.awayTeam.tla);
 
     return Scaffold(
       backgroundColor: p.bg,
+      // Persistent 320×50 banner pinned at the bottom of the match screen.
+      bottomNavigationBar: AdService.adsRemoved
+          ? null
+          : const InlineBannerAd(size: AdSize.banner, verticalMargin: 0),
       body: NestedScrollView(
         headerSliverBuilder: (_, __) => [
           SliverAppBar(
@@ -215,9 +234,8 @@ class _MatchDetailsScreenState extends ConsumerState<MatchDetailsScreen>
                 icon: Icons.share_rounded,
                 color: Colors.white,
                 onTap: () {
-                  final scorers = _sortedGoals(m)
-                      .map(_heroScorerLine)
-                      .join(' · ');
+                  final scorers =
+                      _sortedGoals(m).map(_heroScorerLine).join(' · ');
                   Share.share(
                     '⚽ ${m.homeTeam.name} ${m.score.display} ${m.awayTeam.name}\n'
                     '${scorers.isNotEmpty ? '$scorers\n' : ''}'
@@ -229,7 +247,7 @@ class _MatchDetailsScreenState extends ConsumerState<MatchDetailsScreen>
               const SizedBox(width: 8),
             ],
             flexibleSpace: FlexibleSpaceBar(
-              background: _MatchHero(match: m),
+              background: _MatchHero(match: m, enrichedGoals: enrichedGoals),
             ),
             bottom: PreferredSize(
               preferredSize: const Size.fromHeight(44),
@@ -310,7 +328,8 @@ class _NavAction extends StatelessWidget {
 
 class _MatchHero extends StatelessWidget {
   final Match match;
-  const _MatchHero({required this.match});
+  final List<MatchGoal> enrichedGoals;
+  const _MatchHero({required this.match, this.enrichedGoals = const []});
 
   @override
   Widget build(BuildContext context) {
@@ -324,9 +343,17 @@ class _MatchHero extends StatelessWidget {
       // match.minute comes from the relay's fetchMatchDetail and is the most
       // accurate source; fall back to a wall-clock estimate when not yet set.
       final liveMin = match.minute ??
-          (elapsed < 55 ? elapsed : elapsed < 105 ? elapsed - 15 : elapsed - 30)
+          (elapsed < 55
+                  ? elapsed
+                  : elapsed < 105
+                      ? elapsed - 15
+                      : elapsed - 30)
               .clamp(1, 120);
-      final half = liveMin <= 45 ? '1st Half' : liveMin <= 90 ? '2nd Half' : 'Extra Time';
+      final half = liveMin <= 45
+          ? '1st Half'
+          : liveMin <= 90
+              ? '2nd Half'
+              : 'Extra Time';
       statusText = "$half · $liveMin'";
       statusColor = AppTheme.live;
     } else if (match.status == 'PAUSED') {
@@ -406,6 +433,10 @@ class _MatchHero extends StatelessWidget {
                       name: match.homeTeam.name,
                       crest: match.homeTeam.crest,
                       teamId: match.homeTeam.id,
+                      goals: enrichedGoals
+                          .where((g) => g.teamId == match.homeTeam.id)
+                          .toList()
+                        ..sort((a, b) => a.minute.compareTo(b.minute)),
                     ),
                   ),
                   // Score center
@@ -425,7 +456,11 @@ class _MatchHero extends StatelessWidget {
                                             ? elapsed - 15
                                             : elapsed - 30)
                                     .clamp(1, 120);
-                            final half = liveMin <= 45 ? '1H' : liveMin <= 90 ? '2H' : 'ET';
+                            final half = liveMin <= 45
+                                ? '1H'
+                                : liveMin <= 90
+                                    ? '2H'
+                                    : 'ET';
                             return _LiveChip(minute: liveMin, half: half);
                           }),
                           const SizedBox(height: 6),
@@ -458,29 +493,6 @@ class _MatchHero extends StatelessWidget {
                               fontSize: 10,
                               fontWeight: FontWeight.w700),
                         ),
-                        if ((match.isFinished || match.isLive) &&
-                            match.goals.isNotEmpty) ...[
-                          const SizedBox(height: 6),
-                          ..._sortedGoals(match).take(5).map(
-                            (g) => Text(
-                              _heroScorerLine(g),
-                              style: const TextStyle(
-                                  color: Colors.black54,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600,
-                                  height: 1.5),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                          if (match.goals.length > 5)
-                            Text(
-                              '+ ${match.goals.length - 5} more',
-                              style: const TextStyle(
-                                  color: Colors.black38,
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w600),
-                            ),
-                        ],
                       ],
                     ),
                   ),
@@ -491,6 +503,10 @@ class _MatchHero extends StatelessWidget {
                       name: match.awayTeam.name,
                       crest: match.awayTeam.crest,
                       teamId: match.awayTeam.id,
+                      goals: enrichedGoals
+                          .where((g) => g.teamId == match.awayTeam.id)
+                          .toList()
+                        ..sort((a, b) => a.minute.compareTo(b.minute)),
                     ),
                   ),
                 ],
@@ -528,12 +544,21 @@ class _TappableTeamColumn extends StatelessWidget {
   final String name;
   final String? crest;
   final int? teamId;
+  final List<MatchGoal> goals;
+
   const _TappableTeamColumn({
     required this.tla,
     required this.name,
     this.crest,
     required this.teamId,
+    this.goals = const [],
   });
+
+  String _short(String? n) {
+    if (n == null || n.isEmpty) return '—';
+    final parts = n.trim().split(' ');
+    return parts.length > 1 ? '${parts.first[0]}. ${parts.last}' : n;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -552,6 +577,32 @@ class _TappableTeamColumn extends StatelessWidget {
               fontWeight: FontWeight.w800,
               height: 1.2),
         ),
+        // ── Goal scorers shown under the team name ──────────────────────
+        if (goals.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          ...goals.map((g) {
+            final suffix = g.isPenalty
+                ? ' (P)'
+                : g.isOwnGoal
+                    ? ' (OG)'
+                    : '';
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 1),
+              child: Text(
+                "⚽ ${g.minute}' ${_short(g.scorerName)}$suffix",
+                style: const TextStyle(
+                  color: Colors.black54,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  height: 1.5,
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            );
+          }),
+        ],
       ],
     );
     if (teamId == null) return col;
@@ -580,10 +631,12 @@ List<MatchGoal> _sortedGoals(Match m) =>
 String _heroScorerLine(MatchGoal g) {
   final name = g.scorerName ?? '';
   final parts = name.trim().split(' ');
-  final short = parts.length > 1
-      ? '${parts.first[0]}. ${parts.last}'
-      : name;
-  final suffix = g.isPenalty ? ' (P)' : g.isOwnGoal ? ' (OG)' : '';
+  final short = parts.length > 1 ? '${parts.first[0]}. ${parts.last}' : name;
+  final suffix = g.isPenalty
+      ? ' (P)'
+      : g.isOwnGoal
+          ? ' (OG)'
+          : '';
   return "${g.minute}' $short$suffix";
 }
 
@@ -604,7 +657,8 @@ class _TeamBadge extends StatelessWidget {
             Border.all(color: Colors.white.withValues(alpha: 0.5), width: 1.5),
       ),
       child: Center(
-        child: TeamCrestWidget(crestUrl: crest, tla: tla, size: 34, circular: true),
+        child: TeamCrestWidget(
+            crestUrl: crest, tla: tla, size: 34, circular: true),
       ),
     );
   }

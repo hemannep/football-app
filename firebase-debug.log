@@ -1,0 +1,128 @@
+[debug] [2026-06-02T13:09:15.217Z] ----------------------------------------------------------------------
+[debug] [2026-06-02T13:09:15.223Z] Command:       /opt/homebrew/Cellar/node/24.5.0/bin/node /opt/homebrew/bin/firebase apps:list --project football-fan-hub-2026
+[debug] [2026-06-02T13:09:15.223Z] CLI Version:   15.19.0
+[debug] [2026-06-02T13:09:15.223Z] Platform:      darwin
+[debug] [2026-06-02T13:09:15.223Z] Node Version:  v24.5.0
+[debug] [2026-06-02T13:09:15.223Z] Time:          Tue Jun 02 2026 18:54:15 GMT+0545 (Nepal Time)
+[debug] [2026-06-02T13:09:15.223Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-06-02T13:09:15.305Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-06-02T13:09:15.306Z] > authorizing via signed-in user (mangojuice.m25@gmail.com)
+[debug] [2026-06-02T13:09:15.307Z] Checked if tokens are valid: false, expires at: 1780383000718
+[debug] [2026-06-02T13:09:15.307Z] Checked if tokens are valid: false, expires at: 1780383000718
+[debug] [2026-06-02T13:09:15.307Z] > refreshing access token with scopes: []
+[debug] [2026-06-02T13:09:15.308Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2026-06-02T13:09:15.308Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-06-02T13:09:15.523Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 200
+[debug] [2026-06-02T13:09:15.523Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-06-02T13:09:15.535Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/football-fan-hub-2026:searchApps pageSize=100
+[debug] [2026-06-02T13:09:16.065Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/football-fan-hub-2026:searchApps 200
+[debug] [2026-06-02T13:09:16.065Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/football-fan-hub-2026:searchApps {"apps":[{"name":"projects/football-fan-hub-2026/androidApps/1:926050800011:android:6f855198ab1d282fde1f8e","displayName":"Football Fan Hub 2026","platform":"ANDROID","appId":"1:926050800011:android:6f855198ab1d282fde1f8e","namespace":"com.mangojuice.footballfanhub2026","apiKeyId":"ddfe26ea-5204-4753-ad7d-bdd3ddf6c176","state":"ACTIVE","expireTime":"1970-01-01T00:00:00Z"}]}
+[info] ┌───────────────────────┬───────────────────────────────────────────────┬──────────┐
+│ App Display Name      │ App ID                                        │ Platform │
+├───────────────────────┼───────────────────────────────────────────────┼──────────┤
+│ Football Fan Hub 2026 │ 1:926050800011:android:6f855198ab1d282fde1f8e │ ANDROID  │
+└───────────────────────┴───────────────────────────────────────────────┴──────────┘
+[info] 
+[info] 1 app(s) total.
+[debug] [2026-06-02T13:09:30.990Z] ----------------------------------------------------------------------
+[debug] [2026-06-02T13:09:30.992Z] Command:       /opt/homebrew/Cellar/node/24.5.0/bin/node /opt/homebrew/bin/firebase apps:create IOS Football Fan Hub 2026 iOS --bundle-id com.mangojuice.footballfanhub2026 --project football-fan-hub-2026 --json
+[debug] [2026-06-02T13:09:30.992Z] CLI Version:   15.19.0
+[debug] [2026-06-02T13:09:30.992Z] Platform:      darwin
+[debug] [2026-06-02T13:09:30.992Z] Node Version:  v24.5.0
+[debug] [2026-06-02T13:09:30.992Z] Time:          Tue Jun 02 2026 18:54:30 GMT+0545 (Nepal Time)
+[debug] [2026-06-02T13:09:30.992Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-06-02T13:09:31.069Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-06-02T13:09:31.069Z] > authorizing via signed-in user (mangojuice.m25@gmail.com)
+[info] Create your IOS app in project football-fan-hub-2026:
+[debug] [2026-06-02T13:09:31.071Z] Checked if tokens are valid: true, expires at: 1780409354523
+[debug] [2026-06-02T13:09:31.071Z] Checked if tokens are valid: true, expires at: 1780409354523
+[debug] [2026-06-02T13:09:31.071Z] >>> [apiv2][query] POST https://firebase.googleapis.com/v1beta1/projects/football-fan-hub-2026/iosApps [none]
+[debug] [2026-06-02T13:09:31.071Z] >>> [apiv2][body] POST https://firebase.googleapis.com/v1beta1/projects/football-fan-hub-2026/iosApps {"displayName":"Football Fan Hub 2026 iOS","bundleId":"com.mangojuice.footballfanhub2026"}
+[debug] [2026-06-02T13:09:33.207Z] <<< [apiv2][status] POST https://firebase.googleapis.com/v1beta1/projects/football-fan-hub-2026/iosApps 200
+[debug] [2026-06-02T13:09:33.207Z] <<< [apiv2][body] POST https://firebase.googleapis.com/v1beta1/projects/football-fan-hub-2026/iosApps {"name":"operations/workflows/ZTlhMTliZjItNDRkYy00MGU5LTkyNzgtZGYyZjYyZTI5NDIy"}
+[debug] [2026-06-02T13:09:33.208Z] Checked if tokens are valid: true, expires at: 1780409354523
+[debug] [2026-06-02T13:09:33.208Z] Checked if tokens are valid: true, expires at: 1780409354523
+[debug] [2026-06-02T13:09:33.208Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/operations/workflows/ZTlhMTliZjItNDRkYy00MGU5LTkyNzgtZGYyZjYyZTI5NDIy [none]
+[debug] [2026-06-02T13:09:33.702Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/operations/workflows/ZTlhMTliZjItNDRkYy00MGU5LTkyNzgtZGYyZjYyZTI5NDIy 200
+[debug] [2026-06-02T13:09:33.702Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/operations/workflows/ZTlhMTliZjItNDRkYy00MGU5LTkyNzgtZGYyZjYyZTI5NDIy {"name":"operations/workflows/ZTlhMTliZjItNDRkYy00MGU5LTkyNzgtZGYyZjYyZTI5NDIy"}
+[debug] [2026-06-02T13:09:34.203Z] [Create iOS app Poller] Retrying task index 0
+[debug] [2026-06-02T13:09:34.204Z] Checked if tokens are valid: true, expires at: 1780409354523
+[debug] [2026-06-02T13:09:34.204Z] Checked if tokens are valid: true, expires at: 1780409354523
+[debug] [2026-06-02T13:09:34.204Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/operations/workflows/ZTlhMTliZjItNDRkYy00MGU5LTkyNzgtZGYyZjYyZTI5NDIy [none]
+[debug] [2026-06-02T13:09:34.762Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/operations/workflows/ZTlhMTliZjItNDRkYy00MGU5LTkyNzgtZGYyZjYyZTI5NDIy 200
+[debug] [2026-06-02T13:09:34.762Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/operations/workflows/ZTlhMTliZjItNDRkYy00MGU5LTkyNzgtZGYyZjYyZTI5NDIy {"name":"operations/workflows/ZTlhMTliZjItNDRkYy00MGU5LTkyNzgtZGYyZjYyZTI5NDIy"}
+[debug] [2026-06-02T13:09:35.763Z] [Create iOS app Poller] Retrying task index 0
+[debug] [2026-06-02T13:09:35.764Z] Checked if tokens are valid: true, expires at: 1780409354523
+[debug] [2026-06-02T13:09:35.764Z] Checked if tokens are valid: true, expires at: 1780409354523
+[debug] [2026-06-02T13:09:35.764Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/operations/workflows/ZTlhMTliZjItNDRkYy00MGU5LTkyNzgtZGYyZjYyZTI5NDIy [none]
+[debug] [2026-06-02T13:09:36.281Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/operations/workflows/ZTlhMTliZjItNDRkYy00MGU5LTkyNzgtZGYyZjYyZTI5NDIy 200
+[debug] [2026-06-02T13:09:36.281Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/operations/workflows/ZTlhMTliZjItNDRkYy00MGU5LTkyNzgtZGYyZjYyZTI5NDIy {"name":"operations/workflows/ZTlhMTliZjItNDRkYy00MGU5LTkyNzgtZGYyZjYyZTI5NDIy"}
+[debug] [2026-06-02T13:09:38.282Z] [Create iOS app Poller] Retrying task index 0
+[debug] [2026-06-02T13:09:38.282Z] Checked if tokens are valid: true, expires at: 1780409354523
+[debug] [2026-06-02T13:09:38.282Z] Checked if tokens are valid: true, expires at: 1780409354523
+[debug] [2026-06-02T13:09:38.282Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/operations/workflows/ZTlhMTliZjItNDRkYy00MGU5LTkyNzgtZGYyZjYyZTI5NDIy [none]
+[debug] [2026-06-02T13:09:38.808Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/operations/workflows/ZTlhMTliZjItNDRkYy00MGU5LTkyNzgtZGYyZjYyZTI5NDIy 200
+[debug] [2026-06-02T13:09:38.808Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/operations/workflows/ZTlhMTliZjItNDRkYy00MGU5LTkyNzgtZGYyZjYyZTI5NDIy {"name":"operations/workflows/ZTlhMTliZjItNDRkYy00MGU5LTkyNzgtZGYyZjYyZTI5NDIy"}
+[debug] [2026-06-02T13:09:42.809Z] [Create iOS app Poller] Retrying task index 0
+[debug] [2026-06-02T13:09:42.809Z] Checked if tokens are valid: true, expires at: 1780409354523
+[debug] [2026-06-02T13:09:42.809Z] Checked if tokens are valid: true, expires at: 1780409354523
+[debug] [2026-06-02T13:09:42.810Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/operations/workflows/ZTlhMTliZjItNDRkYy00MGU5LTkyNzgtZGYyZjYyZTI5NDIy [none]
+[debug] [2026-06-02T13:09:43.337Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/operations/workflows/ZTlhMTliZjItNDRkYy00MGU5LTkyNzgtZGYyZjYyZTI5NDIy 200
+[debug] [2026-06-02T13:09:43.337Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/operations/workflows/ZTlhMTliZjItNDRkYy00MGU5LTkyNzgtZGYyZjYyZTI5NDIy {"name":"operations/workflows/ZTlhMTliZjItNDRkYy00MGU5LTkyNzgtZGYyZjYyZTI5NDIy","done":true,"response":{"@type":"type.googleapis.com/google.firebase.service.v1beta1.IosApp","name":"projects/football-fan-hub-2026/iosApps/1:926050800011:ios:58456c9815ebb5acde1f8e","appId":"1:926050800011:ios:58456c9815ebb5acde1f8e","displayName":"Football Fan Hub 2026 iOS","projectId":"football-fan-hub-2026","bundleId":"com.mangojuice.footballfanhub2026","apiKeyId":"70cd9328-f92f-47a0-97d6-865af71d653d","state":"ACTIVE","expireTime":"1970-01-01T00:00:00Z","etag":"1_4e31cba4-884e-443a-a4fc-e753ce5b3688"}}
+[info] 
+[info] 🎉🎉🎉 Your Firebase IOS App is ready! 🎉🎉🎉
+[info] 
+[info] App information:
+[info]   - App ID: 1:926050800011:ios:58456c9815ebb5acde1f8e
+[info]   - Display name: Football Fan Hub 2026 iOS
+[info]   - Bundle ID: com.mangojuice.footballfanhub2026
+[info] 
+[info] You can run this command to print out your new app's Google Services config:
+[info]   firebase apps:sdkconfig IOS 1:926050800011:ios:58456c9815ebb5acde1f8e
+[debug] [2026-06-02T13:09:47.635Z] ----------------------------------------------------------------------
+[debug] [2026-06-02T13:09:47.637Z] Command:       /opt/homebrew/Cellar/node/24.5.0/bin/node /opt/homebrew/bin/firebase apps:sdkconfig IOS 1:926050800011:ios:58456c9815ebb5acde1f8e --project football-fan-hub-2026
+[debug] [2026-06-02T13:09:47.637Z] CLI Version:   15.19.0
+[debug] [2026-06-02T13:09:47.637Z] Platform:      darwin
+[debug] [2026-06-02T13:09:47.637Z] Node Version:  v24.5.0
+[debug] [2026-06-02T13:09:47.637Z] Time:          Tue Jun 02 2026 18:54:47 GMT+0545 (Nepal Time)
+[debug] [2026-06-02T13:09:47.637Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-06-02T13:09:47.714Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-06-02T13:09:47.715Z] > authorizing via signed-in user (mangojuice.m25@gmail.com)
+[debug] [2026-06-02T13:09:47.716Z] Checked if tokens are valid: true, expires at: 1780409354523
+[debug] [2026-06-02T13:09:47.716Z] Checked if tokens are valid: true, expires at: 1780409354523
+[debug] [2026-06-02T13:09:47.717Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/-/iosApps/1:926050800011:ios:58456c9815ebb5acde1f8e/config [none]
+[debug] [2026-06-02T13:09:48.900Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/-/iosApps/1:926050800011:ios:58456c9815ebb5acde1f8e/config 200
+[debug] [2026-06-02T13:09:48.900Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/-/iosApps/1:926050800011:ios:58456c9815ebb5acde1f8e/config {"configFilename":"GoogleService-Info.plist","configFileContents":"PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4KPCFET0NUWVBFIHBsaXN0IFBVQkxJQyAiLS8vQXBwbGUvL0RURCBQTElTVCAxLjAvL0VOIiAiaHR0cDovL3d3dy5hcHBsZS5jb20vRFREcy9Qcm9wZXJ0eUxpc3QtMS4wLmR0ZCI+CjxwbGlzdCB2ZXJzaW9uPSIxLjAiPgo8ZGljdD4KCTxrZXk+QVBJX0tFWTwva2V5PgoJPHN0cmluZz5BSXphU3lEeFpEVHhZajBJbGVCdUY4MFdCamdjLXo5dkp3SGpKdDA8L3N0cmluZz4KCTxrZXk+R0NNX1NFTkRFUl9JRDwva2V5PgoJPHN0cmluZz45MjYwNTA4MDAwMTE8L3N0cmluZz4KCTxrZXk+UExJU1RfVkVSU0lPTjwva2V5PgoJPHN0cmluZz4xPC9zdHJpbmc+Cgk8a2V5PkJVTkRMRV9JRDwva2V5PgoJPHN0cmluZz5jb20ubWFuZ29qdWljZS5mb290YmFsbGZhbmh1YjIwMjY8L3N0cmluZz4KCTxrZXk+UFJPSkVDVF9JRDwva2V5PgoJPHN0cmluZz5mb290YmFsbC1mYW4taHViLTIwMjY8L3N0cmluZz4KCTxrZXk+U1RPUkFHRV9CVUNLRVQ8L2tleT4KCTxzdHJpbmc+Zm9vdGJhbGwtZmFuLWh1Yi0yMDI2LmZpcmViYXNlc3RvcmFnZS5hcHA8L3N0cmluZz4KCTxrZXk+SVNfQURTX0VOQUJMRUQ8L2tleT4KCTxmYWxzZT48L2ZhbHNlPgoJPGtleT5JU19BTkFMWVRJQ1NfRU5BQkxFRDwva2V5PgoJPGZhbHNlPjwvZmFsc2U+Cgk8a2V5PklTX0FQUElOVklURV9FTkFCTEVEPC9rZXk+Cgk8dHJ1ZT48L3RydWU+Cgk8a2V5PklTX0dDTV9FTkFCTEVEPC9rZXk+Cgk8dHJ1ZT48L3RydWU+Cgk8a2V5PklTX1NJR05JTl9FTkFCTEVEPC9rZXk+Cgk8dHJ1ZT48L3RydWU+Cgk8a2V5PkdPT0dMRV9BUFBfSUQ8L2tleT4KCTxzdHJpbmc+MTo5MjYwNTA4MDAwMTE6aW9zOjU4NDU2Yzk4MTVlYmI1YWNkZTFmOGU8L3N0cmluZz4KPC9kaWN0Pgo8L3BsaXN0Pg=="}
+[info] <?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>API_KEY</key>
+	<string>AIzaSyDxZDTxYj0IleBuF80WBjgc-z9vJwHjJt0</string>
+	<key>GCM_SENDER_ID</key>
+	<string>926050800011</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>com.mangojuice.footballfanhub2026</string>
+	<key>PROJECT_ID</key>
+	<string>football-fan-hub-2026</string>
+	<key>STORAGE_BUCKET</key>
+	<string>football-fan-hub-2026.firebasestorage.app</string>
+	<key>IS_ADS_ENABLED</key>
+	<false></false>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false></false>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true></true>
+	<key>IS_GCM_ENABLED</key>
+	<true></true>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true></true>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:926050800011:ios:58456c9815ebb5acde1f8e</string>
+</dict>
+</plist>

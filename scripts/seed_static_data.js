@@ -25,7 +25,10 @@ const fetchFn = global.fetch
 
 const FD_BASE      = 'https://api.football-data.org/v4';
 const COMPETITIONS = ['WC', 'CL', 'EC', 'PL', 'PD', 'BL1', 'SA', 'FL1', 'DED', 'PPL', 'ELC', 'BSA'];
-const BATCH_LIMIT  = 450; // safely under Firestore's 500-op hard cap
+const BATCH_LIMIT     = 450; // safely under Firestore's 500-op hard cap
+const RATE_LIMIT_MS   = 7000; // football-data.org free tier: 10 req/min
+const HTTP_TIMEOUT_MS = 30000;
+const MAX_FD_ATTEMPTS = 3;
 
 if (!process.env.FIREBASE_SA) {
   console.error('FATAL: FIREBASE_SA missing.');
@@ -37,19 +40,50 @@ admin.initializeApp({
 const db  = admin.firestore();
 const NOW = admin.firestore.FieldValue.serverTimestamp;
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 // ─── HTTP ─────────────────────────────────────────────────────────────────────
 async function fdGet(path) {
-  const res = await fetchFn(`${FD_BASE}${path}`, {
-    headers: { 'X-Auth-Token': process.env.FD_TOKEN },
-  });
-  if (!res.ok) {
-    console.warn(`football-data.org ${res.status} on ${path}`);
-    return null;
-  }
-  return res.json();
-}
+  for (let attempt = 1; attempt <= MAX_FD_ATTEMPTS; attempt++) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), HTTP_TIMEOUT_MS);
+    try {
+      const res = await fetchFn(`${FD_BASE}${path}`, {
+        headers: { 'X-Auth-Token': process.env.FD_TOKEN },
+        signal: ctrl.signal,
+      });
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      if (res.status === 429 || res.status >= 500) {
+        console.warn(`football-data.org ${res.status} on ${path} (attempt ${attempt}/${MAX_FD_ATTEMPTS})`);
+        if (attempt < MAX_FD_ATTEMPTS) {
+          await sleep(RATE_LIMIT_MS);
+          continue;
+        }
+        return null;
+      }
+
+      if (!res.ok) {
+        console.warn(`football-data.org ${res.status} on ${path}`);
+        return null;
+      }
+
+      return res.json();
+    } catch (err) {
+      const reason = err?.name === 'AbortError'
+        ? `timeout after ${HTTP_TIMEOUT_MS}ms`
+        : err?.message ?? String(err);
+      console.warn(`football-data.org fetch failed on ${path} (attempt ${attempt}/${MAX_FD_ATTEMPTS}): ${reason}`);
+      if (attempt < MAX_FD_ATTEMPTS) {
+        await sleep(RATE_LIMIT_MS);
+        continue;
+      }
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  return null;
+}
 
 // ─── Chunked commit ───────────────────────────────────────────────────────────
 // A short pause between chunks prevents Firestore RESOURCE_EXHAUSTED bursts

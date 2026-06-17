@@ -229,7 +229,7 @@ class _ProfileSheetState extends State<_ProfileSheet> {
                         textCapitalization: TextCapitalization.words,
                         decoration: InputDecoration(
                           labelText: 'Your name',
-                          hintText: 'e.g. Heman, FootballFan99',
+                          hintText: 'e.g. John, FootballFan99',
                           errorText: _error,
                           prefixIcon: const Icon(Icons.badge_rounded),
                           border: OutlineInputBorder(

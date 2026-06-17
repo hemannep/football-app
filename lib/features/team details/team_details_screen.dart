@@ -132,9 +132,8 @@ class TeamDetailScreen extends ConsumerWidget {
           (g) => g!.teams.any((t) => t.tla == tla),
           orElse: () => null,
         );
-    final teamStanding = teamGroup?.teams
-        .where((t) => t.tla == tla)
-        .firstOrNull;
+    final teamStanding =
+        teamGroup?.teams.where((t) => t.tla == tla).firstOrNull;
 
     int w = 0, d = 0, l = 0, gf = 0, ga = 0;
     int homeW = 0, homeD = 0, homeL = 0;
@@ -149,13 +148,25 @@ class TeamDetailScreen extends ConsumerWidget {
       ga += them;
       if (us > them) {
         w++;
-        if (isHome) { homeW++; } else { awayW++; }
+        if (isHome) {
+          homeW++;
+        } else {
+          awayW++;
+        }
       } else if (us < them) {
         l++;
-        if (isHome) { homeL++; } else { awayL++; }
+        if (isHome) {
+          homeL++;
+        } else {
+          awayL++;
+        }
       } else {
         d++;
-        if (isHome) { homeD++; } else { awayD++; }
+        if (isHome) {
+          homeD++;
+        } else {
+          awayD++;
+        }
       }
     }
 
@@ -258,11 +269,13 @@ class TeamDetailScreen extends ConsumerWidget {
                   if (liveNow.isNotEmpty) ...[
                     Container(
                       margin: const EdgeInsets.fromLTRB(12, 14, 12, 4),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
                         color: AppTheme.live.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: AppTheme.live.withValues(alpha: 0.4)),
+                        border: Border.all(
+                            color: AppTheme.live.withValues(alpha: 0.4)),
                       ),
                       child: const Row(
                         children: [
@@ -290,16 +303,21 @@ class TeamDetailScreen extends ConsumerWidget {
                   // ── Next Match spotlight ─────────────────────────────────
                   if (nextMatch != null) ...[
                     const SectionLabel('NEXT MATCH'),
-                    _NextMatchCard(match: nextMatch, p: p, onTap: () =>
-                      Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => MatchDetailsScreen(match: nextMatch)))),
+                    _NextMatchCard(
+                        match: nextMatch,
+                        p: p,
+                        onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                                builder: (_) =>
+                                    MatchDetailsScreen(match: nextMatch)))),
                   ],
 
                   // ── Recent form (last 5) — hidden until matches are played ─
                   if (last5.isNotEmpty) ...[
-                  const SectionLabel('RECENT FORM'),
+                    const SectionLabel('RECENT FORM'),
                     Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      margin: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 4),
                       padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
                       decoration: BoxDecoration(
                         color: p.surface,
@@ -315,10 +333,16 @@ class TeamDetailScreen extends ConsumerWidget {
                           final us = isHome ? hg : ag;
                           final them = isHome ? ag : hg;
                           final opp = isHome ? m.awayTeam : m.homeTeam;
-                          final res = us > them ? 'W' : us < them ? 'L' : 'D';
+                          final res = us > them
+                              ? 'W'
+                              : us < them
+                                  ? 'L'
+                                  : 'D';
                           final c = res == 'W'
                               ? AppTheme.good
-                              : res == 'L' ? AppTheme.bad : AppTheme.warn;
+                              : res == 'L'
+                                  ? AppTheme.bad
+                                  : AppTheme.warn;
                           return Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
@@ -355,23 +379,32 @@ class TeamDetailScreen extends ConsumerWidget {
                               Stack(
                                 clipBehavior: Clip.none,
                                 children: [
-                                  TeamCrestWidget(crestUrl: opp.crest, tla: opp.tla, size: 20),
+                                  TeamCrestWidget(
+                                      crestUrl: opp.crest,
+                                      tla: opp.tla,
+                                      size: 20),
                                   Positioned(
                                     top: -4,
                                     right: -5,
                                     child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 2.5, vertical: 0.5),
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 2.5, vertical: 0.5),
                                       decoration: BoxDecoration(
-                                        color: isHome ? AppTheme.brand : p.surfaceHi,
+                                        color: isHome
+                                            ? AppTheme.brand
+                                            : p.surfaceHi,
                                         borderRadius: BorderRadius.circular(3),
-                                        border: Border.all(color: p.stroke, width: 0.5),
+                                        border: Border.all(
+                                            color: p.stroke, width: 0.5),
                                       ),
                                       child: Text(
                                         isHome ? 'H' : 'A',
                                         style: TextStyle(
                                             fontSize: 7,
                                             fontWeight: FontWeight.w900,
-                                            color: isHome ? Colors.white : p.textMid),
+                                            color: isHome
+                                                ? Colors.white
+                                                : p.textMid),
                                       ),
                                     ),
                                   ),
@@ -401,8 +434,10 @@ class TeamDetailScreen extends ConsumerWidget {
                   if (playedCount > 0) ...[
                     const SectionLabel('STATS'),
                     Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+                      margin: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 14, horizontal: 12),
                       decoration: BoxDecoration(
                         color: p.surface,
                         borderRadius: BorderRadius.circular(AppTheme.r),
@@ -415,21 +450,31 @@ class TeamDetailScreen extends ConsumerWidget {
                           IntrinsicHeight(
                             child: Row(
                               children: [
-                                Expanded(child: _stat('W', '$w', AppTheme.good, p)),
+                                Expanded(
+                                    child: _stat('W', '$w', AppTheme.good, p)),
                                 VerticalDivider(width: 1, color: p.stroke),
-                                Expanded(child: _stat('D', '$d', AppTheme.warn, p)),
+                                Expanded(
+                                    child: _stat('D', '$d', AppTheme.warn, p)),
                                 VerticalDivider(width: 1, color: p.stroke),
-                                Expanded(child: _stat('L', '$l', AppTheme.bad, p)),
+                                Expanded(
+                                    child: _stat('L', '$l', AppTheme.bad, p)),
                                 VerticalDivider(width: 1, color: p.stroke),
-                                Expanded(child: _stat('GF', '$gf', AppTheme.good, p)),
+                                Expanded(
+                                    child:
+                                        _stat('GF', '$gf', AppTheme.good, p)),
                                 VerticalDivider(width: 1, color: p.stroke),
-                                Expanded(child: _stat('GA', '$ga', AppTheme.bad, p)),
+                                Expanded(
+                                    child: _stat('GA', '$ga', AppTheme.bad, p)),
                                 if (winStreak >= 2) ...[
                                   VerticalDivider(width: 1, color: p.stroke),
-                                  Expanded(child: _stat('🔥 Wins', '$winStreak', AppTheme.good, p)),
+                                  Expanded(
+                                      child: _stat('🔥 Wins', '$winStreak',
+                                          AppTheme.good, p)),
                                 ] else if (streak >= 3) ...[
                                   VerticalDivider(width: 1, color: p.stroke),
-                                  Expanded(child: _stat('Unbeat.', '$streak', AppTheme.brand, p)),
+                                  Expanded(
+                                      child: _stat('Unbeat.', '$streak',
+                                          AppTheme.brand, p)),
                                 ],
                               ],
                             ),
@@ -460,14 +505,23 @@ class TeamDetailScreen extends ConsumerWidget {
                           Row(
                             children: [
                               Text('${(w * 100 / playedCount).round()}% wins',
-                                  style: const TextStyle(fontSize: 10, color: AppTheme.good, fontWeight: FontWeight.w700)),
+                                  style: const TextStyle(
+                                      fontSize: 10,
+                                      color: AppTheme.good,
+                                      fontWeight: FontWeight.w700)),
                               Expanded(
                                 child: Text('$playedCount played',
                                     textAlign: TextAlign.center,
-                                    style: TextStyle(fontSize: 10, color: p.textLow, fontWeight: FontWeight.w600)),
+                                    style: TextStyle(
+                                        fontSize: 10,
+                                        color: p.textLow,
+                                        fontWeight: FontWeight.w600)),
                               ),
                               Text('${(l * 100 / playedCount).round()}% losses',
-                                  style: const TextStyle(fontSize: 10, color: AppTheme.bad, fontWeight: FontWeight.w700)),
+                                  style: const TextStyle(
+                                      fontSize: 10,
+                                      color: AppTheme.bad,
+                                      fontWeight: FontWeight.w700)),
                             ],
                           ),
                           const SizedBox(height: 10),
@@ -478,16 +532,29 @@ class TeamDetailScreen extends ConsumerWidget {
                           IntrinsicHeight(
                             child: Row(
                               children: [
-                                Expanded(child: _stat('GF/Game', gfPerGame.toStringAsFixed(2), AppTheme.good, p)),
+                                Expanded(
+                                    child: _stat(
+                                        'GF/Game',
+                                        gfPerGame.toStringAsFixed(2),
+                                        AppTheme.good,
+                                        p)),
                                 VerticalDivider(width: 1, color: p.stroke),
-                                Expanded(child: _stat('GA/Game', gaPerGame.toStringAsFixed(2), AppTheme.bad, p)),
+                                Expanded(
+                                    child: _stat(
+                                        'GA/Game',
+                                        gaPerGame.toStringAsFixed(2),
+                                        AppTheme.bad,
+                                        p)),
                                 VerticalDivider(width: 1, color: p.stroke),
-                                Expanded(child: _stat('C. Sheets', '$cleanSheets', AppTheme.brand, p)),
+                                Expanded(
+                                    child: _stat('C. Sheets', '$cleanSheets',
+                                        AppTheme.brand, p)),
                               ],
                             ),
                           ),
                           // Home / Away breakdown
-                          if (homeW + homeD + homeL > 0 && awayW + awayD + awayL > 0) ...[
+                          if (homeW + homeD + homeL > 0 &&
+                              awayW + awayD + awayL > 0) ...[
                             const SizedBox(height: 12),
                             Divider(height: 1, color: p.stroke),
                             const SizedBox(height: 10),
@@ -496,14 +563,13 @@ class TeamDetailScreen extends ConsumerWidget {
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
                                   Expanded(
-                                    child: _homeAwayBlock(
-                                        'Home', homeW, homeD, homeL, AppTheme.brand, p),
+                                    child: _homeAwayBlock('Home', homeW, homeD,
+                                        homeL, AppTheme.brand, p),
                                   ),
                                   VerticalDivider(width: 1, color: p.stroke),
                                   Expanded(
-                                    child: _homeAwayBlock(
-                                        'Away', awayW, awayD, awayL,
-                                        const Color(0xFF1E88E5), p),
+                                    child: _homeAwayBlock('Away', awayW, awayD,
+                                        awayL, const Color(0xFF1E88E5), p),
                                   ),
                                 ],
                               ),
@@ -539,8 +605,12 @@ class TeamDetailScreen extends ConsumerWidget {
                     _emptyBlock(p, 'No upcoming matches'),
                   // Squad — show count once loaded
                   Builder(builder: (ctx) {
-                    final count = ref.watch(playersForTeamProvider(teamId))
-                        .asData?.value.length ?? 0;
+                    final count = ref
+                            .watch(playersForTeamProvider(teamId))
+                            .asData
+                            ?.value
+                            .length ??
+                        0;
                     return SectionLabel(count > 0 ? 'SQUAD ($count)' : 'SQUAD');
                   }),
                   _SquadSection(
@@ -692,7 +762,10 @@ class TeamDetailScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 3),
           Text('${(w * 100 / total).round()}% win rate',
-              style: TextStyle(fontSize: 9, color: accentColor, fontWeight: FontWeight.w700)),
+              style: TextStyle(
+                  fontSize: 9,
+                  color: accentColor,
+                  fontWeight: FontWeight.w700)),
         ],
       ],
     );
@@ -702,7 +775,8 @@ class TeamDetailScreen extends ConsumerWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(value,
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: c)),
+              style: TextStyle(
+                  fontSize: 15, fontWeight: FontWeight.w900, color: c)),
           Text(label, style: TextStyle(fontSize: 9, color: p.textLow)),
         ],
       );
@@ -778,7 +852,8 @@ class _NextMatchCard extends StatelessWidget {
   final Match match;
   final Palette p;
   final VoidCallback onTap;
-  const _NextMatchCard({required this.match, required this.p, required this.onTap});
+  const _NextMatchCard(
+      {required this.match, required this.p, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -818,7 +893,8 @@ class _NextMatchCard extends StatelessWidget {
                       letterSpacing: 1),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
                     color: Colors.black.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(20),
@@ -837,7 +913,10 @@ class _NextMatchCard extends StatelessWidget {
                 Expanded(
                   child: Column(
                     children: [
-                      TeamCrestWidget(crestUrl: match.homeTeam.crest, tla: match.homeTeam.tla, size: 40),
+                      TeamCrestWidget(
+                          crestUrl: match.homeTeam.crest,
+                          tla: match.homeTeam.tla,
+                          size: 40),
                       const SizedBox(height: 6),
                       Text(match.homeTeam.name,
                           maxLines: 2,
@@ -861,7 +940,9 @@ class _NextMatchCard extends StatelessWidget {
                               fontSize: 13,
                               fontWeight: FontWeight.w900)),
                       const SizedBox(height: 4),
-                      Text(DateFormat('d MMM\nHH:mm').format(match.utcDate.toLocal()),
+                      Text(
+                          DateFormat('d MMM\nHH:mm')
+                              .format(match.utcDate.toLocal()),
                           textAlign: TextAlign.center,
                           style: const TextStyle(
                               color: Colors.black54,
@@ -874,7 +955,10 @@ class _NextMatchCard extends StatelessWidget {
                 Expanded(
                   child: Column(
                     children: [
-                      TeamCrestWidget(crestUrl: match.awayTeam.crest, tla: match.awayTeam.tla, size: 40),
+                      TeamCrestWidget(
+                          crestUrl: match.awayTeam.crest,
+                          tla: match.awayTeam.tla,
+                          size: 40),
                       const SizedBox(height: 6),
                       Text(match.awayTeam.name,
                           maxLines: 2,
@@ -954,7 +1038,8 @@ class _MiniStandingsCard extends StatelessWidget {
                   ? AppTheme.brand.withValues(alpha: 0.08)
                   : Colors.transparent,
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
                 child: Row(children: [
                   SizedBox(
                     width: 22,
@@ -983,7 +1068,8 @@ class _MiniStandingsCard extends StatelessWidget {
                   _cell('${t.playedGames}', p),
                   _cell('${t.won}', p, color: t.won > 0 ? AppTheme.good : null),
                   _cell('${t.draw}', p),
-                  _cell('${t.lost}', p, color: t.lost > 0 ? AppTheme.bad : null),
+                  _cell('${t.lost}', p,
+                      color: t.lost > 0 ? AppTheme.bad : null),
                   _cell('$gdSign${t.goalDifference}', p,
                       color: t.goalDifference > 0
                           ? AppTheme.good
@@ -1078,7 +1164,8 @@ class _Hero extends StatelessWidget {
               if (coach != null && coach!.isNotEmpty) ...[
                 const SizedBox(height: 4),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                   decoration: BoxDecoration(
                     color: Colors.black.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(20),

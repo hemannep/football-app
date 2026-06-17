@@ -49,12 +49,12 @@ class LiveDataService {
   Box get _box => Hive.box('live_cache');
 
   // ─── TTL constants ────────────────────────────────────────────────────────
-  static const _metaTtl      = Duration(minutes: 2);
-  static const _matchesTtl   = Duration(minutes: 5);
+  static const _metaTtl = Duration(minutes: 2);
+  static const _matchesTtl = Duration(minutes: 5);
   static const _standingsTtl = Duration(minutes: 15);
-  static const _newsTtl      = Duration(minutes: 30);
-  static const _staticTtl    = Duration(hours: 24); // teams / players
-  static const _lineupTtl    = Duration(minutes: 20);
+  static const _newsTtl = Duration(minutes: 30);
+  static const _staticTtl = Duration(hours: 24); // teams / players
+  static const _lineupTtl = Duration(minutes: 20);
 
   // ─── In-memory TTL cache ─────────────────────────────────────────────────
   // Keyed by the same string used for Hive so the two layers are consistent.
@@ -189,7 +189,8 @@ class LiveDataService {
     if (cached is Map) {
       return RelayMeta.fromJson(Map<String, dynamic>.from(cached));
     }
-    return const RelayMeta(liveMatchIds: [], lastRunIso: null, windowOpen: false);
+    return const RelayMeta(
+        liveMatchIds: [], lastRunIso: null, windowOpen: false);
   }
 
   // ─── Matches ──────────────────────────────────────────────────────────────
@@ -304,11 +305,8 @@ class LiveDataService {
   /// Real-time single-doc stream for the match detail screen.
   /// Kept as snapshots() intentionally — 1 read per relay push, justified.
   Stream<Map<String, dynamic>?> watchMatchRaw(int matchId) {
-    return _db
-        .collection('matches')
-        .doc(matchId.toString())
-        .snapshots()
-        .map((doc) => doc.exists
+    return _db.collection('matches').doc(matchId.toString()).snapshots().map(
+        (doc) => doc.exists
             ? (_toJsonSafe(doc.data()) as Map<String, dynamic>)
             : null);
   }
@@ -362,8 +360,7 @@ class LiveDataService {
 
     // Firestore get()
     try {
-      final doc =
-          await _db.collection('lineups').doc(matchId.toString()).get();
+      final doc = await _db.collection('lineups').doc(matchId.toString()).get();
       if (doc.exists) {
         final safe = _toJsonSafe(doc.data()) as Map<String, dynamic>;
         _cache(key, safe);
@@ -482,7 +479,8 @@ class LiveDataService {
     return [];
   }
 
-  Stream<List<GroupTable>> watchStandingsByLeague(String competitionCode) async* {
+  Stream<List<GroupTable>> watchStandingsByLeague(
+      String competitionCode) async* {
     yield await getStandingsByLeague(competitionCode);
     while (true) {
       await Future.delayed(_standingsTtl);
@@ -550,7 +548,8 @@ class LiveDataService {
     if (age != null && age < _staticTtl.inMilliseconds) {
       final cached = _readCache(key);
       if (cached is List) {
-        final list = cached.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        final list =
+            cached.map((e) => Map<String, dynamic>.from(e as Map)).toList();
         _memPut(key, list, _staticTtl);
         return list;
       }
@@ -759,7 +758,7 @@ final standingsByLeagueProvider =
 /// non-live matches do a cached get() instead of keeping a persistent listener.
 final matchStreamProvider = StreamProvider.family.autoDispose<Match?, Match>(
   (ref, m) {
-    final svc  = ref.watch(liveDataServiceProvider);
+    final svc = ref.watch(liveDataServiceProvider);
     final live = m.isLive || m.status == 'PAUSED';
     return svc.watchMatchRawSmart(m.id, live).map((raw) {
       if (raw == null) return null;
@@ -806,14 +805,13 @@ final lineupProvider = FutureProvider.family<Map<String, dynamic>?, int>(
 
 class FirestoreReadCounter {
   static const _kCount = 'frc_count';
-  static const _kDate  = 'frc_date';
+  static const _kDate = 'frc_date';
   static const _warnAt = 40000;
   static const _stopAt = 48000;
 
   static Box get _box => Hive.box('live_cache');
 
-  static String get _today =>
-      DateTime.now().toIso8601String().substring(0, 10);
+  static String get _today => DateTime.now().toIso8601String().substring(0, 10);
 
   static void _resetIfNewDay() {
     if (_box.get(_kDate) != _today) {
@@ -834,5 +832,5 @@ class FirestoreReadCounter {
   }
 
   static bool get isApproachingLimit => todayCount >= _warnAt;
-  static bool get isCritical         => todayCount >= _stopAt;
+  static bool get isCritical => todayCount >= _stopAt;
 }

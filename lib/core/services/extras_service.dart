@@ -318,8 +318,7 @@ class JerseyColors {
   final String? secondary;
   const JerseyColors({this.primary, this.secondary});
 
-  Map<String, dynamic> toJson() =>
-      {'primary': primary, 'secondary': secondary};
+  Map<String, dynamic> toJson() => {'primary': primary, 'secondary': secondary};
 
   factory JerseyColors.fromJson(Map<String, dynamic> j) => JerseyColors(
         primary: j['primary'] as String?,
@@ -352,8 +351,7 @@ class MatchFunFact {
   final String sentence;
   const MatchFunFact({required this.typeId, required this.sentence});
 
-  Map<String, dynamic> toJson() =>
-      {'typeId': typeId, 'sentence': sentence};
+  Map<String, dynamic> toJson() => {'typeId': typeId, 'sentence': sentence};
 
   factory MatchFunFact.fromJson(Map<String, dynamic> j) => MatchFunFact(
         typeId: (j['typeId'] ?? j['type_id'] ?? 0) as int,
@@ -372,8 +370,7 @@ class MatchMetadata {
     this.jerseys,
   });
 
-  bool get isEmpty =>
-      funfacts.isEmpty && aiPreview == null && jerseys == null;
+  bool get isEmpty => funfacts.isEmpty && aiPreview == null && jerseys == null;
 
   Map<String, dynamic> toJson() => {
         'funfacts': funfacts.map((f) => f.toJson()).toList(),

@@ -13,22 +13,24 @@ import '../services/api_service.dart';
 import '../services/live_data_service.dart';
 import '../../shared/models/match.dart';
 
-final matchGoalsProvider =
-    FutureProvider.family.autoDispose<Match?, int>((ref, matchId) async {
+typedef MatchGoalsRequest = ({int matchId, bool isFinished});
+
+final matchGoalsProvider = FutureProvider.family
+    .autoDispose<Match?, MatchGoalsRequest>((ref, req) async {
   // Individual FD endpoint includes goals, bookings, substitutions, referees.
   final raw = await ApiService.fetchMatchDetailsRaw(
-    matchId,
-    isFinished: true,
+    req.matchId,
+    isFinished: req.isFinished,
   );
   if (raw != null) {
     try {
       // Ensure required fields before parsing into Match model.
       final m = Map<String, dynamic>.from(raw);
       m['competition'] ??= <String, dynamic>{'code': 'UNK', 'name': 'Unknown'};
-      m['utcDate']     ??= DateTime.now().toUtc().toIso8601String();
+      m['utcDate'] ??= DateTime.now().toUtc().toIso8601String();
       return Match.fromJson(m);
     } catch (_) {}
   }
   // Fallback: Firestore match doc (goals may be empty but at least has score).
-  return LiveDataService.instance.getMatch(matchId);
+  return LiveDataService.instance.getMatch(req.matchId);
 });

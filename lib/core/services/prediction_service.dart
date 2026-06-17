@@ -165,16 +165,16 @@ class CommunityStats {
 // ─── Service ─────────────────────────────────────────────────────────────────
 
 // Hive TTL keys for cached Firestore reads (avoids persistent snapshots()).
-const _kMyPredsAt  = 'ps_my_preds_at';
+const _kMyPredsAt = 'ps_my_preds_at';
 const _kCommStatsPrefix = 'ps_comm_';
-const _kLbKey  = 'ps_leaderboard';
-const _kLbAt   = 'ps_leaderboard_at';
+const _kLbKey = 'ps_leaderboard';
+const _kLbAt = 'ps_leaderboard_at';
 const _kMyPredsListKey = 'ps_my_preds_list';
 
 // TTLs (ms)
-const _kMyPredsTtl   = 10 * 60 * 1000; // 10 min
-const _kCommStatsTtl =  5 * 60 * 1000; //  5 min
-const _kLbTtl        = 15 * 60 * 1000; // 15 min
+const _kMyPredsTtl = 10 * 60 * 1000; // 10 min
+const _kCommStatsTtl = 5 * 60 * 1000; //  5 min
+const _kLbTtl = 15 * 60 * 1000; // 15 min
 
 class PredictionService {
   PredictionService._();
@@ -341,8 +341,8 @@ class PredictionService {
     if (hiveRaw != null) {
       try {
         final list = (jsonDecode(hiveRaw as String) as List)
-            .map((e) => UserPrediction.fromMap(
-                Map<String, dynamic>.from(e as Map)))
+            .map((e) =>
+                UserPrediction.fromMap(Map<String, dynamic>.from(e as Map)))
             .toList();
         yield list;
       } catch (_) {}
@@ -350,8 +350,7 @@ class PredictionService {
 
     // Respect TTL — skip Firestore if cache is fresh.
     final at = box.get(_kMyPredsAt) as int?;
-    final age = at == null ? null
-        : DateTime.now().millisecondsSinceEpoch - at;
+    final age = at == null ? null : DateTime.now().millisecondsSinceEpoch - at;
     if (age != null && age < _kMyPredsTtl) return;
 
     try {
@@ -360,8 +359,7 @@ class PredictionService {
       final preds =
           snap.docs.map((d) => UserPrediction.fromMap(d.data())).toList();
       await box.put(
-          _kMyPredsListKey,
-          jsonEncode(preds.map((p) => p.toMap()).toList()));
+          _kMyPredsListKey, jsonEncode(preds.map((p) => p.toMap()).toList()));
       await box.put(_kMyPredsAt, DateTime.now().millisecondsSinceEpoch);
       yield preds;
     } catch (_) {}
@@ -378,7 +376,7 @@ class PredictionService {
   Stream<CommunityStats> communityStatsStream(String matchKey) async* {
     final box = Hive.box('predictions');
     final cacheKey = '$_kCommStatsPrefix$matchKey';
-    final cacheAt  = '${cacheKey}_at';
+    final cacheAt = '${cacheKey}_at';
 
     final hiveRaw = box.get(cacheKey);
     if (hiveRaw != null) {
@@ -389,8 +387,7 @@ class PredictionService {
     }
 
     final at = box.get(cacheAt) as int?;
-    final age = at == null ? null
-        : DateTime.now().millisecondsSinceEpoch - at;
+    final age = at == null ? null : DateTime.now().millisecondsSinceEpoch - at;
     if (age != null && age < _kCommStatsTtl) return;
 
     try {
@@ -411,36 +408,44 @@ class PredictionService {
 
   Stream<List<LeaderboardEntry>> leaderboardStream() async* {
     final box = Hive.box('predictions');
+    var emitted = false;
 
     final hiveRaw = box.get(_kLbKey);
     if (hiveRaw != null) {
       try {
         final list = (jsonDecode(hiveRaw as String) as List)
-            .map((e) => LeaderboardEntry.fromMap(
-                Map<String, dynamic>.from(e as Map)))
+            .map((e) =>
+                LeaderboardEntry.fromMap(Map<String, dynamic>.from(e as Map)))
             .toList();
         yield list;
+        emitted = true;
       } catch (_) {}
     }
 
     final at = box.get(_kLbAt) as int?;
-    final age = at == null ? null
-        : DateTime.now().millisecondsSinceEpoch - at;
-    if (age != null && age < _kLbTtl) return;
+    final age = at == null ? null : DateTime.now().millisecondsSinceEpoch - at;
+    if (age != null && age < _kLbTtl) {
+      if (!emitted) yield const [];
+      return;
+    }
 
     try {
       final snap = await _db
           .collection('leaderboard')
           .orderBy('totalPoints', descending: true)
           .limit(50)
-          .get();
+          .get()
+          .timeout(const Duration(seconds: 12));
       final entries =
           snap.docs.map((d) => LeaderboardEntry.fromMap(d.data())).toList();
       await box.put(
           _kLbKey, jsonEncode(snap.docs.map((d) => d.data()).toList()));
       await box.put(_kLbAt, DateTime.now().millisecondsSinceEpoch);
       yield entries;
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('PredictionService.leaderboardStream error: $e');
+      if (!emitted) yield const [];
+    }
   }
 
   // ── Set a display name (optional, users can personalise) ─────────────────

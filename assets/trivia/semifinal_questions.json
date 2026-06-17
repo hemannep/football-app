@@ -7,7 +7,7 @@
       "id": "sf001",
       "category": "stage_history",
       "difficulty": "medium",
-      "q": "What was the score of the 2014 World Cup semi-final between Brazil and Germany?",
+      "q": "What was the score of the 2014 global football tournament semi-final between Brazil and Germany?",
       "options": ["3-1", "5-2", "7-1", "4-0"],
       "correct": 2,
       "explanation": "Germany shocked Brazil 7-1 in Belo Horizonte."
@@ -16,7 +16,7 @@
       "id": "sf002",
       "category": "stage_history",
       "difficulty": "easy",
-      "q": "Which African team first reached a World Cup semi-final?",
+      "q": "Which African team first reached a global football tournament semi-final?",
       "options": ["Senegal", "Ghana", "Cameroon", "Morocco"],
       "correct": 3,
       "explanation": "Morocco reached the SF in 2022."
@@ -25,10 +25,10 @@
       "id": "sf003",
       "category": "stage_history",
       "difficulty": "medium",
-      "q": "Which country has lost the most World Cup semi-finals?",
+      "q": "Which country has lost the most global football tournament semi-finals?",
       "options": ["Netherlands", "Sweden", "Uruguay", "England"],
       "correct": 0,
-      "explanation": "The Netherlands have lost the most World Cup semi-finals."
+      "explanation": "The Netherlands have lost the most global football tournament semi-finals."
     },
     {
       "id": "sf004",
@@ -43,7 +43,7 @@
       "id": "sf005",
       "category": "general_football",
       "difficulty": "medium",
-      "q": "Which country has the most World Cup runner-up finishes?",
+      "q": "Which country has the most global football tournament runner-up finishes?",
       "options": ["Argentina", "Germany", "Netherlands", "Hungary"],
       "correct": 1,
       "explanation": "Germany has the most runner-up finishes."
@@ -52,7 +52,7 @@
       "id": "sf006",
       "category": "general_football",
       "difficulty": "hard",
-      "q": "Who scored Italy's winning penalty in the 2006 World Cup final shootout?",
+      "q": "Who scored Italy's winning penalty in the 2006 global football tournament final shootout?",
       "options": ["Andrea Pirlo", "Fabio Grosso", "Alessandro Del Piero", "Marco Materazzi"],
       "correct": 1
     },
@@ -77,7 +77,7 @@
       "id": "sf009",
       "category": "general_football",
       "difficulty": "medium",
-      "q": "Which player has played the most World Cup matches?",
+      "q": "Which player has played the most global football tournament matches?",
       "options": ["Cristiano Ronaldo", "Lionel Messi", "Lothar Matthäus", "Paolo Maldini"],
       "correct": 1,
       "explanation": "Messi overtook Matthäus during the 2022 tournament."
@@ -86,7 +86,7 @@
       "id": "sf010",
       "category": "general_football",
       "difficulty": "hard",
-      "q": "Which country was the host of the 1958 World Cup that Brazil first won?",
+      "q": "Which country was the host of the 1958 global football tournament that Brazil first won?",
       "options": ["Switzerland", "Sweden", "Chile", "England"],
       "correct": 1
     }

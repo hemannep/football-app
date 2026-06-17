@@ -134,33 +134,40 @@ class _BracketScreenState extends ConsumerState<BracketScreen> {
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 12, 8),
-              child: Row(
+              padding: const EdgeInsets.fromLTRB(16, 16, 4, 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Bracket',
-                            style: TextStyle(
-                                fontSize: 26,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: -0.5,
-                                color: p.textHi)),
-                        Text('Pick winners — ${league.name}',
-                            style: TextStyle(color: p.textMid, fontSize: 12)),
-                      ],
-                    ),
+                  // Title row: "Bracket" + action buttons
+                  Row(
+                    children: [
+                      Text('Bracket',
+                          style: TextStyle(
+                              fontSize: 26,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: -0.5,
+                              color: p.textHi)),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.auto_awesome_rounded),
+                        onPressed: _autoFill,
+                        color: AppTheme.brand,
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.refresh_rounded),
+                        onPressed: () => setState(_reset),
+                      ),
+                    ],
                   ),
-                  const LeaguePickerChip(),
-                  IconButton(
-                    icon: const Icon(Icons.auto_awesome_rounded),
-                    onPressed: _autoFill,
-                    color: AppTheme.brand,
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.refresh_rounded),
-                    onPressed: () => setState(_reset),
+                  // Subtitle row: label + league picker
+                  Row(
+                    children: [
+                      Text('Pick winners',
+                          style: TextStyle(color: p.textMid, fontSize: 12)),
+                      const Spacer(),
+                      const LeaguePickerChip(),
+                      const SizedBox(width: 8),
+                    ],
                   ),
                 ],
               ),
@@ -343,7 +350,8 @@ class _ChampionCard extends StatelessWidget {
                 const SizedBox(height: 2),
                 Row(
                   children: [
-                    TeamCrestWidget(crestUrl: team.crest, tla: team.tla, size: 24),
+                    TeamCrestWidget(
+                        crestUrl: team.crest, tla: team.tla, size: 24),
                     const SizedBox(width: 8),
                     Flexible(
                       child: Text(team.name,
